@@ -66,6 +66,33 @@ function prop(p, o) {
 	
 }
 
+
+function eventBus(p, o) {
+	
+	
+	for(var i in o) {
+		
+		new Function(["p","i"], `
+		
+		p._${i}Calls=[]
+		p.${i}=function() {
+			var a=this._${i}Calls
+			var l=a.length
+			for(var ii= 0;ii<l;ii++) {
+				a[ii](...arguments)
+			}
+			
+		}
+		p.${i}Add=function(func) {
+			p._${i}Calls.push(func)
+		}
+		
+		`)(p,i)
+	}
+	
+}
+
+
 var B =mclass({
 	
 	
@@ -88,6 +115,10 @@ var B =mclass({
 				onPropsChange:true
 			}
 		})
+		eventBus(p,{
+			onClick:true
+		})
+		
 	},
 	prototype:{
 		init() {
@@ -100,7 +131,7 @@ var B =mclass({
 
 
 var b= new B()
-b.onSizeChangeAdd((i,v)=>{
+b.onPropsChangeAdd((i,v)=>{
 	console.log(i+" "+v)
 	
 })
