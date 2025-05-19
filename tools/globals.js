@@ -1,3 +1,7 @@
+
+globalThis.defineProp = Object.defineProperty
+
+
 globalThis.getAllKeys = function (source, ignore) {
     var stringKeys = Object.getOwnPropertyNames(source)
     var symbolKeys = Object.getOwnPropertySymbols(source)
@@ -197,7 +201,7 @@ globalThis.mclass = function (def) {
 
                 if (expandable[key]) funce[key] = true
                 else funce[key] = false
-            }
+            }//end for loop
 
             deepSet(allKeys, dc.prototype, source.prototype, expandable)
 
@@ -206,7 +210,11 @@ globalThis.mclass = function (def) {
                     needed[i] = source.needed[i]
                 }
             }
-        }
+			
+			if(source.templates !== undefined) {
+				source.templates(dc.prototype)
+			}
+        }//end source for loop
     }
 
     {
@@ -232,6 +240,10 @@ globalThis.mclass = function (def) {
             //check overrides
             deepSet(allKeys, dc, def)
         }
+		
+		if(def.templates !== undefined) {
+			def.templates(dc.prototype)
+		}
 
         if (def.needed != undefined) {
             for (var i in def.needed) {
