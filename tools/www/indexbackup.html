@@ -23,6 +23,12 @@
         }
     </script>
     <script type="text/plain" id ="mycode">
+
+
+        function printthis()
+        {
+            console.log("print this")
+        }
         blclass Try1
         {
             x: 123;
@@ -39,11 +45,11 @@
             }
             printx()
             {
-                alert(this.x);
+                console.log(this.x);
             }
             printy()
             {
-                alert(this.y);
+                console.log(this.y);
             }
         }
        
@@ -64,14 +70,31 @@
             }
         }
 
-        blclass Try2 extends Try1, out1
+        blclass out2
+        {
+            a: 0;
+            b: 0;
+            out2()
+            {
+                
+            }
+            func1()
+            {
+                console.log("out2 log ")
+            }
+        }
+
+        blclass Try2 extends Try1, out1, out2
         {
             title: "hi there"
-            Try2()
+            Try2(maybe)
             {
+                console.log("maybe here 1")
                 Try1();
                 out1(222, 333);
+                out2();
                 this.title += " and more";
+                
             }
             printout()
             {
@@ -79,6 +102,9 @@
                 this.printy();
                 this.printtitle();
                 this.func("an argument");
+                this.func1();
+                printthis();
+
             }
             printtitle()
             {
@@ -91,20 +117,18 @@
     <script id="compile">
         function compileAndRunBaselineClass(sourceCode) {
             let generatedJS = ""; // This will be built up.
-
-            globalThis.deepclone = 
-function (obj, hash = new WeakMap()) {
-    if (obj === null || typeof obj !== 'object') return obj;
-    if (hash.has(obj)) return hash.get(obj); // Cyclic reference
-    const clone = Array.isArray(obj) ? [] : {};
-    hash.set(obj, clone);
-    for (const key in obj) {
-        if (Object.prototype.hasOwnProperty.call(obj, key)) {
-            clone[key] = deepclone(obj[key], hash);
-        }
-    }
-    return clone;
-};
+            globalThis.deepclone = function (obj, hash = new WeakMap()) {
+                if (obj === null || typeof obj !== 'object') return obj;
+                if (hash.has(obj)) return hash.get(obj); // Cyclic reference
+                const clone = Array.isArray(obj) ? [] : {};
+                hash.set(obj, clone);
+                for (const key in obj) {
+                    if (Object.prototype.hasOwnProperty.call(obj, key)) {
+                        clone[key] = deepclone(obj[key], hash);
+                    }
+                }
+                return clone;
+            };
             //generatedJS += deepCloneFunc;
             
             const allParsedClasses = {};
