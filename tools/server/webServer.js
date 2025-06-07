@@ -131,7 +131,7 @@ class HttpResponse {
         }
     }
 
-    text(message, code) {
+    text(msg, code) {
         
         this.response.writeHead(code, HttpResponse.#txtHead)
         this.response.write(msg)

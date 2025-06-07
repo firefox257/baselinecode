@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WAT to Wasm with libwabt.js</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        pre { background-color: #f4f4f4; padding: 10px; border-radius: 5px; white-space: pre-wrap; word-wrap: break-word; }
+        .output { margin-top: 20px; border: 1px solid #ccc; padding: 10px; }
+    </style>
+</head>
+<body>
+    <h1>WAT to Wasm Conversion Example</h1>
+    <p>Open your browser's developer console to see the detailed output.</p>
+
+    <div class="output" id="outputArea">
+        <p><strong>Status:</strong> <span id="status">Loading WABT...</span></p>
+        <p><strong>WAT Input:</strong></p>
+        <pre id="watInput"></pre>
+        <p><strong>Wasm Binary (first 50 bytes):</strong></p>
+        <pre id="wasmOutput">Waiting for conversion...</pre>
+        <p><strong>Binary Size:</strong> <span id="binarySize">N/A</span></p>
+    </div>
+
+    <!--
+      Make sure wabt.js is in the same directory or provide the correct path.
+      Some versions of wabt.js might also require wabt.wasm in the same directory.
+    -->
+    <script src="libwabt.js"></script>
+    <script>
+        const watInputDisplay = document.getElementById('watInput');
+        const wasmOutputDisplay = document.getElementById('wasmOutput');
+        const binarySizeDisplay = document.getElementById('binarySize');
+        const statusDisplay = document.getElementById('status');
+
+        // Example WAT string (a simple function that adds two i32 numbers)
+        const myWat = `
+(module
+  (func $add (param $a i32) (param $b i32) (result i32)
+    local.get $a
+    local.get $b
+    i32.add)
+  (export "add" (func $add))
+)
+`;
+        watInputDisplay.textContent = myWat.trim();
+
+        async function convertWatToWasm(wabt, watString) {
+            let module; // Declare module here to access it in finally
+            try {
+                statusDisplay.textContent = "Parsing WAT...";
+                // Parse the WebAssembly Text Format (WAT)
+                module = wabt.parseWat("example.wat", watString);
+                console.log("WAT parsed successfully.");
+
+                statusDisplay.textContent = "Resolving names and validating...";
+                // Resolve names and check for errors
+                module.resolveNames();
+                module.validate();
+                console.log("Module validated.");
+
+                statusDisplay.textContent = "Converting to binary...";
+                // Get the binary representation
+                const { buffer, log } = module.toBinary({ log: true, write_debug_names: true });
+
+                if (log) {
+                    console.log("Conversion log:", log);
+                }
+
+                // The 'buffer' is a Uint8Array containing the Wasm binary
+                console.log("Wasm Binary (Uint8Array):", buffer);
+                console.log("Binary size:", buffer.length, "bytes");
+
+                wasmOutputDisplay.textContent = `[${buffer.slice(0, 50).join(', ')}${buffer.length > 50 ? ', ...' : ''}]`;
+                binarySizeDisplay.textContent = `${buffer.length} bytes`;
+                statusDisplay.textContent = "Conversion successful!";
+
+                return buffer;
+            } catch (e) {
+                console.error("Error during WAT to Wasm conversion:", e);
+                statusDisplay.textContent = `Error: ${e.message}`;
+                wasmOutputDisplay.textContent = "Error during conversion.";
+                binarySizeDisplay.textContent = "N/A";
+                return null;
+            } finally {
+                // Clean up the module if it exists
+                if (module) {
+                    module.destroy();
+                    console.log("WABT module destroyed.");
+                }
+            }
+        }
+
+        // WabtModule is loaded globally by wabt.js
+        WabtModule().then(wabt => {
+            console.log("WABT Module loaded.");
+            statusDisplay.textContent = "WABT loaded. Starting conversion...";
+
+            convertWatToWasm(wabt, myWat).then(wasmBinary => {
+                if (wasmBinary) {
+                    console.log("Conversion process finished successfully in HTML page.");
+                    // Example of how to instantiate and use the Wasm module
+                    WebAssembly.instantiate(wasmBinary)
+                        .then(result => {
+                            console.log("Instantiated Wasm module exports:", result.instance.exports);
+                            const sum = result.instance.exports.add(15, 27);
+                            console.log("15 + 27 =", sum); // Output: 42
+                            statusDisplay.textContent = `Conversion successful! Test: 15 + 27 = ${sum}`;
+                        })
+                        .catch(err => {
+                            console.error("Error instantiating Wasm module:", err);
+                            statusDisplay.textContent = `Conversion successful, but instantiation failed: ${err.message}`;
+                        });
+                } else {
+                    console.log("Conversion process failed in HTML page.");
+                    statusDisplay.textContent = "Conversion failed. Check console for errors.";
+                }
+            });
+        }).catch(err => {
+            console.error("Failed to load WabtModule:", err);
+            statusDisplay.textContent = "Failed to load WABT. Check console.";
+            wasmOutputDisplay.textContent = "WABT loading failed.";
+        });
+    </script>
+</body>
+</html>
