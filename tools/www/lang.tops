@@ -1,0 +1,97 @@
+
+#+ is public
+#- is protected
+#-- is private
+
+
+#g mygroup;
+#u list, of, names;
+#i include file;
+
+is class define have to have class 
+defined to set if itis bublic or not
+$c+  try1;
+
+//enum
+$e+ types;
+zero;
+one;
+two;
+three;
+
+@+ try1  svars;
+ uint2 x;
+
+@+ try1  bvars;
+uint4 y;
+
+@-- try1  uvars;
+uint4 y;
+
+@+ try1 fi;
+ 
+:new()
+{
+	
+}
+
+:new(try1 t1)
+{
+
+}
+
+:unref()
+{
+}
+
+:delete()
+{
+}
+:copy(try1 t1)
+{
+…
+}
+:equals(try t1)
+{
+
+
+}
+
+void func()
+{
+	types	:zero;
+
+	
+	{int4 i = 0;
+		loop
+		{
+			i++;
+			if(i>=100) break;
+		}
+	}
+
+	
+	
+}
+
+
+@+  try1 fs;
+: init()
+{
+
+}
+:end()
+{
+	
+}
+void init()
+{
+
+
+}
+
+
+used at end of file since no other can change state
+@end
+
+if end of file, state ends as if @end was added
