@@ -5,11 +5,17 @@
 
 
 #g mygroup;
-#u list, of, names;
+#u list, of, names;// use groups
 #i include file;
 
-is class define have to have class 
-defined to set if itis bublic or not
+
+$f+ // define outer functions
+void func() {
+	
+}
+
+//class define have to have class 
+//defined to set if itis public or not
 $c+  try1;
 
 //enum
@@ -22,40 +28,46 @@ three;
 @+ try1  svars;
  uint2 x;
 
-@+ try1  bvars;
+@+ try1  ivars;
 uint4 y;
 
-@-- try1  uvars;
-uint4 y;
+@- try1 ivars;//for protected
+
+uint4 ii;
+
+@-- try1 ivars;//for private
+
+
+//not do
+//@-- try1  uvars;
+//uint4 y
 
 @+ try1 fi;
  
-:new()
+:()//for new
 {
 	
 }
 
-:new(try1 t1)
+:(try1 t1)//for new copy
 {
 
 }
 
-:unref()
+:~()//unref
 {
 }
 
-:delete()
+:~~()//delete
 {
 }
-:copy(try1 t1)
-{
-…
-}
-:equals(try t1)
+
+:=(try t1)//for operator overloading
 {
 
 
 }
+:>=(try1 t1)
 
 void func()
 {
@@ -75,16 +87,16 @@ void func()
 }
 
 
-@+  try1 fs;
-: init()
+@+  try1 fs;//class static
+:()// start called when app starts
 {
 
 }
-:end()
+:~()// ends called when app ends
 {
 	
 }
-void init()
+void init()// is the static try1 function name init
 {
 
 

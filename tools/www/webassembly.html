@@ -35,7 +35,8 @@
         const statusDisplay = document.getElementById('status');
 
         // Example WAT string (a simple function that adds two i32 numbers)
-        const myWat = `
+  /*      
+		const myWat = `
 (module
   (func $add (param $a i32) (param $b i32) (result i32)
     local.get $a
@@ -43,7 +44,36 @@
     i32.add)
   (export "add" (func $add))
 )
+`;*/
+
+
+const myWat = `
+(module
+  (import "env" "print" (func $hostPrint (param i32)))
+  
+  (func $add (param $a i32) (param $b i32) (result i32)
+    local.get $a
+    local.get $b
+    i32.add
+  )
+  (export "add" (func $add))
+
+  (func $calculateAndPrint (param $x i32) (param $y i32) 
+  
+    local.get $x
+    local.get $y
+    call $add 
+    call $hostPrint
+  )
+  (export "calculateAndPrint" (func $calculateAndPrint) )
+)
 `;
+
+
+function print(i) {
+	alert(i);
+}
+
         watInputDisplay.textContent = myWat.trim();
 
         async function convertWatToWasm(wabt, watString) {
@@ -101,10 +131,19 @@
                 if (wasmBinary) {
                     console.log("Conversion process finished successfully in HTML page.");
                     // Example of how to instantiate and use the Wasm module
-                    WebAssembly.instantiate(wasmBinary)
+					
+					var env={
+						env:{
+							print:print
+						}
+					}
+					
+                    WebAssembly.instantiate(wasmBinary, env)
                         .then(result => {
                             console.log("Instantiated Wasm module exports:", result.instance.exports);
                             const sum = result.instance.exports.add(15, 27);
+							
+							result.instance.exports.calculateAndPrint(15, 27);
                             console.log("15 + 27 =", sum); // Output: 42
                             statusDisplay.textContent = `Conversion successful! Test: 15 + 27 = ${sum}`;
                         })

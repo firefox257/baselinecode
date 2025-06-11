@@ -103,20 +103,25 @@
 			class Tops{
 				wabt=null;
 				memory=null;
-				_importObj=null;
-				constructor(memSize) {
-					var self = this;
+				importObj=null;
+				constructor() {
 					
-					(async ()=> {
-						var ms=(memSize/65536)+1;
-						self._init()
-						self.memory=new WebAssembly.Memory({ 
+				}
+				async init(memSize) {
+					var self = this;
+					var ms=(memSize/65536)+1;
+					self._init()
+					self.memory=new WebAssembly.Memory({ 
 						initial: ms, 
 						maximum: 65536, 
 						shared: true 
-						});
-						self.wabt=await WabtModule();
-					})()
+					});
+					self.wabt=await WabtModule();
+					self.importObject={
+						env:{
+							memory:self.memory
+						}
+					}
 				}
 				async compileAsm(watString) {
 					
@@ -143,6 +148,14 @@
 				}
 				compileTops(topString) {
 					throw new Error("Todo tops compiler..")
+				}
+				async loadWasm(file) {
+					var self = this;
+					const obj = await WebAssembly.instantiateStreaming(fetch(file), self.importObj);
+					var ex=obj.instance.exports;
+					
+					
+					
 				}
 				
 				
