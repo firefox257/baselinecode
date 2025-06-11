@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Code Editor</title>
+    <style>
+        textarea[code] {
+            font-family: monospace;
+            /* CSS rule for tab character display width */
+            tab-size: 4;
+            -moz-tab-size: 4; /* Firefox */
+            /* Preserve whitespace and tabs, allow horizontal scrolling for long lines */
+            white-space: pre;
+            width: 90%;
+            min-height: 150px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 10px;
+            display: block; /* Ensure textareas are block elements */
+        }
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+        }
+        button {
+            padding: 8px 15px;
+            margin-top: 10px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>HTML/JS Code Editor</h1>
+
+    <p>This textarea has the <code>code</code> attribute and will get editor functionality:</p>
+    <textarea code id="editor1">
+function greet(name) {
+    if (name) {
+        console.log("Hello, " + name + "!");
+    } else {
+        console.log("Hello there!");
+    }
+    // Try typing Enter after an opening bracket
+    // Or type a closing bracket on an indented line
+}
+    </textarea>
+
+    <p>Another textarea with the <code>code</code> attribute:</p>
+    <textarea code id="editor2">
+// Initial content for the second editor
+// Tabs and auto-indent should work here too.
+// {
+//     (
+//         [
+//         ]
+//     )
+// }
+    </textarea>
+
+    <button id="addTextareaBtn">Add Dynamic Textarea</button>
+
+    <script>
+        function initializeCodeEditor(textarea) {
+            if (textarea.__codeEditorInitialized) return;
+
+            // Ensure __XrealText is initialized. It will store text with actual tab characters.
+            // textarea.value will also store actual tabs due to our direct manipulation.
+            textarea.__XrealText = textarea.value;
+
+            textarea.addEventListener('input', () => {
+                // Fired after value changes from typing, paste, cut (not from execCommand typically)
+                textarea.__XrealText = textarea.value;
+            });
+
+            textarea.addEventListener('keydown', (event) => {
+                if (event.key === 'Tab') {
+                    event.preventDefault();
+                    // Using execCommand for better undo/redo stack integration
+                    document.execCommand('insertText', false, '\t');
+                    textarea.__XrealText = textarea.value; // Update after modification
+                } else if (event.key === 'Enter') {
+                    event.preventDefault();
+                    handleEnterKey(textarea); // Modifies value and __XrealText
+                } else if (['}', ')', ']'].includes(event.key)) {
+                    // Handle auto-unindent for closing brackets.
+                    // setTimeout allows the character to be inserted first by default browser action.
+                    handleClosingBracketKey(textarea);
+                }
+                // For other keys, default action occurs. 'input' event handles __XrealText.
+            });
+
+            textarea.__codeEditorInitialized = true;
+            // console.log(`Code editor initialized for:`, textarea.id || textarea);
+        }
+
+        function handleEnterKey(textarea) {
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const value = textarea.value;
+
+            const textBeforeCursor = value.substring(0, start);
+            const currentLineStartPos = textBeforeCursor.lastIndexOf('\n') + 1;
+            
+            // Determine current line's actual tab-based indentation
+            const fullCurrentLineText = value.substring(currentLineStartPos, 
+                value.indexOf('\n', currentLineStartPos) === -1 ? value.length : value.indexOf('\n', currentLineStartPos));
+            
+            let indent = "";
+            const match = fullCurrentLineText.match(/^(\t*)/);
+            if (match) {
+                indent = match[0]; // Existing tabs on the current line
+            }
+
+            // If the line (trimmed up to cursor) ends with an opening bracket, add a tab for the new line
+            const currentLineTextUntilCursor = textBeforeCursor.substring(currentLineStartPos);
+            if (['{', '(', '['].includes(currentLineTextUntilCursor.trim().slice(-1))) {
+                indent += '\t';
+            }
+
+            let textToInsert = '\n' + indent;
+            const textAfterCursor = value.substring(end);
+
+            // Smart indent for pairs like {} () []
+            // e.g. if typing Enter in `{|}` (cursor at |)
+            const charAfterCursor = textAfterCursor.charAt(0);
+            const charBeforeCursor = currentLineTextUntilCursor.trim().slice(-1);
+            const smartPair = (charBeforeCursor === '{' && charAfterCursor === '}') ||
+                              (charBeforeCursor === '(' && charAfterCursor === ')') ||
+                              (charBeforeCursor === '[' && charAfterCursor === ']');
+
+            let finalCursorPos;
+
+            if (smartPair) {
+                // `indent` is for the new middle line. Closing bracket line needs one less indent.
+                const closingBracketIndent = indent.length > 0 ? indent.slice(0, -1) : "";
+                textToInsert += '\n' + closingBracketIndent;
+                // Cursor position will be after the newline and indent of the middle line
+                finalCursorPos = start + 1 + indent.length; 
+            } else {
+                finalCursorPos = start + textToInsert.length;
+            }
+            
+            // Manually update value to control cursor position precisely
+            textarea.value = value.substring(0, start) + textToInsert + textAfterCursor;
+            textarea.selectionStart = textarea.selectionEnd = finalCursorPos;
+            
+            textarea.__XrealText = textarea.value;
+        }
+
+        function handleClosingBracketKey(textarea) {
+            // Use setTimeout to allow the browser to insert the character first.
+            // Then, we check the line and adjust if necessary.
+            setTimeout(() => {
+                const originalCursorPos = textarea.selectionStart; // Cursor is *after* the typed bracket
+                let value = textarea.value;
+
+                // Find the start and end of the current line
+                const lineStartPos = value.lastIndexOf('\n', originalCursorPos - 1) + 1;
+                let lineEndPos = value.indexOf('\n', originalCursorPos);
+                if (lineEndPos === -1) {
+                    lineEndPos = value.length;
+                }
+
+                const currentLineFullText = value.substring(lineStartPos, lineEndPos);
+
+                // If the current line (where the bracket was just typed) starts with a tab
+                if (currentLineFullText.startsWith('\t')) {
+                    const textBeforeThisLine = value.substring(0, lineStartPos);
+                    // Remove the first tab from the current line's content
+                    const modifiedLineContent = currentLineFullText.substring(1);
+                    const textAfterThisLine = value.substring(lineEndPos);
+                    
+                    textarea.value = textBeforeThisLine + modifiedLineContent + textAfterThisLine;
+                    // Adjust cursor: it moved one position to the left relative to the line's start
+                    textarea.selectionStart = textarea.selectionEnd = originalCursorPos - 1;
+                    textarea.__XrealText = textarea.value;
+                } else {
+                    // If no un-indentation occurred, ensure __XrealText is current.
+                    // This is a safeguard, as an 'input' event should have fired.
+                    textarea.__XrealText = textarea.value;
+                }
+            }, 0);
+        }
+
+        function applyToExistingTextareas() {
+            document.querySelectorAll('textarea[code]').forEach(initializeCodeEditor);
+        }
+
+        function observeDOMChanges() {
+            const observer = new MutationObserver((mutationsList) => {
+                for (const mutation of mutationsList) {
+                    if (mutation.type === 'childList') {
+                        mutation.addedNodes.forEach(node => {
+                            if (node.nodeType === Node.ELEMENT_NODE) {
+                                // Check if the added node itself is a target
+                                if (node.tagName === 'TEXTAREA' && node.hasAttribute('code')) {
+                                    initializeCodeEditor(node);
+                                }
+                                // Check if the added node contains target elements
+                                if (node.querySelectorAll) {
+                                    node.querySelectorAll('textarea[code]').forEach(initializeCodeEditor);
+                                }
+                            }
+                        });
+                    }
+                }
+            });
+            observer.observe(document.body, { childList: true, subtree: true });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            applyToExistingTextareas();
+            observeDOMChanges();
+
+            document.getElementById('addTextareaBtn').addEventListener('click', () => {
+                const newTA = document.createElement('textarea');
+                newTA.setAttribute('code', '');
+                newTA.id = 'editor' + (document.querySelectorAll('textarea[code]').length + 1);
+                newTA.value = "// Dynamically added textarea\nfunction dynamicExample() {\n\treturn true;\n}";
+                document.body.insertBefore(newTA, document.getElementById('addTextareaBtn'));
+                // The MutationObserver will automatically call initializeCodeEditor on newTA
+            });
+        });
+    </script>
+
+</body>
+</html>

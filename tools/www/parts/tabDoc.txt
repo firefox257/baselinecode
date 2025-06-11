@@ -1,0 +1,32 @@
+# Code Editor Functionality for <textarea code>
+
+## Objective
+Implement a code editor within HTML `<textarea code>` elements using JavaScript. The editor will provide enhanced tab handling, automatic indentation, and dynamic application to elements.
+
+## Core Features
+
+### 1. Tab Handling
+   - **Visual Tab Width:** Tabs will visually render with a width equivalent to 4 spaces. This is achieved using the CSS `tab-size: 4;` property.
+   - **Actual Tab Characters:** The editor will insert actual tab characters (`\t`) into the textarea's value, not multiple space characters.
+   - **Tab Alignment:** Standard tab stops will ensure consistent alignment.
+
+### 2. Automatic Indentation
+   - **New Line Indentation:**
+     - When a new line is created (Enter key), it will automatically inherit the indentation (number of leading tabs) of the previous line.
+     - If the previous line ends with an opening bracket (`{`, `(`, or `[`), the new line will receive an additional level of indentation (one extra tab).
+   - **Smart Bracket Pair Indentation:**
+     - If the Enter key is pressed between a pair of matching brackets (e.g., cursor is at `|` in `{}` or `()`), the editor will:
+       1. Create a new line indented one level further than the line with the opening bracket.
+       2. Move the closing bracket to a new line, indented to match the original line of the opening bracket.
+       3. Place the cursor on the newly created, indented line between the brackets.
+
+### 3. Automatic Un-indentation
+   - **Closing Bracket Behavior:** If a closing bracket (`}`, `)`, or `]`) is typed on a line that currently begins with one or more tab characters, one tab character will be removed from the beginning of that line.
+
+### 4. `__XrealText` Property
+   - A custom property `__XrealText` will be attached to the `<textarea>` DOM element.
+   - This property will store the content of the textarea, ensuring it always reflects the text with actual tab characters (`\t`), consistent with the `textarea.value`.
+
+### 5. Application and Initialization
+   - **Initial Load:** All `<textarea>` elements present in the DOM that have the `code` attribute will automatically be enhanced with this editor functionality upon page load.
+   - **Dynamic Elements:** Any `<textarea code>` elements added to the DOM dynamically (e.g., via JavaScript manipulation) after the initial page load will also automatically receive this editor functionality. This is typically managed using a `MutationObserver`.
