@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Clang/WASI Wasm Test</title>
+    <script>
+        // Minimal Buffer polyfill for Buffer.from(data, 'base64')
+        // This is needed because Library.umd.js uses it internally when init() is called without arguments.
+        if (typeof globalThis.Buffer === 'undefined') {
+            globalThis.Buffer = {
+                from: function(data, encoding) {
+                    if (encoding === 'base64') {
+                        const binaryStr = atob(data); // Standard browser function to decode base64
+                        const len = binaryStr.length;
+                        const bytes = new Uint8Array(len);
+                        for (let i = 0; i < len; i++) {
+                            bytes[i] = binaryStr.charCodeAt(i);
+                        }
+                        return bytes; // WebAssembly.compile expects an ArrayBuffer or TypedArray
+                    }
+                    throw new Error('Buffer.from encoding not supported by this polyfill: ' + encoding);
+                }
+            };
+        }
+    </script>
+    <script src="Library.umd.js"></script> 
+</head>
+<body>
+    <button onclick="callWasmGreet()">Call Wasm Greet</button>
+    <script>
+        let wasmInstanceExports;
+        let wasi; // To hold the WASI instance
+
+        async function loadAndRunWasm() {
+            try {
+                const response = await fetch('hello_wasi.wasm');
+                const wasmBytes = await response.arrayBuffer();
+
+                // Initialize the @wasmer/wasi library (Library.umd.js)
+                await Library.init();
+
+                // Create a new WASI instance
+                wasi = new Library.WASI({
+                    args: [], // Command line arguments
+                    env: {},  // Environment variables
+                    // preopens: { // Preopened directories (optional) - often not needed for simple browser examples
+                    //     ".": "." 
+                    // },
+                });
+
+                // Compile the Wasm bytes into a module first
+                const module = new WebAssembly.Module(wasmBytes);
+
+                // Instantiate the Wasm module using the WASI object's instantiate method.
+                // This is synchronous if `module` is already a WebAssembly.Module.
+                // Let wasi.instantiate handle getting the imports itself.
+                const instance = wasi.instantiate(module /*, imports are optional here */);
+                wasmInstanceExports = instance.exports;
+
+                // Initialize WASI (sets up file descriptors, etc.)
+                wasi.start(instance); 
+
+                console.log("Wasm module loaded and WASI started.");
+
+                // Get and log stdout from the main() execution
+                let stdout = wasi.getStdoutString();
+                if (stdout) {
+                    console.log("Output from main():\n" + stdout);
+                }
+                // If you exported 'greet' with -Wl,--export=greet, you can call it
+                // Note: main() is usually called by wasi.start()
+                // if (wasmInstanceExports.greet) {
+                //     console.log("Calling greet from JS:");
+                //     wasmInstanceExports.greet();
+                // }
+
+            } catch (e) {
+                console.error("Wasm loading/execution failed:", e);
+            }
+        }
+
+        function callWasmGreet() {
+            if (wasmInstanceExports && wasmInstanceExports.greet) {
+                // Call the exported greet function
+                wasmInstanceExports.greet();
+                // Get and log stdout from the greet() execution
+                let stdout = wasi.getStdoutString();
+                if (stdout) {
+                    console.log("Output from greet():\n" + stdout);
+                }
+            } else {
+                console.error("Wasm module or greet function not available.");
+            }
+        }
+
+        loadAndRunWasm();
+    </script>
+</body>
+</html>

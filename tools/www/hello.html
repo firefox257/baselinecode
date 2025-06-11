@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Emscripten Hello World</title>
+</head>
+<body>
+    <button onclick="callGreet()">Call Greet</button>
+    <script>
+        var Module = {}; // Emscripten module object
+
+        // Optional: Handle Wasm instantiation errors
+        Module.onRuntimeInitialized = function() {
+            console.log('Emscripten runtime initialized.');
+            // You can call main here if needed, or it runs automatically
+        };
+
+        function callGreet() {
+            if (Module.ccall) {
+                Module.ccall('greet', // C function name
+                             null,    // return type
+                             [],      // argument types
+                             []);     // arguments
+            } else {
+                console.error("ccall is not available. Is the Wasm module loaded?");
+            }
+        }
+    </script>
+    <script async src="hello.js"></script> <!-- Load the Emscripten JS glue code -->
+</body>
+</html>
