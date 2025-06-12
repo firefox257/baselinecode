@@ -9,12 +9,25 @@ This will compile the to webassembly wat text format.
 This is a multiline comment.
 */
 
+#include <filename>; // same as c implementations.
+#inlcude "filename"; // same as c implementations.
+
 #group name; //Defines a group where all the functoins, properties and classes belong to. 
 #use name1, name2; //This will import the group names into the current scope for all functions properties and classes. 
+
 
 $c+ classname; //declareing there exists a public class name. 
 $c- classname; //declareing there exists a protected class name. 
 $c-- classname; //declareing there exists a private class name. 
+
+$c+ classname: extendclassname; //declareing there exists a public class name that extends another class    
+$c- classname: extendclassname; //declareing there exists a protected class name that extends another class    
+$c-- classname: extendclassname; //declareing there exists a private class name that extends another class    
+
+$c+ classname: extendclassname1, extendclassname2; //declareing there exists a public class name that extends 2 another classes    
+$c- classname: extendclassname, extendclassname2; //declareing there exists a protected class name that extends 2 another classes    
+$c-- classname: extendclassname, extendclassname2; //declareing there exists a private class name that extends 2 another classes    
+
 
 $e+ enumname; //declareing there exists a public enum name. 
 $e- enumname; //declareing there exists a protected enum name. 
@@ -103,8 +116,7 @@ uint8[] //array of unsigned 64 bit
 float4[] //array of float 32 bit
 float8[] //array of float 64 bit
 
-
-
+//strings are char * or char[].
 
 
 //there are no for loops, while or do while loops.There is only loop with defined arguments and a break to exit the loop.
@@ -164,6 +176,67 @@ eswitch(enumname)
     default:
     //do code
 }
+
+//examples of files implementations
+
+
+#include <try1.tops>
+#use groupoftry1;
+
+#group mygroup;
+
+
+
+$e+ ColorTypes;
+red;
+green;
+blue;
+
+$c+ MyClass;
+
+@- MyClass ivar;
+int4 _x;
+int4 _y;
+string _title;
+
+@+ MyClass ifunc;
+int4 get x()//this is a getter for x
+{
+    return this._x;
+}
+
+void set x(int4 value) //this is a setter for x. 
+{
+    this._x = value;
+}
+//or
+int4 set x(int4 value)// this is also a setter for x.
+{
+    this._x = value;
+    return this._x;
+}
+
+int4 get y()//this is a getter for y
+{
+    return _y;
+}
+
+void setTitle(string title)
+{
+    this._title = title;
+}
+
+string getTitle()
+{
+    return this._title;
+}
+
+@+ MyClass sfunc;
+string toString()
+{
+    return "MyClass";
+}
+
 
 
 
