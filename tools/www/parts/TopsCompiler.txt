@@ -1,0 +1,169 @@
+/*
+Tops program syntax language. The parts will lay out the syntace for the tops language.
+notions. The langauge is a declaritive state machine. below is the explanation. 
+This will compile the to webassembly wat text format.
+*/
+
+// this is a line comment. 
+/*
+This is a multiline comment.
+*/
+
+#group name; //Defines a group where all the functoins, properties and classes belong to. 
+#use name1, name2; //This will import the group names into the current scope for all functions properties and classes. 
+
+$c+ classname; //declareing there exists a public class name. 
+$c- classname; //declareing there exists a protected class name. 
+$c-- classname; //declareing there exists a private class name. 
+
+$e+ enumname; //declareing there exists a public enum name. 
+$e- enumname; //declareing there exists a protected enum name. 
+$e-- enumname; //declareing there exists a private enum name. 
+//example of enum
+$e+ enumname;
+red;//this has an int4 value of 0 starting
+green;//this has an int4 value of 1 starting
+blue;//this has an int4 value of 2 starting     
+
+$ee+ otherenum; //declareing there exists a public enum name. This enum has definitions. 
+$ee- otherenum; //declareing there exists a protected enum name. This enum has definitions. 
+$ee-- otherenum; //declareing there exists a private enum name. This enum has definitions. 
+//example of enum 
+red=23; //this has an int4 value of 23 starting
+green; //this has an int4 value of 24 starting
+blue; //this has an int4 value of 25 starting
+
+
+//to access enums example
+enumname.red;
+enumname.green.name;//this gives the name of the enum "green"
+enumname.blue;
+
+//
+
+
+
+
+@+ classname svar; //declaring public class static properties.
+@- classname svar; //declaring protected class static properties.
+@-- classname svar; //declaring private class static properties.
+
+@+ classname ivar; //declaring public class instance properties.
+@- classname ivar; //declaring protected class instance properties.
+@-- classname ivar; //declaring private class instance properties.
+
+@+ classname sfunc; //declaring public class static functions.
+@- classname sfunc; //declaring protected class static functions.
+@-- classname sfunc; //declaring private class static functions.    
+
+@+ classname ifunc; //declaring public class instance functions.
+@- classname ifunc; //declaring protected class instance functions.
+@-- classname ifunc; //declaring private class instance functions.
+
+//There are no global functions and no global properties. 
+
+//Here is a list of primative types. 
+
+bool //boolean
+char //character
+int1 //signed 8 bit
+int2 //signed 16 bit
+int4 //signed 32 bit
+int8 //signed 64 bit
+uint1 //unsigned 8 bit
+uint2 //unsigned 16 bit
+uint4 //unsigned 32 bit
+uint8 //unsigned 64 bit
+float4 //float 32 bit
+float8 //float 64 bit
+
+bool * //pointer to boolean
+char * //pointer to character
+int1 * //pointer to signed 8 bit    
+int2 * //pointer to signed 16 bit
+int4 * //pointer to signed 32 bit
+int8 * //pointer to signed 64 bit
+uint1 * //pointer to unsigned 8 bit    
+uint2 * //pointer to unsigned 16 bit
+uint4 * //pointer to unsigned 32 bit
+uint8 * //pointer to unsigned 64 bit
+float4 * //pointer to float 32 bit
+float8 * //pointer to float 64 bit
+
+bool[] //array of boolean
+char[] //array of character
+int1[] //array of signed 8 bit    
+int2[] //array of signed 16 bit
+int4[] //array of signed 32 bit
+int8[] //array of signed 64 bit
+uint1[] //array of unsigned 8 bit    
+uint2[] //array of unsigned 16 bit
+uint4[] //array of unsigned 32 bit
+uint8[] //array of unsigned 64 bit
+float4[] //array of float 32 bit
+float8[] //array of float 64 bit
+
+
+
+
+
+//there are no for loops, while or do while loops.There is only loop with defined arguments and a break to exit the loop.
+//Example below.
+
+loop(int4 i = 0;)
+{
+    //do other code. 
+    i++;
+    if(i>=200) break;
+    //or do other code.
+}
+
+//if , else if and else are the same as c language
+Example
+if(i < 10)
+{
+    //do other code. 
+}
+else if(i < 20)
+{
+    //do other code. 
+
+}
+else 
+{
+    //do other code. 
+}
+
+//switch is the same as c code.
+//Example
+switch(i)
+{
+    case 123: 
+    //do code
+    break;
+    case 1:
+    //do code
+    default:
+    //do code
+    break;
+}
+
+//eswitch only applies to $e+ $e- $e-- enums as the starting value is 0 and is incremented. 
+//this allows for further optimizations on the compiler to use a table reference to jump to the appropriate code.
+eswitch(enumname)
+{
+    case enumname.red:
+    //do code
+    break;
+    case enumname.green:
+    //do code
+    break;
+    case enumname.blue:
+    //do code
+    break;      
+    default:
+    //do code
+}
+
+
+

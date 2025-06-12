@@ -109,11 +109,27 @@ function greet(name) {
             const fullCurrentLineText = value.substring(currentLineStartPos, 
                 value.indexOf('\n', currentLineStartPos) === -1 ? value.length : value.indexOf('\n', currentLineStartPos));
             
-            let indent = "";
-            const match = fullCurrentLineText.match(/^(\t*)/);
-            if (match) {
-                indent = match[0]; // Existing tabs on the current line
+            // Calculate base indent by converting leading whitespace of the current line to tabs
+            let baseIndentStr = "";
+            const leadingWhitespaceMatch = fullCurrentLineText.match(/^(\s*)/);
+            if (leadingWhitespaceMatch) {
+                const leadingWhitespace = leadingWhitespaceMatch[0];
+                let visualColumns = 0;
+                const effectiveTabSize = 4; // Should match CSS tab-size for consistency
+
+                for (let i = 0; i < leadingWhitespace.length; i++) {
+                    if (leadingWhitespace[i] === '\t') {
+                        // Advance to the next tab stop
+                        visualColumns = (Math.floor(visualColumns / effectiveTabSize) + 1) * effectiveTabSize;
+                    } else if (leadingWhitespace[i] === ' ') {
+                        visualColumns++;
+                    }
+                    // Other whitespace characters could be handled here if necessary
+                }
+                const tabCount = Math.floor(visualColumns / effectiveTabSize);
+                baseIndentStr = '\t'.repeat(tabCount);
             }
+            let indent = baseIndentStr;
 
             // If the line (trimmed up to cursor) ends with an opening bracket, add a tab for the new line
             const currentLineTextUntilCursor = textBeforeCursor.substring(currentLineStartPos);
