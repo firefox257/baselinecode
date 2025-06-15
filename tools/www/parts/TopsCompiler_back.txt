@@ -1,0 +1,384 @@
+/*
+Tops program syntax language. The parts will lay out the syntace for the tops language.
+notions. The langauge is a declaritive state machine. below is the explanation. 
+This will compile the to webassembly wat text format.
+*/
+
+// this is a line comment. 
+/*
+This is a multiline comment.
+*/
+
+#include <filename>; // same as c implementations.
+#inlcude "filename"; // same as c implementations.
+
+#group name; //Defines a group where all the functoins, properties and classes belong to. 
+#use name1, name2; //This will import the group names into the current scope for all functions properties and classes. 
+
+
+$c+ classname; //declareing there exists a public class name. 
+$c- classname; //declareing there exists a protected class name. 
+$c-- classname; //declareing there exists a private class name. 
+
+$c+ classname: extendclassname; //declareing there exists a public class name that extends another class    
+$c- classname: extendclassname; //declareing there exists a protected class name that extends another class    
+$c-- classname: extendclassname; //declareing there exists a private class name that extends another class    
+
+$c+ classname: extendclassname1, extendclassname2; //declareing there exists a public class name that extends 2 another classes    
+$c- classname: extendclassname, extendclassname2; //declareing there exists a protected class name that extends 2 another classes    
+$c-- classname: extendclassname, extendclassname2; //declareing there exists a private class name that extends 2 another classes    
+
+
+$e+ enumname; //declareing there exists a public enum name. 
+$e- enumname; //declareing there exists a protected enum name. 
+$e-- enumname; //declareing there exists a private enum name. 
+//example of enum
+$e+ enumname;
+red;//this has an int4 value of 0 starting
+green;//this has an int4 value of 1 starting
+blue;//this has an int4 value of 2 starting     
+
+$ee+ otherenum; //declareing there exists a public enum name. This enum has definitions. 
+$ee- otherenum; //declareing there exists a protected enum name. This enum has definitions. 
+$ee-- otherenum; //declareing there exists a private enum name. This enum has definitions. 
+//example of enum 
+red=23; //this has an int4 value of 23 starting
+green; //this has an int4 value of 24 starting
+blue; //this has an int4 value of 25 starting
+
+
+//to access enums example
+enumname.red;
+enumname.green.name;//this gives the name of the enum "green"
+enumname.blue;
+
+//
+
+
+
+
+@+ classname svar; //declaring public class static properties.
+@- classname svar; //declaring protected class static properties.
+@-- classname svar; //declaring private class static properties.
+
+@+ classname ivar; //declaring public class instance properties.
+@- classname ivar; //declaring protected class instance properties.
+@-- classname ivar; //declaring private class instance properties.
+
+@+ classname sfunc; //declaring public class static functions.
+@- classname sfunc; //declaring protected class static functions.
+@-- classname sfunc; //declaring private class static functions.    
+
+@+ classname ifunc; //declaring public class instance functions.
+@- classname ifunc; //declaring protected class instance functions.
+@-- classname ifunc; //declaring private class instance functions.
+
+//There are no global functions and no global properties. 
+/*
+memory managment. 
+Tops using reference counting. When using new there is a reference counter applied. 
+This includes classes and arrays. Even string sthat are char arrays. Memory is allocated with 4 bytes as a 32 bit it for the refcount. 
+The ref count is at 1. When the refcount is equal to th same type or an inhereted type. 
+The refcount is decremented. If the class has a :dereference() member function defined, that funciton is called. 
+If the refcount is 0 or goes out of scope. Before getting deleted the :delete() member function is called.
+
+When the app start the static member function :create() is called at the start of the app. 
+When the app ends then the static member function :end() is called. 
+
+*/
+
+//Here is a list of primative types. 
+
+bool //boolean
+char //character
+int1 //signed 8 bit
+int2 //signed 16 bit
+int4 //signed 32 bit
+int8 //signed 64 bit
+uint1 //unsigned 8 bit
+uint2 //unsigned 16 bit
+uint4 //unsigned 32 bit
+uint8 //unsigned 64 bit
+float4 //float 32 bit
+float8 //float 64 bit
+
+bool * //pointer to boolean
+char * //pointer to character
+int1 * //pointer to signed 8 bit    
+int2 * //pointer to signed 16 bit
+int4 * //pointer to signed 32 bit
+int8 * //pointer to signed 64 bit
+uint1 * //pointer to unsigned 8 bit    
+uint2 * //pointer to unsigned 16 bit
+uint4 * //pointer to unsigned 32 bit
+uint8 * //pointer to unsigned 64 bit
+float4 * //pointer to float 32 bit
+float8 * //pointer to float 64 bit
+
+bool[] //array of boolean
+char[] //array of character
+int1[] //array of signed 8 bit    
+int2[] //array of signed 16 bit
+int4[] //array of signed 32 bit
+int8[] //array of signed 64 bit
+uint1[] //array of unsigned 8 bit    
+uint2[] //array of unsigned 16 bit
+uint4[] //array of unsigned 32 bit
+uint8[] //array of unsigned 64 bit
+float4[] //array of float 32 bit
+float8[] //array of float 64 bit
+
+//strings are char * or char[].
+
+
+//there are no for loops, while or do while loops.There is only loop with defined arguments and a break to exit the loop.
+//Example below.
+
+loop(int4 i = 0;)
+{
+    //do other code. 
+    i++;
+    if(i>=200) break;
+    //or do other code.
+}
+
+//if , else if and else are the same as c language
+Example
+if(i < 10)
+{
+    //do other code. 
+}
+else if(i < 20)
+{
+    //do other code. 
+
+}
+else 
+{
+    //do other code. 
+}
+
+//switch is the same as c code.
+//Example
+switch(i)
+{
+    case 123: 
+    //do code
+    break;
+    case 1:
+    //do code
+    default:
+    //do code
+    break;
+}
+
+//eswitch only applies to $e+ $e- $e-- enums as the starting value is 0 and is incremented. 
+//this allows for further optimizations on the compiler to use a table reference to jump to the appropriate code.
+eswitch(enumname)
+{
+    case enumname.red:
+    //do code
+    break;
+    case enumname.green:
+    //do code
+    break;
+    case enumname.blue:
+    //do code
+    break;      
+    default:
+    //do code
+}
+
+//examples of files implementations myclass.tops
+
+#include <try1.tops>// like 
+#use groupoftry1;
+
+#group mygroup;
+
+$e+ ColorTypes;
+red;
+green;
+blue;
+
+$c+ MyClass;
+
+@- MyClass ivar;
+int4 _x;
+int4 _y;
+string _title;
+
+@+ MyClass ifunc;
+int4 get x()//this is a getter for x
+{
+    return this._x;
+}
+
+void set x(int4 value) //this is a setter for x. 
+{
+    this._x = value;
+}
+
+int4 get y()//this is a getter for y
+{
+    return _y;
+}
+
+void setTitle(string title)
+{
+    this._title = title;
+}
+
+string getTitle()
+{
+    return this._title;
+}
+
+@+ MyClass sfunc;
+string typeName()
+{
+    return "MyClass";
+}
+
+/////in a different file can still define MyClass
+
+#include "myclass.tops"
+use mygroup;
+group mygroup
+
+
+@- MyClass ivar;
+
+string _msg;
+
+@+ MyClass ifunc;
+string get msg()
+{
+    return this._msg;
+}
+
+void set msg(string msg)
+{
+    this._msg = msg;
+}
+
+
+
+
+/* Operators.
+1. Arithmetic Operators: 
+
+    + (addition)
+    - (subtraction)
+    * (multiplication)
+    / (division)
+    % (modulo - returns the remainder of a division)
+    ++ (increment)
+    -- (decrement) 
+
+2. Relational Operators: 
+
+    == (equal to)
+    != (not equal to)
+    > (greater than)
+    < (less than)
+    >= (greater than or equal to)
+    <= (less than or equal to) 
+
+3. Logical Operators: 
+
+    && (logical AND)
+    || (logical OR)
+    ! (logical NOT) 
+
+4. Bitwise Operators:
+& (bitwise AND), | (bitwise OR), ^ (bitwise XOR), ~ (bitwise NOT), << (left shift), and >> (right shift).
+5. Assignment Operators: 
+
+    = (assignment)
+    += (add and assign)
+    -= (subtract and assign)
+    *= (multiply and assign)
+    /= (divide and assign)
+    %= (modulo and assign)
+    <<= (left shift and assign)
+    >>= (right shift and assign)
+    &= (bitwise AND and assign)
+    |= (bitwise OR and assign)
+    ^= (bitwise XOR and assign) 
+
+6. Other Operators: 
+
+    .* (pointer to member)
+    ->* (pointer to member)
+    , (comma operator)
+    () (function call, expression grouping)
+    [] (array subscript)
+    -> (member access via pointer)
+    . (member access)
+    sizeof (returns size of a type or variable)
+    typeid (returns information about a type)
+    ?: (ternary conditional operator)
+    :: (scope resolution)
+
+
+
+    Classes can also override operators. 
+    Here's a list of commonly overridable operators in C++:
+1. Arithmetic Operators: 
+
+    Unary: +, -, ++, --
+    Binary: +, -, *, /, %
+    Compound Assignment: +=, -=, *=, /=, %= 
+
+2. Relational Operators: 
+
+    ==, !=, <, >, <=, >=
+
+3. Logical Operators: 
+
+    &&, ||, ! 
+
+4. Bitwise Operators: 
+
+    &, |, ^, ~, <<, >>
+    &=, |=, ^=, <<=, >>= 
+
+5. Other Operators: 
+
+    =: Assignment operator (already overloaded by default, but can be explicitly overloaded)
+    (): Function call operator
+    []: Subscript operator
+    ->: Member access operator
+    ->*: Member pointer access operator
+    new, delete, new[], delete[]: Dynamic memory allocation and deallocation
+    ,: Comma operator
+*/
+
+/*
+building compile to  compile tops langage to webassembly wat text format. 
+
+Must save all group names.
+Each group has class structures. Structures has the table for the properties.
+Each property has the type of the propery, the offset of the property in memory mapping. 
+
+Each class keep track of the functions. 
+
+Everything has to be tracked. The compiler will be used each time. 
+For instance, if a piece of code is compiled, then all public properties and functions both static and instance are exposed to other files and groups. 
+When the compiler is used again. This will pass imports from one compilation to the next compilation as imports. 
+That compiliation will export all public instance and static properties and functions. 
+
+*/
+/* Notes on class constructions. 
+All classes are are referenced counted. The class is defined in the program language like below
+
+MyClass c1 = new MyClass();
+MyClass c2 = new MyClass(arguments);
+
+When the class is memory allocated malloc. it is the size of the class structure + 4. The 4 us used with 32 bit int counter. 
+When the pointer is returned, it is offset by 4 bytes from the start of the allocated memory (where the reference counter is stored).
+When a variable holding a class instance is reassigned, the reference counter of the object it previously pointed to is decremented. If this counter reaches 0, the object's memory is deallocated.
+*/
+
+
