@@ -377,11 +377,65 @@ function tryParseLoop(code, funcDetails) {
     return { wat: loopWat, consumedLength: fullMatchText.length };
 }
 
+function tryParseTryCatch(code, funcDetails) {
+    // Regex to capture try block and the first catch clause.
+    // This simplified version only handles one catch block per try.
+    // A full implementation would loop to find multiple catch blocks or catch_all.
+    const tryCatchRegex = /^\s*try\s*\{(?<tryBody>[\s\S]*?)\}\s*catch\s*\((?<exceptionType>\w+)\s+(?<exceptionVar>\w+)\)\s*\{(?<catchBody>[\s\S]*?)\}(?:\s*;)?/s;
+    const match = code.match(tryCatchRegex);
+
+    if (!match || !match.groups) return null;
+
+    const { tryBody, exceptionType, exceptionVar, catchBody } = match.groups;
+    const fullMatchText = match[0];
+    const { localDeclarationsWat, localVariables, globalInfo, topsTypeToWatType } = funcDetails;
+
+    let tryCatchWat = [];
+    tryCatchWat.push(`  ;; try...catch(${exceptionType} ${exceptionVar})\n`);
+
+    // Determine Wasm exception tag and type of caught value
+    let wasmExceptionTag;
+    let caughtValueWatType = "i32"; // Default for int4 or pointer to Error object
+
+    if (exceptionType === "int4") {
+        wasmExceptionTag = `$tops_int4_error_tag`; // Assumed globally defined tag: (tag $tops_int4_error_tag (param i32))
+    } else if (globalInfo.classes && globalInfo.classes[exceptionType]) {
+        wasmExceptionTag = `$tops_class_${exceptionType}_error_tag`; // Assumed tag: (tag $tops_class_Error_error_tag (param i32)) (i32 is pointer)
+    } else {
+        tryCatchWat.push(`  ;; ERROR: Unknown exception type '${exceptionType}' in catch block.\n`);
+        return { wat: tryCatchWat, consumedLength: fullMatchText.length };
+    }
+
+    // The try block might produce a result if returns are inside.
+    // For simplicity, assume the function's return type if try-catch is at top level.
+    // A more robust solution would analyze returns within try/catch.
+    const tryResultType = funcDetails.topsReturnType !== "void" ? `(result ${topsTypeToWatType(funcDetails.topsReturnType)})` : "";
+
+    tryCatchWat.push(`  (try ${tryResultType} ;; Tops try block\n`);
+    const tryBodyWat = parseBodyStatements(tryBody, funcDetails);
+    tryCatchWat.push(...tryBodyWat.map(l => `    ${l}`));
+    tryCatchWat.push(`    (catch ${wasmExceptionTag} ;; Catch Tops ${exceptionType} as ${exceptionVar}\n`);
+
+    // Make the caught value available as 'exceptionVar'
+    // The thrown value is on top of the Wasm stack when catch block starts.
+    if (!localVariables.has(exceptionVar)) {
+        localDeclarationsWat.push(`  (local $${exceptionVar} ${caughtValueWatType}) ;; Caught exception variable\n`);
+        localVariables.set(exceptionVar, { watType: caughtValueWatType, topsType: exceptionType, isParam: false });
+    }
+    tryCatchWat.push(`      (local.set $${exceptionVar}) ;; Store caught value into ${exceptionVar}\n`);
+
+    const catchBodyWat = parseBodyStatements(catchBody, funcDetails);
+    tryCatchWat.push(...catchBodyWat.map(l => `      ${l}`));
+    tryCatchWat.push(`    )\n`); // end catch
+    tryCatchWat.push(`  )\n`);   // end try
+
+    return { wat: tryCatchWat, consumedLength: fullMatchText.length };
+}
+
 function tryParseMemberAccess(expression, funcDetails, forStore = false) {
     const { localVariables, memberThis, topsReturnType, localDeclarationsWat, topsTypeToWatType } = funcDetails;
-    // The 'expression' parameter should be used here, not an undefined 'code' variable.
-    // This function is designed to parse an expression like "object.property", not a full statement.
 
+    // This function is designed to parse an expression like "object.property", not a full statement.
     const parts = expression.split('.');
     if (parts.length !== 2) return null; // Only simple a.b access
 
@@ -435,6 +489,38 @@ function tryParseSimpleStatement(code, funcDetails, allowComplexExpressions = tr
     if (endOfStatement === trimmedCode.length) consumedLength = code.length; // if no semicolon at end
 
     if (stmt === "break") {
+        if (funcDetails.currentLoopExitLabel) {
+            statementWat.push(`  (br ${funcDetails.currentLoopExitLabel}) ;; break\n`);
+        } else {
+            statementWat.push(`  ;; ERROR: 'break' used outside of a loop.\n`);
+        }
+    } else
+    // Handle 'throw <expression>;' or 'throw new <ClassName>(<arg>);'
+    if (stmt.startsWith("throw ")) {
+        const throwExpr = stmt.substring("throw ".length).trim();
+        const newClassMatch = throwExpr.match(/^new\s+(\w+)\s*\(([^)]*)\)/);
+
+        if (newClassMatch) { // throw new ClassName(arg)
+            const className = newClassMatch[1];
+            const argExpr = newClassMatch[2].trim();
+            // Conceptual: allocate 'new className', initialize with 'argExpr', get its pointer
+            statementWat.push(`  ;; Conceptual: new ${className}(${argExpr})\n`);
+            statementWat.push(`  (i32.const 0) ;; Placeholder for pointer to new ${className} object\n`);
+            // Assume a tag like $tops_class_ClassName_error_tag exists
+            statementWat.push(`  (throw $tops_class_${className}_error_tag)\n`);
+        } else { // throw <primitive_expression>
+            // For now, assume it's a local variable or literal int4
+            if (localVariables.has(throwExpr)) {
+                statementWat.push(`  (local.get $${throwExpr})\n`);
+            } else if (throwExpr.match(/^\d+$/)) {
+                statementWat.push(`  (i32.const ${throwExpr})\n`);
+            } else {
+                statementWat.push(`  ;; Unparsed throw expression: ${throwExpr}\n  (i32.const 0) ;; Placeholder\n`);
+            }
+            statementWat.push(`  (throw $tops_int4_error_tag)\n`); // Assume a tag for int4 errors
+        }
+    } else
+    if (stmt.startsWith("return ")) {
         if (funcDetails.currentLoopExitLabel) {
             statementWat.push(`  (br ${funcDetails.currentLoopExitLabel}) ;; break\n`);
         } else {
@@ -592,6 +678,11 @@ function parseBodyStatements(codeBlockString, funcDetails) {
                     bodyWat.push(...parsedStatement.wat);
                     consumed = parsedStatement.consumedLength;
                 } else {
+                    parsedStatement = tryParseTryCatch(remainingCode, funcDetails);
+                    if (parsedStatement) {
+                        bodyWat.push(...parsedStatement.wat);
+                        consumed = parsedStatement.consumedLength;
+                    } else {
                 // Fallback to simple statement (declaration, assignment, return)
                 parsedStatement = tryParseSimpleStatement(remainingCode, funcDetails, true);
                 if (parsedStatement && parsedStatement.wat.length > 0) {
@@ -599,6 +690,7 @@ function parseBodyStatements(codeBlockString, funcDetails) {
                     consumed = parsedStatement.consumedLength;
                 } else if (parsedStatement) { // Empty statement like just ';'
                     consumed = parsedStatement.consumedLength;
+                }
                 }
                 }
             }
@@ -767,3 +859,68 @@ const classInfoTest = {
     }
  };
  console.log(makeTopsMemberFunction(classInfoVector, topsFunc7ClassArg, globalInfoForClasses));
+
+
+ const classInfoError = { // Conceptual Error class
+    className: "Error",
+    properties: {
+        code: { type: "int4", offset: 0 }
+    }
+ };
+
+ const classInfoHandler = { // A class to hold our error handling methods
+    className: "ErrorHandler",
+    properties: {},
+    memberFunctions: {
+        throwIntError: "void throwIntError(this, int4 errorCode)",
+        throwClassError: "void throwClassError(this, int4 errorCode)",
+        handleErrors: "int4 handleErrors(this)"
+    }
+ };
+
+ const globalInfoForErrorHandling = {
+    enums: {},
+    classes: {
+        "Error": classInfoError, // Defined in previous examples
+        "ErrorHandler": classInfoHandler
+    }
+ };
+
+ // Conceptual functions that "throw". We don't compile these directly here.
+ // Their compilation would involve Wasm 'throw' instructions.
+ const topsFunc_throwIntError = `
+ void ErrorHandler_throwIntError(this, int4 errorCode) {
+    throw errorCode; // Now using the defined 'throw' syntax
+ }
+ `;
+ const topsFunc_throwClassError = `
+ void ErrorHandler_throwClassError(this, int4 errorCode) {
+    throw new Error(errorCode); // Now using the defined 'throw new' syntax
+ }
+ `;
+
+ const topsFunc_handleErrors = `
+ int4 ErrorHandler_handleErrors(this) {
+    int4 resultCode = 0;
+    try {
+        this.throwIntError(404); // Call function that "throws" an int4
+        resultCode = 1; // Should not be reached if error is thrown
+    } catch (int4 e_int) {
+        resultCode = e_int; // e_int should be 404
+    }
+
+    try {
+        this.throwClassError(500); // Call function that "throws" an Error object
+    } catch (Error e_class) {
+        resultCode = resultCode + e_class.code; // e_class.code should be 500
+    }
+    return resultCode; // Expected: 404 or 404 + 500 = 904 if second throw happens after first catch
+ }
+ `;
+ console.log("\n--- Example 8 (Try-Catch for int4 and Class Error) ---");
+ // We need to compile all functions that are called if we want to see their WAT.
+ // For this example, we'll still focus on compiling `handleErrors`.
+ // The `throwIntError` and `throwClassError` would need to be compiled separately
+ // for their 'throw' statements to be fully realized in WAT.
+ // The `makeTopsMemberFunction` currently compiles one function string at a time.
+ console.log(makeTopsMemberFunction(classInfoHandler, topsFunc_handleErrors, globalInfoForErrorHandling));
