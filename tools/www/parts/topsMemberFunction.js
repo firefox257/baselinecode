@@ -469,6 +469,48 @@ function tryParseMemberAccess(expression, funcDetails, forStore = false) {
     return objectWat;
 }
 
+function parseRhsTerm(term, funcDetails) {
+    const { localVariables } = funcDetails;
+    term = term.trim();
+    let termWat = [];
+
+    const memberAccessWat = tryParseMemberAccess(term, funcDetails);
+    if (memberAccessWat) {
+        termWat.push(...memberAccessWat);
+    } else if (localVariables.has(term)) {
+        termWat.push(`  (local.get $${term})\n`);
+    } else if (term.match(/^\d+$/)) {
+        termWat.push(`  (i32.const ${term})\n`); // Assuming i32
+    } else if (term === "true") {
+        termWat.push(`  (i32.const 1)\n`);
+    } else if (term === "false") {
+        termWat.push(`  (i32.const 0)\n`);
+    } else {
+        termWat.push(`  ;; Unparsed RHS term: ${term}\n  (i32.const 0) ;; Placeholder\n`);
+    }
+    return termWat;
+}
+
+function parseRhsExpression(rhsExpr, funcDetails) {
+    let expressionWat = [];
+    rhsExpr = rhsExpr.trim();
+
+    // Very simplified precedence: handle multiplication first, then addition.
+    // This is not a general solution for complex expressions.
+    // Example: A + B * C  or B * C + A
+    const parts = rhsExpr.split('+').map(p => p.trim());
+    for (let i = 0; i < parts.length; i++) {
+        const term = parts[i];
+        const mulParts = term.split('*').map(mp => mp.trim());
+        for (let j = 0; j < mulParts.length; j++) {
+            expressionWat.push(...parseRhsTerm(mulParts[j], funcDetails));
+            if (j < mulParts.length - 1) expressionWat.push(`  (i32.mul)\n`);
+        }
+        if (i < parts.length - 1) expressionWat.push(`  (i32.add)\n`);
+    }
+    return expressionWat;
+}
+
 function tryParseSimpleStatement(code, funcDetails, allowComplexExpressions = true) {
     const { localVariables, memberThis, topsReturnType, localDeclarationsWat, topsTypeToWatType } = funcDetails;
     let statementWat = [];
@@ -592,40 +634,8 @@ function tryParseSimpleStatement(code, funcDetails, allowComplexExpressions = tr
             return { wat: statementWat, consumedLength };
         }
 
-        // Parse RHS
-        const plusParts = rhsExpr.split('+').map(p => p.trim());
-        if (allowComplexExpressions && plusParts.length === 2) { // Handle "A + B"
-            const partA = plusParts[0];
-            const partB = plusParts[1];
-            let parsedA = false;
-            let parsedB = false;
-
-            const memberAccessA = tryParseMemberAccess(partA, funcDetails);
-            if (memberAccessA) { statementWat.push(...memberAccessA); parsedA = true; }
-            else if (localVariables.has(partA)) { statementWat.push(`  (local.get $${partA})\n`); parsedA = true; }
-
-            const memberAccessB = tryParseMemberAccess(partB, funcDetails);
-            if (memberAccessB) { statementWat.push(...memberAccessB); parsedB = true; }
-            else if (localVariables.has(partB)) { statementWat.push(`  (local.get $${partB})\n`); parsedB = true; }
-
-            if (parsedA && parsedB) {
-                statementWat.push(`  (i32.add)\n`); // Assuming i32.add
-            } else {
-                statementWat.push(`  ;; Unparsed complex RHS: ${rhsExpr}\n  (i32.const 0) ;; Placeholder\n`);
-            }
-        } else {
-            // Simpler RHS (not an addition)
-            const rhsMemberAccessWat = tryParseMemberAccess(rhsExpr, funcDetails);
-            if (allowComplexExpressions && rhsMemberAccessWat) {
-                statementWat.push(...rhsMemberAccessWat);
-            } else if (localVariables.has(rhsExpr)) {
-                statementWat.push(`  (local.get $${rhsExpr})\n`);
-            } else if (rhsExpr.match(/^\d+$/)) {
-                statementWat.push(`  (i32.const ${rhsExpr})\n`);
-            } else {
-                statementWat.push(`  ;; Unparsed RHS expr: ${rhsExpr}\n  (i32.const 0) ;; Placeholder\n`);
-            }
-        }
+        // Use the new RHS parser
+        statementWat.push(...parseRhsExpression(rhsExpr, funcDetails));
 
         if (isLhsMemberAccess) {
             statementWat.push(`  (i32.store) ;; ${lhsVarName} = ...\n`);
