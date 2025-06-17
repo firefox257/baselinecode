@@ -521,13 +521,6 @@ function tryParseSimpleStatement(code, funcDetails, allowComplexExpressions = tr
         }
     } else
     if (stmt.startsWith("return ")) {
-        if (funcDetails.currentLoopExitLabel) {
-            statementWat.push(`  (br ${funcDetails.currentLoopExitLabel}) ;; break\n`);
-        } else {
-            statementWat.push(`  ;; ERROR: 'break' used outside of a loop.\n`);
-        }
-    } else
-    if (stmt.startsWith("return ")) {
         const returnValueExpr = stmt.substring("return ".length).trim();
         let valuePushed = false;
         if (returnValueExpr) {
