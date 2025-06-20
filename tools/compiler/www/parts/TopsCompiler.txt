@@ -1,0 +1,106 @@
+Tops Language Overview
+
+1. Introduction
+   Tops is a declarative state machine programming language designed to
+   compile to WebAssembly (WAT) text format.
+
+2. Core Concepts
+   - Groups (Namespacing): Code is organized into groups using `#group name;`.
+     Groups can be imported into the current scope using `#use name1, name2;`.
+   - Modularity: The compiler supports modular compilation, where public
+     symbols from one compilation can be imported into another.
+
+3. Syntax Basics
+   - Comments: Single-line comments start with `//`. Multi-line comments
+     are enclosed in `/* ... */`.
+   - Includes: Files can be included using C-style directives:
+     `#include <filename>;` or `#include "filename";`.
+
+4. Data Structures
+
+   4.1. Classes
+     - Declaration: Classes are declared with access modifiers:
+       - `$c+ classname;` (public)
+       - `$c- classname;` (protected)
+       - `$c-- classname;` (private)
+     - Inheritance: Supports single and multiple inheritance
+       (e.g., `$c+ classname: extendclass1, extendclass2;`).
+     - Construction: Instances are created using `new ClassName();` or
+       `new ClassName(arguments);`.
+
+   4.2. Enums
+     - Declaration: Enums also have access modifiers:
+       - `$e+ enumname;` (public, values start at 0 and auto-increment)
+       - `$ee+ enumname;` (public, allows explicit value assignment,
+         e.g., `red=23; green;`)
+       - Protected (`$e-`, `$ee-`) and private (`$e--`, `$ee--`) versions exist.
+     - Access: Enum members are accessed via `enumname.member`. The name of an
+       enum member can be retrieved using `enumname.member.name`.
+
+   4.3. Primitive Types
+     - Basic Types: `bool`, `char`
+     - Integers:
+       - Signed: `int1` (8-bit), `int2` (16-bit), `int4` (32-bit), `int8` (64-bit)
+       - Unsigned: `uint1`, `uint2`, `uint4`, `uint8`
+     - Floating-Point: `float4` (32-bit), `float8` (64-bit)
+     - Pointers: `type *` (e.g., `int4 *`)
+     - Arrays: `type[]` (e.g., `int4[]`)
+
+   4.4. Strings
+     - Represented as `char *` or `char[]`.
+
+5. Class Members
+   - Members (properties and functions) are declared with prefixes for access
+     control and type:
+     - Access: `@+` (public), `@-` (protected), `@--` (private).
+     - Type: `svar` (static property), `ivar` (instance property),
+             `sfunc` (static function), `ifunc` (instance function).
+     - Example: `@+ MyClass ivar; int4 _x;`
+   - Getters/Setters: Can be defined, e.g., `int4 get x() { ... }`,
+     `void set x(int4 value) { ... }`.
+   - Globals: There are no global functions or global properties.
+
+6. Memory Management
+   - Reference Counting: Used for classes, arrays, and strings.
+     - When an object is created (e.g., via `new`), memory is allocated for the
+       object plus an additional 4 bytes for a 32-bit integer reference counter.
+     - The pointer returned for the object instance is offset by these 4 bytes
+       from the actual start of the allocated memory block.
+     - `new` initializes the refcount to 1.
+     - Assignment to a variable holding an instance decrements the old
+       object's refcount.
+   - Lifecycle Methods:
+     - `:dereference()`: Called on an object if defined when its refcount is
+       decremented (but not yet zero).
+     - `:delete()`: Called on an object if defined when its refcount reaches 0
+       or it goes out of scope, before deallocation.
+     - `:create()`: Static method called at application start.
+     - `:end()`: Static method called at application end.
+
+7. Control Flow
+   - Loops: Only a specific `loop` construct is available:
+     `loop(int4 i = 0;)`
+     `{`
+     `    // code`
+     `    i++;`
+     `    if(i >= 200) break;`
+     `}`
+     (No `for`, `while`, `do-while` loops.)
+   - Conditionals: `if`, `else if`, `else` statements are C-like.
+   - Switch:
+     - `switch(expression)`: C-like behavior.
+     - `eswitch(enum_instance)`: Optimized for `$e` enums (0-indexed,
+       auto-incrementing), potentially using a jump table.
+
+8. Operators
+   - Supports a comprehensive set of C-like operators:
+     - Arithmetic: `+`, `-`, `*`, `/`, `%`, `++`, `--`
+     - Relational: `==`, `!=`, `>`, `<`, `>=`, `<=`
+     - Logical: `&&`, `||`, `!`
+     - Bitwise: `&`, `|`, `^`, `~`, `<<`, `>>`
+     - Assignment: `=`, `+=`, `-=`, `*=`, `/=`, `%=`, `<<=`, `>>=`,
+                   `&=`, `|=`, `^=`
+     - Other: `.*`, `->*`, `,`, `()`, `[]`, `->`, `.`, `sizeof`, `typeid`,
+              `?:`, `::`
+   - Operator Overloading: Classes can override many of these operators,
+     similar to C++.

@@ -1,0 +1,156 @@
+
+
+
+Below defines to Tops program language. 
+//Here is a list of primative types. 
+
+bool //boolean
+char //character
+int1 //signed 8 bit
+int2 //signed 16 bit
+int4 //signed 32 bit
+int8 //signed 64 bit
+uint1 //unsigned 8 bit
+uint2 //unsigned 16 bit
+uint4 //unsigned 32 bit
+uint8 //unsigned 64 bit
+float4 //float 32 bit
+float8 //float 64 bit
+
+bool * //pointer to boolean
+char * //pointer to character
+int1 * //pointer to signed 8 bit    
+int2 * //pointer to signed 16 bit
+int4 * //pointer to signed 32 bit
+int8 * //pointer to signed 64 bit
+uint1 * //pointer to unsigned 8 bit    
+uint2 * //pointer to unsigned 16 bit
+uint4 * //pointer to unsigned 32 bit
+uint8 * //pointer to unsigned 64 bit
+float4 * //pointer to float 32 bit
+float8 * //pointer to float 64 bit
+
+bool[] //array of boolean
+char[] //array of character
+int1[] //array of signed 8 bit    
+int2[] //array of signed 16 bit
+int4[] //array of signed 32 bit
+int8[] //array of signed 64 bit
+uint1[] //array of unsigned 8 bit    
+uint2[] //array of unsigned 16 bit
+uint4[] //array of unsigned 32 bit
+uint8[] //array of unsigned 64 bit
+float4[] //array of float 32 bit
+float8[] //array of float 64 bit
+
+//strings are char * or char[].
+
+
+//there are no for loops, while or do while loops.There is only loop with defined arguments and a break to exit the loop.
+//Example below.
+
+loop(int4 i = 0;)
+{
+    //do other code. 
+    i++;
+    if(i>=200) break;
+    //or do other code.
+}
+
+//if , else if and else are the same as c language
+Example
+if(i < 10)
+{
+    //do other code. 
+}
+else if(i < 20)
+{
+    //do other code. 
+
+}
+else 
+{
+    //do other code. 
+}
+
+//switch is the same as c code.
+//Example
+switch(i)
+{
+    case 123: 
+    //do code
+    break;
+    case 1:
+    //do code
+    default:
+    //do code
+    break;
+}
+
+//eswitch only applies to $e+ $e- $e-- enums as the starting value is 0 and is incremented. 
+//this allows for further optimizations on the compiler to use a table reference to jump to the appropriate code.
+//It is inspected that enum alwasy starts at 0 with a definition and increments with any following defintions. 
+eswitch(enumname)
+{
+    case enumname.red:
+    //do code
+    break;
+    case enumname.green:
+    //do code
+    break;
+    case enumname.blue:
+    //do code
+    break;      
+    default:
+    //do code
+}
+ 
+
+====================
+Define a javascrip funciton compiler, with an input string of the Tops program langauge. 
+The output is a string of webassembly wat text format for the function.
+"this" keyword is assumbed to be a pointer to a $heap offset. 
+
+The function should be function makeTopsMemberFunction(memberThis,  arguments)
+the memberThis has a definition of the strucure properties with the $heap offset of each property.
+memberThis also has a definition of memberFunctions that has the definiion of the member function calls.  
+
+
+`void try1_get_x(this)
+{
+    return this._x;
+}
+`
+Where this is memberThis referenced. 
+
+Another example
+
+`
+int4 func(this, int4 x)
+{
+    int4 y = 123;
+    x = x + y * 3;
+    return x;
+}
+
+`
+
+Another example
+`
+bool test(this)
+{
+
+    eswitch(colorType)
+    {
+        case colorType.red:
+        //do code
+        return true;
+
+        defualt:
+        return false;
+    }
+
+
+}
+
+`

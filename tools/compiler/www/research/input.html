@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas Multi-Line Text Input</title>
+    <style>
+        body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f0f0f0; }
+        canvas { border: 1px solid black; }
+    </style>
+</head>
+<body>
+    <canvas id="my2DCanvas" width="800" height="600"></canvas>
+    <!-- Hidden textarea to help trigger mobile keyboard -->
+    <textarea id="hiddenMobileInput" readonly aria-hidden="true" style="position: absolute; top: -9999px; left: -9999px; opacity: 0; width: 1px; height: 1px; pointer-events: none;"></textarea>
+    <script>
+        const canvasElement = document.getElementById('my2DCanvas');
+        let myFormLayout = []; // Declare myFormLayout
+        const uiClassStyles = {}; // Minimal styles for this example
+
+        class InteractiveCanvasUI {
+            constructor(canvasElement, layout, styles) {
+                this.canvas = canvasElement;
+                this.ctx = canvasElement.getContext('2d');
+                this.myFormLayout = layout;
+                this.uiClassStyles = styles;
+
+                this.focusedInputId = null;
+                this.cursorVisible = true;
+                this.cursorBlinkInterval = null;
+                this.isDraggingScrollbar = false;
+                this.draggedElement = null;
+                this.dragStartY = 0;
+                this.dragStartScrollTop = 0;
+                this.DEFAULT_SCROLLBAR_SIZE = 8;
+                this.hiddenMobileInput = document.getElementById('hiddenMobileInput');
+                // Simplified: Font loading and image caching removed for this minimal example
+                // this.imageCache = new Map();
+                // this.loadedFontUrls = new Map();
+            }
+
+            async initialize() {
+                // Simplified: await this._loadCustomFonts();
+                // Simplified: await this._processAllFontDeclarations();
+                this.setupEventListeners();
+                this.renderUI();
+            }
+
+            setupEventListeners() {
+                this.canvas.addEventListener('mousedown', this._handleMouseDown.bind(this));
+                this.canvas.addEventListener('mousemove', this._handleMouseMove.bind(this));
+                window.addEventListener('mouseup', this._handleMouseUp.bind(this));
+                this.canvas.addEventListener('wheel', this._handleWheel.bind(this));
+                window.addEventListener('keydown', this._handleKeyDown.bind(this));
+            }
+
+            _handleMouseDown(event) {
+                const rect = this.canvas.getBoundingClientRect();
+                const clickX = event.clientX - rect.left;
+                const clickY = event.clientY - rect.top;
+                this._onMouseDown(clickX, clickY);
+            }
+
+            _handleMouseMove(event) {
+                const rect = this.canvas.getBoundingClientRect();
+                const mouseX = event.clientX - rect.left;
+                const mouseY = event.clientY - rect.top;
+                this._onMouseMove(mouseX, mouseY);
+            }
+
+            _handleMouseUp() {
+                this._onMouseUp();
+            }
+
+            _handleWheel(event) {
+                const rect = this.canvas.getBoundingClientRect();
+                const mouseX = event.clientX - rect.left;
+                const mouseY = event.clientY - rect.top;
+                this._onWheel(event, mouseX, mouseY);
+            }
+
+            _handleKeyDown(event) {
+                this._onKeyDown(event);
+            }
+
+            renderUI() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                this.applyFormLayout(this.myFormLayout, 0, 0, this.canvas.width, this.canvas.height);
+            }
+
+            startCursorBlinking() {
+                if (this.cursorBlinkInterval) clearInterval(this.cursorBlinkInterval);
+                this.cursorBlinkInterval = setInterval(() => {
+                    this.cursorVisible = !this.cursorVisible;
+                    if (this.focusedInputId) {
+                        this.renderUI();
+                    }
+                }, 500);
+            }
+
+            stopCursorBlinking() {
+                if (this.cursorBlinkInterval) clearInterval(this.cursorBlinkInterval);
+                this.cursorVisible = true;
+            }
+
+            isPointInRect(point, rect) {
+                return point.x >= rect.x && point.x <= rect.x + rect.width &&
+                       point.y >= rect.y && point.y <= rect.y + rect.height;
+            }
+
+            findElementById(id) {
+                return this._findElementByIdRecursive(this.myFormLayout, id);
+            }
+
+            _findElementByIdRecursive(layout, id) {
+                for (const element of layout) {
+                    if (element.id === id) return element;
+                    if (element.elements && Array.isArray(element.elements)) {
+                        const foundInChild = this._findElementByIdRecursive(element.elements, id);
+                        if (foundInChild) return foundInChild;
+                    }
+                }
+                return null;
+            }
+
+            computeEffectiveElement(originalElementConfig) {
+                let classDerivedProps = {};
+                if (originalElementConfig.classObjects && Array.isArray(originalElementConfig.classObjects)) {
+                    for (const className of originalElementConfig.classObjects) {
+                        if (this.uiClassStyles[className]) {
+                            classDerivedProps = { ...classDerivedProps, ...this.uiClassStyles[className] };
+                        }
+                    }
+                }
+                return { ...classDerivedProps, ...originalElementConfig };
+            }
+
+            _resolveCoordinate(value, canvasDimension) {
+                let resolvedValue;
+                if (typeof value === 'string' && value.endsWith('%')) {
+                    resolvedValue = (parseFloat(value) / 100) * canvasDimension;
+                } else {
+                    resolvedValue = Number(value);
+                }
+                return isFinite(resolvedValue) ? resolvedValue : 0;
+            }
+
+            applyFormLayout(configElements, baseX = 0, baseY = 0, parentActualWidth = this.canvas.width, parentActualHeight = this.canvas.height) {
+                configElements.forEach(originalElementConfig => {
+                    const element = this.computeEffectiveElement(originalElementConfig);
+                    if (!element || !element.type) return;
+
+                    const rawElMargin = this._normalizeMargin(element.margin);
+                    const elDefX = element.x; const elDefY = element.y;
+                    const marginBoxX = baseX + this._resolveCoordinate(elDefX || 0, parentActualWidth);
+                    const marginBoxY = baseY + this._resolveCoordinate(elDefY || 0, parentActualHeight);
+                    const marginLeftPx = this._resolveCoordinate(rawElMargin.left, parentActualWidth);
+                    const marginRightPx = this._resolveCoordinate(rawElMargin.right, parentActualWidth);
+                    const marginTopPx = this._resolveCoordinate(rawElMargin.top, parentActualHeight);
+                    const marginBottomPx = this._resolveCoordinate(rawElMargin.bottom, parentActualHeight);
+                    const finalX = marginBoxX + marginLeftPx; const finalY = marginBoxY + marginTopPx;
+                    const availableWidthForElement = parentActualWidth - marginLeftPx - marginRightPx;
+                    const availableHeightForElement = parentActualHeight - marginTopPx - marginBottomPx;
+
+                    if (element.type === 'multiLineTextInput') {
+                        originalElementConfig.scrollOffsetY = originalElementConfig.scrollOffsetY || 0;
+                    }
+
+                    let elWidthDef = element.width; let resolvedWidthPx = 0;
+                    if (elWidthDef !== undefined) {
+                        resolvedWidthPx = this._resolveCoordinate(elWidthDef, availableWidthForElement);
+                    }
+                    originalElementConfig._resolvedWidth = resolvedWidthPx;
+
+                    let elHeightDef = element.height; let resolvedHeightPx = 0;
+                    if (elHeightDef !== undefined) {
+                        resolvedHeightPx = this._resolveCoordinate(elHeightDef, availableHeightForElement);
+                    }
+                    originalElementConfig._resolvedHeight = resolvedHeightPx;
+                    originalElementConfig._finalX = finalX; originalElementConfig._finalY = finalY;
+                    element._resolvedWidth = resolvedWidthPx; element._resolvedHeight = resolvedHeightPx;
+                    element._finalX = finalX; element._finalY = finalY;
+                    element._x = finalX; element._y = finalY; // For convenience in drawing methods
+
+                    const isRectangularVisualElement = ['multiLineTextInput'].includes(element.type); // Simplified for this example
+                    const visualPropsOwner = element;
+                    const hasVisuals = visualPropsOwner && (visualPropsOwner.backgroundColor || (visualPropsOwner.borderWidth && visualPropsOwner.borderWidth > 0));
+
+                    if (isRectangularVisualElement && hasVisuals) {
+                        if (element._resolvedWidth > 0 && element._resolvedHeight > 0) {
+                            const elBorderRadius = visualPropsOwner.borderRadius || 0;
+                            const visualWidth = element._resolvedWidth; const visualHeight = element._resolvedHeight;
+                            this.ctx.save();
+                            this.ctx.beginPath();
+                            this.ctx.moveTo(finalX + elBorderRadius, finalY);
+                            this.ctx.lineTo(finalX + visualWidth - elBorderRadius, finalY);
+                            this.ctx.arcTo(finalX + visualWidth, finalY, finalX + visualWidth, finalY + elBorderRadius, elBorderRadius);
+                            this.ctx.lineTo(finalX + visualWidth, finalY + visualHeight - elBorderRadius);
+                            this.ctx.arcTo(finalX + visualWidth, finalY + visualHeight, finalX + visualWidth - elBorderRadius, finalY + visualHeight, elBorderRadius);
+                            this.ctx.lineTo(finalX + elBorderRadius, finalY + visualHeight);
+                            this.ctx.arcTo(finalX, finalY + visualHeight, finalX, finalY + visualHeight - elBorderRadius, elBorderRadius);
+                            this.ctx.lineTo(finalX, finalY + elBorderRadius);
+                            this.ctx.arcTo(finalX, finalY, finalX + elBorderRadius, finalY, elBorderRadius);
+                            this.ctx.closePath();
+
+                            if (visualPropsOwner.backgroundColor) {
+                                this.ctx.fillStyle = visualPropsOwner.backgroundColor; this.ctx.fill();
+                            }
+                            if ((visualPropsOwner.borderWidth || 0) > 0) {
+                                this.ctx.lineWidth = visualPropsOwner.borderWidth;
+                                this.ctx.strokeStyle = visualPropsOwner.borderColor || 'black'; this.ctx.stroke();
+                            }
+                            this.ctx.restore(); this.ctx.lineWidth = 1;
+                        }
+                    }
+
+                    switch (element.type) {
+                        case 'multiLineTextInput':
+                            this._drawMultiLineTextInput(element);
+                            // Persist calculated values back to original config for state
+                            originalElementConfig._showVerticalScrollbar = element._showVerticalScrollbar;
+                            originalElementConfig._renderLines = element._renderLines;
+                            originalElementConfig._totalTextHeight = element._totalTextHeight;
+                            originalElementConfig.scrollOffsetY = element.scrollOffsetY;
+                            originalElementConfig._verticalScrollbarRect = element._verticalScrollbarRect;
+                            break;
+                        default: console.warn(`Unsupported element type: ${element.type}`);
+                    }
+                });
+            }
+
+            _normalizePadding(paddingValue = 0) {
+                if (typeof paddingValue === 'number' || (typeof paddingValue === 'string' && paddingValue.endsWith('%'))) {
+                    return { top: paddingValue, right: paddingValue, bottom: paddingValue, left: paddingValue };
+                }
+                if (typeof paddingValue === 'object' && paddingValue !== null) {
+                    return {
+                        top: paddingValue.top !== undefined ? paddingValue.top : 0,
+                        right: paddingValue.right !== undefined ? paddingValue.right : 0,
+                        bottom: paddingValue.bottom !== undefined ? paddingValue.bottom : 0,
+                        left: paddingValue.left !== undefined ? paddingValue.left : 0,
+                    };
+                }
+                return { top: 0, right: 0, bottom: 0, left: 0 };
+            }
+
+            _normalizeMargin(marginValue = 0) {
+                return this._normalizePadding(marginValue); // Same logic for margin
+            }
+
+            _onMouseDown(clickX, clickY) {
+                let focusChangedThisMouseDown = false;
+                let newFocusedElementId = null; // Track if a new element is focused
+
+                const processMouseDownOnElements = (elements, cX, cY) => {
+                    for (const originalElConfig of elements) {
+                        const el = this.computeEffectiveElement(originalElConfig);
+                        const elScreenX = originalElConfig._finalX; const elScreenY = originalElConfig._finalY;
+                        if (el.type === 'multiLineTextInput') {
+                            const inputRect = { x: elScreenX, y: elScreenY, width: originalElConfig._resolvedWidth, height: originalElConfig._resolvedHeight };
+                            if (this.isPointInRect({ x: cX, y: cY }, inputRect)) {
+                                if (!originalElConfig.isFocused) {
+                                    // Unfocus other inputs
+                                    this.myFormLayout.forEach(item => {
+                                        if (item.type === 'multiLineTextInput' && item.isFocused && item.id !== originalElConfig.id) item.isFocused = false;
+                                    });
+                                    newFocusedElementId = originalElConfig.id; // Mark for focus
+                                }
+                                this.ctx.font = el.font || '16px Arial';
+                                const lineHeight = this._getLineHeight(this.ctx.font, el.lineHeight);
+                                const rawPadding = this._normalizePadding(el.padding || 0);
+                                const paddingLeftPx = this._resolveCoordinate(rawPadding.left, originalElConfig._resolvedWidth);
+                                const paddingTopPx = this._resolveCoordinate(rawPadding.top, originalElConfig._resolvedHeight);
+                                const relativeClickX = cX - (elScreenX + paddingLeftPx);
+                                const relativeClickY = cY - (elScreenY + paddingTopPx) + (originalElConfig.scrollOffsetY || 0);
+                                const targetLineIndex = Math.floor(relativeClickY / lineHeight);
+                                let targetOffsetInLine = 0;
+                                if (originalElConfig._renderLines && targetLineIndex >= 0 && targetLineIndex < originalElConfig._renderLines.length) {
+                                    const targetLineText = originalElConfig._renderLines[targetLineIndex].text;
+                                    let currentWidth = 0;
+                                    for (let i = 0; i <= targetLineText.length; i++) {
+                                        targetOffsetInLine = i;
+                                        if (i < targetLineText.length) {
+                                            const charWidth = this.ctx.measureText(targetLineText[i]).width;
+                                            if (relativeClickX <= currentWidth + charWidth / 2) break;
+                                            currentWidth += charWidth;
+                                        } else break;
+                                    }
+                                }
+                                originalElConfig.cursorPosition = this._mapLineAndOffsetToFlatCursor(targetLineIndex, targetOffsetInLine, originalElConfig._renderLines);
+                                originalElConfig.preferredCursorX = undefined; // Reset preferred X on click
+                                return true; // Event handled
+                            }
+                        }
+                        // Simplified: No recursion into child elements for this minimal example
+                    }
+                    return false;
+                };
+
+                const findAndHandleScrollbarClick = (elements, cX, cY) => {
+                    for (let i = elements.length - 1; i >= 0; i--) {
+                        const originalEl = elements[i];
+                         const elRect = { x: originalEl._finalX, y: originalEl._finalY, width: originalEl._resolvedWidth, height: originalEl._resolvedHeight };
+                         if (this.isPointInRect({ x: cX, y: cY }, elRect)) {
+                            if (originalEl.type === 'multiLineTextInput' && originalEl._showVerticalScrollbar && originalEl._verticalScrollbarRect) {
+                                const vsbRect = originalEl._verticalScrollbarRect;
+                                const vsbThumbRect = { x: vsbRect.thumbX, y: vsbRect.thumbY, width: vsbRect.thumbWidth, height: vsbRect.thumbHeight };
+                                if (this.isPointInRect({ x: cX, y: cY }, vsbThumbRect)) {
+                                    this.isDraggingScrollbar = true; this.draggedElement = originalEl;
+                                    this.dragStartY = cY;
+                                    this.dragStartScrollTop = originalEl.scrollOffsetY || 0;
+                                    this.renderUI(); return true;
+                                } else if (this.isPointInRect({ x: cX, y: cY }, vsbRect)) { // Click on track
+                                    const effectiveEl = this.computeEffectiveElement(originalEl);
+                                    const contentH = originalEl._resolvedHeight - this._resolveCoordinate(this._normalizePadding(effectiveEl.padding).top, originalEl._resolvedHeight) - this._resolveCoordinate(this._normalizePadding(effectiveEl.padding).bottom, originalEl._resolvedHeight);
+                                    const scrollChange = cY < vsbThumbRect.y ? -contentH : contentH;
+                                    const maxScroll = Math.max(0, originalEl._totalTextHeight - contentH);
+                                    originalEl.scrollOffsetY = Math.max(0, Math.min(maxScroll, (originalEl.scrollOffsetY || 0) + scrollChange));
+                                    this.renderUI(); return true;
+                                }
+                            }
+                        }
+                    }
+                    return false;
+                };
+
+                let eventHandledByScrollbar = findAndHandleScrollbarClick(this.myFormLayout, clickX, clickY);
+                let eventHandledByElementClick = false;
+                if (!eventHandledByScrollbar) {
+                    eventHandledByElementClick = processMouseDownOnElements(this.myFormLayout, clickX, clickY);
+                }
+
+                if (newFocusedElementId) { // A canvas input was clicked and should gain focus
+                    if (this.focusedInputId && this.focusedInputId !== newFocusedElementId) {
+                        // Unfocus the previously focused canvas input
+                        let prevFocused = this.findElementById(this.focusedInputId);
+                        if (prevFocused) prevFocused.isFocused = false;
+                    }
+                    this.focusedInputId = newFocusedElementId;
+                    let currentFocused = this.findElementById(this.focusedInputId);
+                    if (currentFocused) currentFocused.isFocused = true;
+                    
+                    this.startCursorBlinking();
+                    if (this.hiddenMobileInput) {
+                        this.hiddenMobileInput.focus(); // Focus the hidden input
+                    }
+                    focusChangedThisMouseDown = true;
+                } else if (!eventHandledByElementClick && !eventHandledByScrollbar) { 
+                    // Click was outside any interactive element (and not on a scrollbar being dragged)
+                    if (this.focusedInputId) {
+                        let prevFocused = this.findElementById(this.focusedInputId);
+                        if (prevFocused) prevFocused.isFocused = false;
+                        this.focusedInputId = null;
+                        this.stopCursorBlinking();
+                        if (this.hiddenMobileInput) {
+                            this.hiddenMobileInput.blur(); // Blur the hidden input
+                        }
+                        focusChangedThisMouseDown = true;
+                    }
+                }
+                if (focusChangedThisMouseDown || eventHandledByElementClick || eventHandledByScrollbar) this.renderUI();
+            }
+
+            _onMouseMove(mouseX, mouseY) {
+                if (this.isDraggingScrollbar && this.draggedElement) {
+                    const draggedEl = this.draggedElement;
+                    const deltaY = mouseY - this.dragStartY;
+                    const sb = draggedEl._verticalScrollbarRect;
+                    const scrollableTrackHeight = sb.height - sb.thumbHeight;
+                    if (scrollableTrackHeight <= 0) return;
+
+                    const scrollDeltaRatio = deltaY / scrollableTrackHeight;
+                    const effectiveEl = this.computeEffectiveElement(draggedEl);
+                    const contentH = draggedEl._resolvedHeight - this._resolveCoordinate(this._normalizePadding(effectiveEl.padding).top, draggedEl._resolvedHeight) - this._resolveCoordinate(this._normalizePadding(effectiveEl.padding).bottom, draggedEl._resolvedHeight);
+                    const maxScroll = Math.max(0, draggedEl._totalTextHeight - contentH);
+                    
+                    draggedEl.scrollOffsetY = this.dragStartScrollTop + (scrollDeltaRatio * maxScroll);
+                    draggedEl.scrollOffsetY = Math.max(0, Math.min(draggedEl.scrollOffsetY, maxScroll));
+                    this.renderUI();
+                }
+            }
+
+            _onMouseUp() {
+                if (this.isDraggingScrollbar) {
+                    this.isDraggingScrollbar = false;
+                    this.draggedElement = null;
+                }
+            }
+
+            _onWheel(event, mouseX, mouseY) {
+                event.preventDefault();
+                // Simplified: Find the first scrollable element under mouse, or the focused one
+                let activeScrolledElement = null;
+                if (this.focusedInputId) {
+                    const focused = this.findElementById(this.focusedInputId);
+                    if (focused && focused.type === 'multiLineTextInput' && focused._showVerticalScrollbar) {
+                         const elRect = { x: focused._finalX, y: focused._finalY, width: focused._resolvedWidth, height: focused._resolvedHeight };
+                         if (this.isPointInRect({x: mouseX, y: mouseY}, elRect)) {
+                            activeScrolledElement = focused;
+                         }
+                    }
+                }
+                
+                if (!activeScrolledElement) { // Fallback to find any scrollable under mouse
+                    const findScrollable = (elements) => {
+                        for (let i = elements.length - 1; i >= 0; i--) {
+                            const el = elements[i];
+                            const elRect = { x: el._finalX, y: el._finalY, width: el._resolvedWidth, height: el._resolvedHeight };
+                            if (this.isPointInRect({ x: mouseX, y: mouseY }, elRect)) {
+                                if (el.type === 'multiLineTextInput' && el._showVerticalScrollbar) return el;
+                            }
+                        }
+                        return null;
+                    }
+                    activeScrolledElement = findScrollable(this.myFormLayout);
+                }
+
+                if (activeScrolledElement) {
+                    const scrollAmount = event.deltaY > 0 ? 40 : -40; // Adjust scroll speed
+                    const effectiveEl = this.computeEffectiveElement(activeScrolledElement);
+                    const contentHeight = activeScrolledElement._resolvedHeight - this._resolveCoordinate(this._normalizePadding(effectiveEl.padding).top, activeScrolledElement._resolvedHeight) - this._resolveCoordinate(this._normalizePadding(effectiveEl.padding).bottom, activeScrolledElement._resolvedHeight);
+                    const maxScroll = Math.max(0, activeScrolledElement._totalTextHeight - contentHeight);
+                    activeScrolledElement.scrollOffsetY = (activeScrolledElement.scrollOffsetY || 0) + scrollAmount;
+                    activeScrolledElement.scrollOffsetY = Math.max(0, Math.min(activeScrolledElement.scrollOffsetY, maxScroll));
+                    this.renderUI();
+                }
+            }
+
+            _onKeyDown(event) {
+                if (!this.focusedInputId) return;
+                let activeInputOriginal = this.findElementById(this.focusedInputId);
+                if (!activeInputOriginal || activeInputOriginal.type !== 'multiLineTextInput') return;
+
+                const activeInput = this.computeEffectiveElement(activeInputOriginal);
+                let valueChanged = false;
+                this.ctx.font = activeInput.font || '16px Arial';
+                const lineHeight = this._getLineHeight(this.ctx.font, activeInput.lineHeight);
+                const TAB_REPLACEMENT = '    '; // 4 spaces for tab
+
+                const padding = this._normalizePadding(activeInput.padding);
+                let textWidthForLines = activeInputOriginal._resolvedWidth - this._resolveCoordinate(padding.left, activeInputOriginal._resolvedWidth) - this._resolveCoordinate(padding.right, activeInputOriginal._resolvedWidth);
+                if (activeInputOriginal._showVerticalScrollbar) {
+                    textWidthForLines -= (activeInput.scrollbarSize || this.DEFAULT_SCROLLBAR_SIZE);
+                }
+
+                const renderLines = activeInputOriginal._renderLines || this._generateRenderableLines(activeInputOriginal.value || "", textWidthForLines, this.ctx.font);
+                let { lineIndex: cursorLine, offsetInLine: cursorOffset } = this._mapFlatCursorToLineAndOffset(activeInputOriginal.cursorPosition, renderLines);
+
+                if (event.key === 'Tab') {
+                    event.preventDefault();
+                    activeInputOriginal.value = (activeInputOriginal.value || "").substring(0, activeInputOriginal.cursorPosition) + TAB_REPLACEMENT + (activeInputOriginal.value || "").substring(activeInputOriginal.cursorPosition);
+                    activeInputOriginal.cursorPosition += TAB_REPLACEMENT.length;
+                    valueChanged = true;
+                    activeInputOriginal.preferredCursorX = undefined;
+                } else if (event.key === 'Enter') {
+                    activeInputOriginal.value = (activeInputOriginal.value || "").substring(0, activeInputOriginal.cursorPosition) + '\n' + (activeInputOriginal.value || "").substring(activeInputOriginal.cursorPosition);
+                    activeInputOriginal.cursorPosition++;
+                    valueChanged = true;
+                    activeInputOriginal.preferredCursorX = undefined;
+                } else if (event.key === 'Backspace') {
+                    if (activeInputOriginal.cursorPosition > 0) {
+                        activeInputOriginal.value = (activeInputOriginal.value || "").substring(0, activeInputOriginal.cursorPosition - 1) + (activeInputOriginal.value || "").substring(activeInputOriginal.cursorPosition);
+                        activeInputOriginal.cursorPosition--;
+                        valueChanged = true;
+                        activeInputOriginal.preferredCursorX = undefined;
+                    }
+                } else if (event.key === 'Delete') {
+                    if (activeInputOriginal.cursorPosition < (activeInputOriginal.value || "").length) {
+                        activeInputOriginal.value = (activeInputOriginal.value || "").substring(0, activeInputOriginal.cursorPosition) + (activeInputOriginal.value || "").substring(activeInputOriginal.cursorPosition + 1);
+                        valueChanged = true;
+                        activeInputOriginal.preferredCursorX = undefined;
+                    }
+                } else if (event.key === 'ArrowLeft') {
+                    if (activeInputOriginal.cursorPosition > 0) activeInputOriginal.cursorPosition--;
+                    activeInputOriginal.preferredCursorX = undefined;
+                } else if (event.key === 'ArrowRight') {
+                    if (activeInputOriginal.cursorPosition < (activeInputOriginal.value || "").length) activeInputOriginal.cursorPosition++;
+                    activeInputOriginal.preferredCursorX = undefined;
+                } else if (event.key === 'ArrowUp') {
+                    if (cursorLine > 0) {
+                        if (activeInputOriginal.preferredCursorX === undefined && renderLines[cursorLine]) {
+                             activeInputOriginal.preferredCursorX = this.ctx.measureText(renderLines[cursorLine].text.substring(0, cursorOffset)).width;
+                        }
+                        let newOffset = 0;
+                        const prevLineText = renderLines[cursorLine - 1].text;
+                        let currentWidth = 0;
+                        for (let i = 0; i <= prevLineText.length; i++) {
+                            newOffset = i;
+                            if (i < prevLineText.length) {
+                                const charWidth = this.ctx.measureText(prevLineText[i]).width;
+                                if (activeInputOriginal.preferredCursorX <= currentWidth + charWidth / 2) break;
+                                currentWidth += charWidth;
+                            } else break;
+                        }
+                        activeInputOriginal.cursorPosition = this._mapLineAndOffsetToFlatCursor(cursorLine - 1, newOffset, renderLines);
+                    }
+                } else if (event.key === 'ArrowDown') {
+                    if (cursorLine < renderLines.length - 1) {
+                        if (activeInputOriginal.preferredCursorX === undefined && renderLines[cursorLine]) {
+                            activeInputOriginal.preferredCursorX = this.ctx.measureText(renderLines[cursorLine].text.substring(0, cursorOffset)).width;
+                        }
+                        let newOffset = 0;
+                        const nextLineText = renderLines[cursorLine + 1].text;
+                        let currentWidth = 0;
+                        for (let i = 0; i <= nextLineText.length; i++) {
+                            newOffset = i;
+                            if (i < nextLineText.length) {
+                                const charWidth = this.ctx.measureText(nextLineText[i]).width;
+                                if (activeInputOriginal.preferredCursorX <= currentWidth + charWidth / 2) break;
+                                currentWidth += charWidth;
+                            } else break;
+                        }
+                        activeInputOriginal.cursorPosition = this._mapLineAndOffsetToFlatCursor(cursorLine + 1, newOffset, renderLines);
+                    }
+                } else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+                    activeInputOriginal.value = (activeInputOriginal.value || "").substring(0, activeInputOriginal.cursorPosition) + event.key + (activeInputOriginal.value || "").substring(activeInputOriginal.cursorPosition);
+                    activeInputOriginal.cursorPosition++;
+                    valueChanged = true;
+                    activeInputOriginal.preferredCursorX = undefined;
+                }
+
+                if (valueChanged || ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Backspace', 'Delete'].includes(event.key)) {
+                    const contentHeight = activeInputOriginal._resolvedHeight - this._resolveCoordinate(this._normalizePadding(activeInput.padding).top, activeInputOriginal._resolvedHeight) - this._resolveCoordinate(this._normalizePadding(activeInput.padding).bottom, activeInputOriginal._resolvedHeight);
+                    const newRenderLines = this._generateRenderableLines(activeInputOriginal.value || "", textWidthForLines, this.ctx.font);
+                    const { lineIndex: newCursorLine } = this._mapFlatCursorToLineAndOffset(activeInputOriginal.cursorPosition, newRenderLines);
+                    const cursorYPosInText = newCursorLine * lineHeight;
+                    const scrollOffsetY = activeInputOriginal.scrollOffsetY || 0;
+
+                    if (cursorYPosInText < scrollOffsetY) {
+                        activeInputOriginal.scrollOffsetY = cursorYPosInText;
+                    } else if (cursorYPosInText + lineHeight > scrollOffsetY + contentHeight) {
+                        activeInputOriginal.scrollOffsetY = cursorYPosInText + lineHeight - contentHeight;
+                    }
+                    const maxScroll = Math.max(0, (newRenderLines.length * lineHeight) - contentHeight);
+                    activeInputOriginal.scrollOffsetY = Math.max(0, Math.min(activeInputOriginal.scrollOffsetY || 0, maxScroll));
+                }
+
+                if (valueChanged && typeof activeInput.onChange === 'function') {
+                    activeInput.onChange(activeInputOriginal.value, activeInput.id, activeInput.placeholder);
+                }
+
+                if (event.key === 'Tab' || ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter'].includes(event.key) || (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey)) {
+                    event.preventDefault();
+                }
+                this.renderUI();
+            }
+
+            _getLineHeight(font, customLineHeight) {
+                if (customLineHeight && isFinite(customLineHeight) && customLineHeight > 0) return customLineHeight;
+                const fontSizeMatch = font.match(/(\d+)\s*(px|pt|em|rem)?/i);
+                const fontSize = fontSizeMatch && fontSizeMatch[1] ? parseInt(fontSizeMatch[1], 10) : 16;
+                return fontSize * 1.2; // Default line height factor
+            }
+
+            _generateRenderableLines(text, maxWidth, font) {
+                const originalFont = this.ctx.font; this.ctx.font = font;
+                const resultLines = [];
+                let globalFlatTextIndex = 0;
+                if (text === null || text === undefined) text = "";
+                if (text === "") {
+                    resultLines.push({ text: "", width: 0, startIndexFlat: 0, endIndexFlat: -1 });
+                    this.ctx.font = originalFont; return resultLines;
+                }
+
+                const paragraphs = text.split('\n');
+                for (let p = 0; p < paragraphs.length; p++) {
+                    const paragraph = paragraphs[p];
+                    let currentLineBuffer = "";
+                    let currentLineGlobalStartIndex = globalFlatTextIndex;
+
+                    if (paragraph === "") { // Handle empty lines (resulting from \n\n or start/end \n)
+                        resultLines.push({ text: "", width: 0, startIndexFlat: currentLineGlobalStartIndex, endIndexFlat: currentLineGlobalStartIndex -1 });
+                        if (p < paragraphs.length - 1) globalFlatTextIndex++; // Account for the '\n' character itself
+                        continue;
+                    }
+
+                    const tokens = paragraph.match(/\S+\s*|\s+/g) || []; // Split by words (and trailing space) or sequences of whitespace
+                    for (const token of tokens) {
+                        const testLine = currentLineBuffer + token;
+                        if (this.ctx.measureText(testLine).width > maxWidth && currentLineBuffer !== "") {
+                            resultLines.push({ text: currentLineBuffer, width: this.ctx.measureText(currentLineBuffer).width, startIndexFlat: currentLineGlobalStartIndex, endIndexFlat: currentLineGlobalStartIndex + currentLineBuffer.length - 1 });
+                            currentLineBuffer = token;
+                            currentLineGlobalStartIndex = globalFlatTextIndex; // Start index of the new line is the current global index
+                        } else {
+                            currentLineBuffer = testLine;
+                        }
+                        globalFlatTextIndex += token.length; // Advance global index by token length
+                    }
+
+                    if (currentLineBuffer !== "") {
+                        resultLines.push({ text: currentLineBuffer, width: this.ctx.measureText(currentLineBuffer).width, startIndexFlat: currentLineGlobalStartIndex, endIndexFlat: currentLineGlobalStartIndex + currentLineBuffer.length - 1 });
+                    }
+                     if (p < paragraphs.length - 1) globalFlatTextIndex++; // Account for the '\n' character that was split on
+                }
+                this.ctx.font = originalFont;
+                return resultLines;
+            }
+
+            _mapFlatCursorToLineAndOffset(flatCursorPos, renderLines) {
+                if (!renderLines || renderLines.length === 0) return { lineIndex: 0, offsetInLine: 0 };
+                for (let i = 0; i < renderLines.length; i++) {
+                    const line = renderLines[i];
+                    if (flatCursorPos >= line.startIndexFlat && flatCursorPos <= line.startIndexFlat + line.text.length) {
+                        return { lineIndex: i, offsetInLine: flatCursorPos - line.startIndexFlat };
+                    }
+                }
+                const lastLine = renderLines[renderLines.length - 1];
+                if (flatCursorPos > lastLine.startIndexFlat + lastLine.text.length) {
+                     return { lineIndex: renderLines.length - 1, offsetInLine: lastLine.text.length };
+                }
+                return { lineIndex: 0, offsetInLine: 0 };
+            }
+
+            _mapLineAndOffsetToFlatCursor(targetLineIndex, targetOffsetInLine, renderLines) {
+                if (!renderLines || renderLines.length === 0) return 0;
+                const safeLineIndex = Math.max(0, Math.min(targetLineIndex, renderLines.length - 1));
+                const targetLine = renderLines[safeLineIndex];
+                const safeOffset = Math.max(0, Math.min(targetOffsetInLine, targetLine.text.length));
+                return targetLine.startIndexFlat + safeOffset;
+            }
+
+            _drawMultiLineTextInput(element) {
+                const originalFont = this.ctx.font;
+                const x = element._x; const y = element._y;
+                const width = element._resolvedWidth; const height = element._resolvedHeight;
+                const rawPadding = this._normalizePadding(element.padding || 0);
+                const paddingLeftPx = this._resolveCoordinate(rawPadding.left, width);
+                const paddingRightPx = this._resolveCoordinate(rawPadding.right, width);
+                const paddingTopPx = this._resolveCoordinate(rawPadding.top, height);
+                const paddingBottomPx = this._resolveCoordinate(rawPadding.bottom, height);
+
+                this.ctx.font = element.font || '16px Arial';
+                const lineHeight = this._getLineHeight(this.ctx.font, element.lineHeight);
+                const scrollbarSize = element.scrollbarSize || this.DEFAULT_SCROLLBAR_SIZE;
+
+                const initialContentX = x + paddingLeftPx;
+                const initialContentY = y + paddingTopPx;
+                const initialContentWidth = width - paddingLeftPx - paddingRightPx;
+                const initialContentHeight = height - paddingTopPx - paddingBottomPx;
+
+                let textRenderWidth = initialContentWidth;
+                // First pass to determine if scrollbar is needed
+                let tempRenderLines = this._generateRenderableLines(element.value || "", textRenderWidth, this.ctx.font);
+                let currentTotalTextHeight = tempRenderLines.length * lineHeight;
+
+                element._showVerticalScrollbar = false;
+                if (currentTotalTextHeight > initialContentHeight && initialContentWidth > scrollbarSize) {
+                    element._showVerticalScrollbar = true;
+                    textRenderWidth = initialContentWidth - scrollbarSize; // Adjust width for scrollbar
+                    // Regenerate lines with new width
+                    tempRenderLines = this._generateRenderableLines(element.value || "", textRenderWidth, this.ctx.font);
+                    currentTotalTextHeight = tempRenderLines.length * lineHeight;
+                }
+                element._renderLines = tempRenderLines; // Store the final render lines
+                element._totalTextHeight = currentTotalTextHeight;
+
+                const finalContentX = initialContentX;
+                const finalContentY = initialContentY;
+                const finalContentHeight = initialContentHeight; // Visible height for content
+
+                const maxScrollOffsetY = Math.max(0, currentTotalTextHeight - finalContentHeight);
+                element.scrollOffsetY = Math.max(0, Math.min(element.scrollOffsetY || 0, maxScrollOffsetY));
+
+                this.ctx.save();
+                this.ctx.beginPath();
+                this.ctx.rect(initialContentX, initialContentY, initialContentWidth, initialContentHeight); // Clip to the full initial content area
+                this.ctx.clip();
+
+                this.ctx.textAlign = 'left';
+                this.ctx.textBaseline = 'top'; // Important for consistent line positioning
+
+                const textToDraw = element.value || "";
+                if (!textToDraw && !element.isFocused && element.placeholder) {
+                    this.ctx.fillStyle = element.placeholderColor || '#AAAAAA';
+                    const placeholderLines = this._generateRenderableLines(element.placeholder, textRenderWidth, this.ctx.font);
+                    placeholderLines.forEach((line, i) => {
+                        if (i * lineHeight < finalContentHeight) { // Basic visibility check
+                            this.ctx.fillText(line.text, finalContentX, finalContentY + i * lineHeight);
+                        }
+                    });
+                } else {
+                    this.ctx.fillStyle = element.textColor || '#000000';
+                    element._renderLines.forEach((line, i) => {
+                        const lineYPos = finalContentY + (i * lineHeight) - element.scrollOffsetY;
+                        // Draw line if it's at least partially visible within the clipped content area
+                        if (lineYPos + lineHeight > finalContentY && lineYPos < finalContentY + finalContentHeight) {
+                            this.ctx.fillText(line.text, finalContentX, lineYPos);
+                        }
+                    });
+
+                    if (element.isFocused && this.cursorVisible) {
+                        const { lineIndex: cursorLineIndex, offsetInLine: cursorOffsetInLine } = this._mapFlatCursorToLineAndOffset(element.cursorPosition, element._renderLines);
+                        if (element._renderLines[cursorLineIndex]) { // Ensure line exists
+                            const lineTextBeforeCursor = element._renderLines[cursorLineIndex].text.substring(0, cursorOffsetInLine);
+                            const cursorVisualX = finalContentX + this.ctx.measureText(lineTextBeforeCursor).width;
+                            const cursorVisualY = finalContentY + (cursorLineIndex * lineHeight) - element.scrollOffsetY;
+
+                            // Check if cursor is within visible bounds of the clipped content area
+                            if (cursorVisualY >= finalContentY && cursorVisualY < finalContentY + finalContentHeight) {
+                                if (cursorVisualX >= finalContentX && cursorVisualX <= finalContentX + textRenderWidth) { // Check against textRenderWidth
+                                    this.ctx.beginPath();
+                                    this.ctx.moveTo(cursorVisualX + 0.5, cursorVisualY);
+                                    this.ctx.lineTo(cursorVisualX + 0.5, cursorVisualY + lineHeight);
+                                    this.ctx.strokeStyle = element.textColor || '#000000';
+                                    this.ctx.lineWidth = 1;
+                                    this.ctx.stroke();
+                                }
+                            }
+                        }
+                    }
+                }
+                this.ctx.restore(); // Restore from clipping
+
+                // Draw scrollbar outside the clip, but within the element's padded bounds
+                if (element._showVerticalScrollbar) {
+                    const sbTrackX = finalContentX + textRenderWidth; // Position after text content
+                    const sbTrackY = finalContentY;
+                    const sbTrackActualHeight = finalContentHeight;
+
+                    const thumbHeightRatio = currentTotalTextHeight > 0 ? (finalContentHeight / currentTotalTextHeight) : 1;
+                    const thumbHeight = Math.max(20, sbTrackActualHeight * thumbHeightRatio); // Min thumb height
+                    const thumbYRatio = maxScrollOffsetY > 0 ? (element.scrollOffsetY / maxScrollOffsetY) : 0;
+                    const thumbY = sbTrackY + thumbYRatio * (sbTrackActualHeight - thumbHeight);
+
+                    element._verticalScrollbarRect = {
+                        x: sbTrackX, y: sbTrackY, width: scrollbarSize, height: sbTrackActualHeight,
+                        thumbX: sbTrackX, thumbY: thumbY, thumbWidth: scrollbarSize, thumbHeight: thumbHeight
+                    };
+
+                    this.ctx.fillStyle = element.scrollbarTrackColor || '#EEEEEE';
+                    this.ctx.fillRect(sbTrackX, sbTrackY, scrollbarSize, sbTrackActualHeight);
+                    this.ctx.fillStyle = element.scrollbarThumbColor || '#888888';
+                    this.ctx.fillRect(sbTrackX, thumbY, scrollbarSize, thumbHeight);
+                } else {
+                    element._verticalScrollbarRect = null;
+                }
+                this.ctx.font = originalFont; // Restore original font
+            }
+        } // End class InteractiveCanvasUI
+
+        function initializeApp() {
+            if (canvasElement && canvasElement.getContext('2d')) {
+                myFormLayout = [
+                    {
+                        type: 'multiLineTextInput',
+                        id: 'myNotes',
+                        x: '10%', y: '10%',
+                        width: '80%', height: '80%',
+                        padding: 10,
+                        font: '16px Arial',
+                        textColor: '#333333',
+                        backgroundColor: '#FFFFFF',
+                        borderColor: '#CCCCCC',
+                        borderWidth: 1,
+                        borderRadius: 5,
+                        placeholder: 'Enter your notes here...\nNew lines are supported.\nTry typing a lot of text to see wrapping and scrolling.',
+                        value: 'This is a canvas-based multi-line text input.\n\nTry editing this text!',
+                        lineHeight: 20, // Optional: custom line height
+                        scrollbarSize: 10,
+                        scrollbarTrackColor: '#f0f0f0',
+                        scrollbarThumbColor: '#c0c0c0',
+                        isFocused: true, // Start focused for immediate typing
+                        cursorPosition: 0,
+                        onChange: (newValue, id, placeholder) => {
+                            console.log(`Input '${id}' changed:`, newValue);
+                        }
+                    }
+                ];
+
+                const ui = new InteractiveCanvasUI(canvasElement, myFormLayout, uiClassStyles);
+                window.canvasUI = ui; // Make instance globally accessible if needed for debugging
+                ui.initialize().then(() => {
+                    // Set initial focus and start cursor blinking if an element is marked as focused
+                    const focusedEl = ui.findElementById(ui.focusedInputId);
+                    if (focusedEl && focusedEl.isFocused) {
+                         ui.startCursorBlinking();
+                         if (ui.hiddenMobileInput) ui.hiddenMobileInput.focus(); // Focus hidden input
+                    } else { // If no element is initially focused, but we want to focus our text area
+                        const notesInput = ui.findElementById('myNotes');
+                        if (notesInput) {
+                            notesInput.isFocused = true;
+                            ui.focusedInputId = 'myNotes';
+                            ui.startCursorBlinking();
+                            if (ui.hiddenMobileInput) ui.hiddenMobileInput.focus(); // Focus hidden input
+                            ui.renderUI(); // Re-render to show focus
+                        }
+                    }
+                });
+
+            } else {
+                console.error('Canvas element not found or 2D context could not be retrieved.');
+            }
+        }
+
+        initializeApp();
+    </script>
+</body>
+</html>

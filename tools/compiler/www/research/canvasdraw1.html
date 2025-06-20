@@ -1,0 +1,1506 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Canvas Example</title>
+<style>
+  body { margin: 0; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f0f0f0; }
+  #canvasContainer {
+    position: relative; /* Establishes a positioning context for absolute children */
+    /* Ensure these dimensions match your canvas width/height for accurate overlay */
+    width: 800px;
+    height: 600px; /* This should match canvas height */
+  }
+  canvas { border: 1px solid black; }
+</style>
+</head>
+<body>
+<div id="canvasContainer">
+  <canvas id="myCanvas" width="800" height="600"></canvas>
+  <!-- HTML input elements container removed -->
+</div>
+
+<script>
+  const canvas = document.getElementById('myCanvas');
+  // const ctx = canvas.getContext('2d'); // ctx will be managed by the class
+  let myFormLayout = []; // Declare myFormLayout in a scope accessible by initializeApp
+
+  // --- NEW: UI Class Styles Definitions ---
+  const uiClassStyles = {
+    'text-white': {
+      color: '#fff',
+      textColor: '#fff',
+      borderColor: '#fff'
+    },
+    'text-dark': {
+      color: '#333'
+    },
+    'font-large-bold': {
+      font: 'bold 24px Arial' // Example, will be processed
+    },
+    'font-medium-italic': {
+      font: 'italic 16px url(Amperzand.ttf)' // Example with URL
+    },
+    'button-primary': {
+      backgroundColor: '#4CAF50',
+      textColor: 'white',
+      borderColor: '#388E3C',
+      font: 'bold 16px Arial', // Will be processed
+      padding: 10,
+      borderWidth: 2,
+      borderRadius: 8,
+    },
+    'button-cancel': {
+      backgroundColor: '#f44336',
+      textColor: 'white',
+      borderColor: '#D32F2F',
+      font: 'bold 16px Arial', // Will be processed
+      padding: { top: 5, right: 15, bottom: 5, left: 15 },
+      borderWidth: 2,
+      borderRadius: 8,
+    },
+    'input-default': {
+      textColor: '#000000',
+      placeholderColor: '#AAAAAA',
+      backgroundColor: '#FFFFFF',
+      borderColor: '#333333',
+      padding: 8,
+      borderWidth: 1,
+      borderRadius: 5,
+      font: '16px Arial' // Will be processed
+    },
+    'input-dark-theme': {
+      textColor: '#fff',
+      placeholderColor: '#ccc',
+      backgroundColor: 'rgba(0, 0, 0, 0.6)',
+      borderColor: '#fff',
+      padding: {left: 8, right: 8, top: '10%', bottom: '10%'},
+      borderWidth: 1,
+      borderRadius: 5,
+    },
+    'shadow-light': {
+      shadowColor: 'rgba(0,0,0,0.15)',
+      shadowBlur: 4,
+      shadowOffsetX: 1,
+      shadowOffsetY: 1
+    },
+    'shadow-medium': {
+      shadowColor: 'rgba(0,0,0,0.3)',
+      shadowBlur: 8,
+      shadowOffsetX: 3,
+      shadowOffsetY: 3
+    },
+    'container-bg-image-default': { // Example for formContainer
+        backgroundImage: {
+            src: 'back1.png', // Ensure this path is correct
+            style: 'fitByWidth', // Or 'stretch', 'fit', etc.
+            opacity: 0.5 // Example opacity
+        },
+    }
+  };
+
+  class InteractiveCanvasUI {
+      constructor(canvasElement, layout, styles) {
+          this.canvas = canvasElement;
+          this.ctx = canvasElement.getContext('2d');
+          this.myFormLayout = layout;
+          this.uiClassStyles = styles;
+
+          this.focusedInputId = null;
+          this.cursorVisible = true;
+          this.cursorBlinkInterval = null;
+          this.isDraggingScrollbar = false;
+          this.draggedElement = null;
+          this.dragStartY = 0;
+          this.dragStartScrollTop = 0;
+          this.DEFAULT_SCROLLBAR_SIZE = 8;
+          this.imageCache = new Map();
+          this.loadedFontUrls = new Map();
+      }
+
+      async initialize() {
+          await this._loadCustomFonts(); // Now a class method
+          await this._processAllFontDeclarations(); // Renamed for consistency
+          this.setupEventListeners();
+          this.renderUI();
+      }
+
+      async _processAllFontDeclarations() {
+        if (this.myFormLayout && this.myFormLayout.length > 0) {
+            await this._processLayoutFontsRecursive(this.myFormLayout);
+        }
+        for (const className in this.uiClassStyles) {
+          if (this.uiClassStyles.hasOwnProperty(className)) {
+            const styleDefinition = this.uiClassStyles[className];
+            if (styleDefinition && typeof styleDefinition.font === 'string') {
+              styleDefinition.font = await this._parseAndLoadFontString(styleDefinition.font);
+            }
+          }
+        }
+      }
+
+      async _processLayoutFontsRecursive(layoutElements) {
+        for (const element of layoutElements) {
+          if (typeof element.font === 'string') {
+            element.font = await this._parseAndLoadFontString(element.font);
+          }
+          if (element.elements && Array.isArray(element.elements)) {
+            await this._processLayoutFontsRecursive(element.elements);
+          }
+        }
+      }
+
+      setupEventListeners() {
+          this.canvas.addEventListener('mousedown', this._handleMouseDown.bind(this));
+          this.canvas.addEventListener('mousemove', this._handleMouseMove.bind(this));
+          window.addEventListener('mouseup', this._handleMouseUp.bind(this)); // Mouse up can happen outside canvas
+          this.canvas.addEventListener('wheel', this._handleWheel.bind(this));
+          window.addEventListener('keydown', this._handleKeyDown.bind(this)); // Keydown is global for focused input
+      }
+
+      _handleMouseDown(event) {
+          const rect = this.canvas.getBoundingClientRect();
+          const clickX = event.clientX - rect.left;
+          const clickY = event.clientY - rect.top;
+          this._onMouseDown(clickX, clickY);
+      }
+
+      _handleMouseMove(event) {
+        const rect = this.canvas.getBoundingClientRect();
+        const mouseX = event.clientX - rect.left;
+        const mouseY = event.clientY - rect.top;
+        this._onMouseMove(mouseX, mouseY);
+      }
+
+      _handleMouseUp(event) {
+          this._onMouseUp();
+      }
+
+      _handleWheel(event) {
+        const rect = this.canvas.getBoundingClientRect();
+        const mouseX = event.clientX - rect.left;
+        const mouseY = event.clientY - rect.top;
+        this._onWheel(event, mouseX, mouseY);
+      }
+
+      _handleKeyDown(event) {
+          this._onKeyDown(event);
+      }
+
+      renderUI() {
+          this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+          this.applyFormLayout(this.myFormLayout, 0, 0, this.canvas.width, this.canvas.height);
+      }
+
+      startCursorBlinking() {
+          if (this.cursorBlinkInterval) clearInterval(this.cursorBlinkInterval);
+          this.cursorBlinkInterval = setInterval(() => {
+              this.cursorVisible = !this.cursorVisible;
+              if (this.focusedInputId) {
+                  this.renderUI();
+              }
+          }, 500);
+      }
+
+      stopCursorBlinking() {
+          if (this.cursorBlinkInterval) clearInterval(this.cursorBlinkInterval);
+          this.cursorVisible = true;
+      }
+
+      isPointInRect(point, rect) {
+          return point.x >= rect.x && point.x <= rect.x + rect.width &&
+                 point.y >= rect.y && point.y <= rect.y + rect.height;
+      }
+
+      findElementById(id) {
+          return this._findElementByIdRecursive(this.myFormLayout, id);
+      }
+
+      _findElementByIdRecursive(layout, id) {
+          for (const element of layout) {
+              if (element.id === id) return element;
+              if (element.elements && Array.isArray(element.elements)) {
+                  const foundInChild = this._findElementByIdRecursive(element.elements, id);
+                  if (foundInChild) return foundInChild;
+              }
+          }
+          return null;
+      }
+
+      computeEffectiveElement(originalElementConfig) {
+        let classDerivedProps = {};
+        if (originalElementConfig.classObjects && Array.isArray(originalElementConfig.classObjects)) {
+          for (const className of originalElementConfig.classObjects) {
+            if (this.uiClassStyles[className]) {
+              classDerivedProps = { ...classDerivedProps, ...this.uiClassStyles[className] };
+            }
+          }
+        }
+        return { ...classDerivedProps, ...originalElementConfig };
+      }
+
+      _resolveCoordinate(value, canvasDimension) {
+        let resolvedValue;
+        if (typeof value === 'string' && value.endsWith('%')) {
+          resolvedValue = (parseFloat(value) / 100) * canvasDimension;
+        } else {
+          resolvedValue = Number(value);
+        }
+        if (!isFinite(resolvedValue) || !isFinite(canvasDimension)) {
+          return 0;
+        }
+        return resolvedValue;
+      }
+
+      applyFormLayout(configElements, baseX = 0, baseY = 0, parentActualWidth = this.canvas.width, parentActualHeight = this.canvas.height) {
+        configElements.forEach(originalElementConfig => {
+          const element = this.computeEffectiveElement(originalElementConfig);
+          if (!element || !element.type) return;
+          if (element.type === 'text' && typeof element.labelText !== 'string') return;
+
+          const rawElMargin = this._normalizeMargin(element.margin);
+          const elDefX = element.x; const elDefY = element.y;
+          const marginBoxX = baseX + this._resolveCoordinate(elDefX || 0, parentActualWidth);
+          const marginBoxY = baseY + this._resolveCoordinate(elDefY || 0, parentActualHeight);
+          const marginLeftPx = this._resolveCoordinate(rawElMargin.left, parentActualWidth);
+          const marginRightPx = this._resolveCoordinate(rawElMargin.right, parentActualWidth);
+          const marginTopPx = this._resolveCoordinate(rawElMargin.top, parentActualHeight);
+          const marginBottomPx = this._resolveCoordinate(rawElMargin.bottom, parentActualHeight);
+          const finalX = marginBoxX + marginLeftPx; const finalY = marginBoxY + marginTopPx;
+          const availableWidthForElement = parentActualWidth - marginLeftPx - marginRightPx;
+          const availableHeightForElement = parentActualHeight - marginTopPx - marginBottomPx;
+
+          if (element.type === 'multiLineTextInput') {
+              originalElementConfig.scrollOffsetY = originalElementConfig.scrollOffsetY || 0;
+          }
+
+          let elWidthDef = element.width; let resolvedWidthPx = 0;
+          if (elWidthDef !== undefined) {
+            let val = typeof elWidthDef === 'string' && elWidthDef.endsWith('%') ? (parseFloat(elWidthDef) / 100) * availableWidthForElement : Number(elWidthDef);
+            if (isFinite(val)) resolvedWidthPx = val;
+          }
+          originalElementConfig._resolvedWidth = resolvedWidthPx;
+
+          let elHeightDef = element.height; let resolvedHeightPx = 0;
+          if (elHeightDef !== undefined) {
+            let val = typeof elHeightDef === 'string' && elHeightDef.endsWith('%') ? (parseFloat(elHeightDef) / 100) * availableHeightForElement : Number(elHeightDef);
+            if (isFinite(val)) resolvedHeightPx = val;
+          } else {
+              if (element.type === 'checkBox' || element.type === 'radioButton') resolvedHeightPx = element.size || 18;
+              else if (element.type === 'text') {
+                  const fontStyleAndSize = element.font || '16px Arial';
+                  const fontSizeMatch = fontStyleAndSize.match(/(\d+)\s*px/);
+                  if (fontSizeMatch && fontSizeMatch[1]) resolvedHeightPx = parseInt(fontSizeMatch[1], 10) * 1.2;
+                  else resolvedHeightPx = 20;
+              }
+              if (!isFinite(resolvedHeightPx)) resolvedHeightPx = 0;
+          }
+          originalElementConfig._resolvedHeight = resolvedHeightPx;
+          originalElementConfig._finalX = finalX; originalElementConfig._finalY = finalY;
+          element._resolvedWidth = resolvedWidthPx; element._resolvedHeight = resolvedHeightPx;
+          element._finalX = finalX; element._finalY = finalY;
+          element._x = finalX; element._y = finalY;
+
+          const isRectangularVisualElement = ['formContainer', 'horizontalList', 'verticalList', 'table', 'button', 'textInput', 'multiLineText', 'multiLineTextInput'].includes(element.type);
+          const visualPropsOwner = element;
+          const hasVisuals = visualPropsOwner && (visualPropsOwner.backgroundColor || (visualPropsOwner.borderWidth && visualPropsOwner.borderWidth > 0) || visualPropsOwner.gradientType || visualPropsOwner.shadowColor || (visualPropsOwner.backgroundImage && visualPropsOwner.backgroundImage.src));
+
+          if (isRectangularVisualElement && hasVisuals) {
+            if (element._resolvedWidth > 0 && element._resolvedHeight > 0) {
+                const elBorderRadius = visualPropsOwner.borderRadius || 0;
+                const visualWidth = element._resolvedWidth; const visualHeight = element._resolvedHeight;
+                this.ctx.save();
+                this.ctx.beginPath();
+                this.ctx.moveTo(finalX + elBorderRadius, finalY);
+                this.ctx.lineTo(finalX + visualWidth - elBorderRadius, finalY);
+                this.ctx.arcTo(finalX + visualWidth, finalY, finalX + visualWidth, finalY + elBorderRadius, elBorderRadius);
+                this.ctx.lineTo(finalX + visualWidth, finalY + visualHeight - elBorderRadius);
+                this.ctx.arcTo(finalX + visualWidth, finalY + visualHeight, finalX + visualWidth - elBorderRadius, finalY + visualHeight, elBorderRadius);
+                this.ctx.lineTo(finalX + elBorderRadius, finalY + visualHeight);
+                this.ctx.arcTo(finalX, finalY + visualHeight, finalX, finalY + visualHeight - elBorderRadius, elBorderRadius);
+                this.ctx.lineTo(finalX, finalY + elBorderRadius);
+                this.ctx.arcTo(finalX, finalY, finalX + elBorderRadius, finalY, elBorderRadius);
+                this.ctx.closePath();
+                this._applyShadow(visualPropsOwner);
+                if (visualPropsOwner.backgroundImage && visualPropsOwner.backgroundImage.src) {
+                    this.ctx.save(); this.ctx.clip();
+                    this._drawBackgroundImage(element, visualPropsOwner.backgroundImage);
+                    this.ctx.restore();
+                }
+                if (visualPropsOwner.gradientType && visualPropsOwner.gradientColors && visualPropsOwner.gradientColors.length > 0) {
+                    let gradient;
+                    if (visualPropsOwner.gradientType === 'linear' && visualPropsOwner.gradientDirection) {
+                        gradient = this.ctx.createLinearGradient( finalX + this._resolveCoordinate(visualPropsOwner.gradientDirection.x0 || 0, visualWidth), finalY + this._resolveCoordinate(visualPropsOwner.gradientDirection.y0 || 0, visualHeight), finalX + this._resolveCoordinate(visualPropsOwner.gradientDirection.x1 !== undefined ? visualPropsOwner.gradientDirection.x1 : '100%', visualWidth), finalY + this._resolveCoordinate(visualPropsOwner.gradientDirection.y1 !== undefined ? visualPropsOwner.gradientDirection.y1 : '100%', visualHeight));
+                    } else if (visualPropsOwner.gradientType === 'radial' && visualPropsOwner.gradientCircles) {
+                        const centerX = finalX + visualWidth / 2; const centerY = finalY + visualHeight / 2;
+                        gradient = this.ctx.createRadialGradient( centerX + this._resolveCoordinate(visualPropsOwner.gradientCircles.x0 || 0, visualWidth), centerY + this._resolveCoordinate(visualPropsOwner.gradientCircles.y0 || 0, visualHeight), this._resolveCoordinate(visualPropsOwner.gradientCircles.r0 || 0, Math.min(visualWidth, visualHeight)), centerX + this._resolveCoordinate(visualPropsOwner.gradientCircles.x1 || 0, visualWidth), centerY + this._resolveCoordinate(visualPropsOwner.gradientCircles.y1 || 0, visualHeight), this._resolveCoordinate(visualPropsOwner.gradientCircles.r1 !== undefined ? visualPropsOwner.gradientCircles.r1 : '50%', Math.max(visualWidth, visualHeight)));
+                    }
+                    if (gradient) {
+                        visualPropsOwner.gradientColors.forEach(stop => gradient.addColorStop(stop.offset, stop.color));
+                        this.ctx.fillStyle = gradient; this.ctx.fill();
+                    }
+                } else if (visualPropsOwner.backgroundColor) {
+                    this.ctx.fillStyle = visualPropsOwner.backgroundColor; this.ctx.fill();
+                }
+                if ((visualPropsOwner.borderWidth || 0) > 0) {
+                    this.ctx.lineWidth = visualPropsOwner.borderWidth;
+                    this.ctx.strokeStyle = visualPropsOwner.borderColor || 'black'; this.ctx.stroke();
+                }
+                this.ctx.restore(); this._resetShadow(); this.ctx.lineWidth = 1;
+            }
+          }
+
+          switch (element.type) {
+            case 'text': this._drawText({ text: element.labelText, x: element._finalX, y: element._finalY, font: element.font, color: element.color, halign: element.halign, valign: element.valign, shadowColor: element.shadowColor, shadowBlur: element.shadowBlur, shadowOffsetX: element.shadowOffsetX, shadowOffsetY: element.shadowOffsetY }); break;
+            case 'button': this._drawButton(element); break;
+            case 'multiLineText': this._drawMultiLineText(element); break;
+            case 'multiLineTextInput':
+                this._drawMultiLineTextInput(element);
+                originalElementConfig._showVerticalScrollbar = element._showVerticalScrollbar;
+                originalElementConfig._renderLines = element._renderLines;
+                originalElementConfig._totalTextHeight = element._totalTextHeight;
+                originalElementConfig.scrollOffsetY = element.scrollOffsetY;
+                originalElementConfig._verticalScrollbarRect = element._verticalScrollbarRect;
+                break;
+            case 'textInput': this._drawTextInput(element); break;
+            case 'checkBox': this._drawCheckBox(element); break;
+            case 'radioButton': this._drawRadioButton(element); break;
+            case 'image': {
+              const hasBackgroundOrBorder = visualPropsOwner.backgroundColor || (visualPropsOwner.borderWidth && visualPropsOwner.borderWidth > 0);
+              if (hasBackgroundOrBorder) {
+                // Draw background and border first
+                const elBorderRadius = visualPropsOwner.borderRadius || 0;
+                const visualWidth = element._resolvedWidth; const visualHeight = element._resolvedHeight;
+                this.ctx.save();
+                this.ctx.beginPath();
+                this.ctx.moveTo(finalX + elBorderRadius, finalY);
+                this.ctx.lineTo(finalX + visualWidth - elBorderRadius, finalY);
+                this.ctx.arcTo(finalX + visualWidth, finalY, finalX + visualWidth, finalY + elBorderRadius, elBorderRadius);
+                this.ctx.lineTo(finalX + visualWidth, finalY + visualHeight - elBorderRadius);
+                this.ctx.arcTo(finalX + visualWidth, finalY + visualHeight, finalX + visualWidth - elBorderRadius, finalY + visualHeight, elBorderRadius);
+                this.ctx.lineTo(finalX + elBorderRadius, finalY + visualHeight);
+                this.ctx.arcTo(finalX, finalY + visualHeight, finalX, finalY + visualHeight - elBorderRadius, elBorderRadius);
+                this.ctx.lineTo(finalX, finalY + elBorderRadius);
+                this.ctx.arcTo(finalX, finalY, finalX + elBorderRadius, finalY, elBorderRadius);
+                this.ctx.closePath();
+                this._applyShadow(visualPropsOwner); // Shadow applies to the background/border shape
+                if (visualPropsOwner.backgroundColor) { this.ctx.fillStyle = visualPropsOwner.backgroundColor; this.ctx.fill(); }
+                this._resetShadow(); // Reset shadow before drawing border or image, so it doesn't double apply
+
+                if ((visualPropsOwner.borderWidth || 0) > 0) { this.ctx.lineWidth = visualPropsOwner.borderWidth; this.ctx.strokeStyle = visualPropsOwner.borderColor || 'black'; this.ctx.stroke(); }
+
+                // The path for the rounded rectangle is already defined and has been filled/stroked.
+                // Now, we clip to this path before drawing the image.
+                this.ctx.clip(); // Apply clipping path
+                this._drawImageElement(element, false); // Draw image without its own shadow
+                this.ctx.restore(); // Restore from the save() at the beginning of this block
+                this.ctx.lineWidth = 1; // Reset lineWidth just in case
+              } else {
+                this._drawImageElement(element, true); // Draw image and let it handle its own shadow
+              }
+              break;
+            }
+            case 'horizontalList': {
+              const rawPadding = this._normalizePadding(element.padding || 0);
+              const paddingLeftPx = this._resolveCoordinate(rawPadding.left, element._resolvedWidth || availableWidthForElement);
+              const paddingTopPx = this._resolveCoordinate(rawPadding.top, element._resolvedHeight || availableHeightForElement);
+              let currentChildX = finalX + paddingLeftPx;
+              const childrenContainerContentY = finalY + paddingTopPx;
+              const childrenAvailableWidth = (element._resolvedWidth || availableWidthForElement) - paddingLeftPx - this._resolveCoordinate(rawPadding.right, element._resolvedWidth || availableWidthForElement);
+              const childrenAvailableHeight = (element._resolvedHeight || availableHeightForElement) - paddingTopPx - this._resolveCoordinate(rawPadding.bottom, element._resolvedHeight || availableHeightForElement);
+              (element.elements || []).forEach(childConfig => {
+                this.applyFormLayout([childConfig], currentChildX, childrenContainerContentY, childrenAvailableWidth, childrenAvailableHeight);
+                const childEffectiveForMargin = this.computeEffectiveElement(childConfig);
+                const childRawMargin = this._normalizeMargin(childEffectiveForMargin.margin);
+                const childMarginLeftPx = this._resolveCoordinate(childRawMargin.left, childrenAvailableWidth);
+                const childMarginRightPx = this._resolveCoordinate(childRawMargin.right, childrenAvailableWidth);
+                currentChildX += (childConfig._resolvedWidth || 0) + childMarginLeftPx + childMarginRightPx + (element.spacing || 0);
+              });
+              break;
+            }
+            case 'verticalList': {
+              const rawPadding = this._normalizePadding(element.padding || 0);
+              const paddingLeftPx = this._resolveCoordinate(rawPadding.left, element._resolvedWidth || availableWidthForElement);
+              const paddingTopPx = this._resolveCoordinate(rawPadding.top, element._resolvedHeight || availableHeightForElement);
+              const childrenContainerContentX = finalX + paddingLeftPx;
+              let currentChildY = finalY + paddingTopPx;
+              const childrenAvailableWidth = (element._resolvedWidth || availableWidthForElement) - paddingLeftPx - this._resolveCoordinate(rawPadding.right, element._resolvedWidth || availableWidthForElement);
+              const childrenAvailableHeight = (element._resolvedHeight || availableHeightForElement) - paddingTopPx - this._resolveCoordinate(rawPadding.bottom, element._resolvedHeight || availableHeightForElement);
+              (element.elements || []).forEach(childConfig => {
+                this.applyFormLayout([childConfig], childrenContainerContentX, currentChildY, childrenAvailableWidth, childrenAvailableHeight);
+                const childEffectiveForMargin = this.computeEffectiveElement(childConfig);
+                const childRawMargin = this._normalizeMargin(childEffectiveForMargin.margin);
+                const childMarginTopPx = this._resolveCoordinate(childRawMargin.top, childrenAvailableHeight);
+                const childMarginBottomPx = this._resolveCoordinate(childRawMargin.bottom, childrenAvailableHeight);
+                currentChildY += (childConfig._resolvedHeight || 0) + childMarginTopPx + childMarginBottomPx + (element.spacing || 0);
+              });
+              break;
+            }
+            case 'table': {
+              const rawCellPadding = this._normalizePadding(element.defaultCellPadding || 0);
+              const numCols = element.colWidths ? element.colWidths.length : (element.numCols || 1);
+              let currentCellX = finalX; let currentCellY = finalY; let maxRowHeightInCurrentRow = 0;
+              const tableContentWidth = element._resolvedWidth || availableWidthForElement;
+              const tableContentHeight = element._resolvedHeight || availableHeightForElement;
+              (element.elements || []).forEach((cellOriginalConfig, index) => {
+                const colIndex = index % numCols;
+                const cellDefinedWidthPx = element.colWidths ? this._resolveCoordinate(element.colWidths[colIndex], tableContentWidth) : (tableContentWidth / numCols);
+                const cellDefinedHeightPx = (element.rowHeight || tableContentHeight);
+                const cellPaddingLeftPx = this._resolveCoordinate(rawCellPadding.left, cellDefinedWidthPx);
+                const cellPaddingRightPx = this._resolveCoordinate(rawCellPadding.right, cellDefinedWidthPx);
+                const cellPaddingTopPx = this._resolveCoordinate(rawCellPadding.top, cellDefinedHeightPx);
+                const cellPaddingBottomPx = this._resolveCoordinate(rawCellPadding.bottom, cellDefinedHeightPx);
+                if (colIndex === 0 && index > 0) {
+                  currentCellX = finalX; currentCellY += (element.rowHeight || maxRowHeightInCurrentRow) + cellPaddingBottomPx + cellPaddingTopPx;
+                  maxRowHeightInCurrentRow = 0;
+                }
+                const cellBaseX = currentCellX + cellPaddingLeftPx; const cellBaseY = currentCellY + cellPaddingTopPx;
+                const cellContentAreaWidth = cellDefinedWidthPx - cellPaddingLeftPx - cellPaddingRightPx;
+                const cellContentAreaHeight = cellDefinedHeightPx - cellPaddingTopPx - cellPaddingBottomPx;
+                this.applyFormLayout([cellOriginalConfig], cellBaseX, cellBaseY, cellContentAreaWidth, cellContentAreaHeight);
+                const cellContentHeight = cellOriginalConfig._resolvedHeight || this.computeEffectiveElement(cellOriginalConfig).size || (element.rowHeight || 20);
+                maxRowHeightInCurrentRow = Math.max(maxRowHeightInCurrentRow, cellContentHeight);
+                currentCellX += cellDefinedWidthPx;
+              });
+              break;
+            }
+            case 'formContainer':  {
+                const rawPadding = this._normalizePadding(element.padding || 0);
+                const scrollbarSize = element.scrollbarSize || this.DEFAULT_SCROLLBAR_SIZE;
+                const containerPaddingLeftPx = this._resolveCoordinate(rawPadding.left, element._resolvedWidth || availableWidthForElement);
+                const containerPaddingRightPx = this._resolveCoordinate(rawPadding.right, element._resolvedWidth || availableWidthForElement);
+                const containerPaddingTopPx = this._resolveCoordinate(rawPadding.top, element._resolvedHeight || availableHeightForElement);
+                const containerPaddingBottomPx = this._resolveCoordinate(rawPadding.bottom, element._resolvedHeight || availableHeightForElement);
+                if (element.scrollable) {
+                    originalElementConfig.scrollTop = originalElementConfig.scrollTop || 0;
+                    originalElementConfig.scrollLeft = originalElementConfig.scrollLeft || 0;
+                }
+                const currentScrollTop = element.scrollable ? originalElementConfig.scrollTop : 0;
+                const currentScrollLeft = element.scrollable ? originalElementConfig.scrollLeft : 0;
+                let visibleContentX = finalX + containerPaddingLeftPx; let visibleContentY = finalY + containerPaddingTopPx;
+                let visibleContentWidth = (element._resolvedWidth || availableWidthForElement) - containerPaddingLeftPx - containerPaddingRightPx;
+                let visibleContentHeight = (element._resolvedHeight || availableHeightForElement) - containerPaddingTopPx - containerPaddingBottomPx;
+                if (element.elements && element.elements.length > 0) {
+                    this.ctx.save(); this.ctx.beginPath();
+                    this.ctx.rect(visibleContentX, visibleContentY, visibleContentWidth, visibleContentHeight);
+                    this.ctx.clip();
+                    if (element.elements && Array.isArray(element.elements)) {
+                        this.applyFormLayout(element.elements, visibleContentX - currentScrollLeft, visibleContentY - currentScrollTop, visibleContentWidth, visibleContentHeight);
+                    }
+                    this.ctx.restore();
+                }
+                if (element.scrollable) {
+                    let maxChildRelativeX = 0; let maxChildRelativeY = 0;
+                    if (element.elements && element.elements.length > 0) {
+                        element.elements.forEach(childConfig => {
+                            const childEffectiveForMargin = this.computeEffectiveElement(childConfig);
+                            const childRawMargin = this._normalizeMargin(childEffectiveForMargin.margin);
+                            const childMarginLeftPx = this._resolveCoordinate(childRawMargin.left, visibleContentWidth);
+                            const childMarginRightPx = this._resolveCoordinate(childRawMargin.right, visibleContentWidth);
+                            const childMarginTopPx = this._resolveCoordinate(childRawMargin.top, visibleContentHeight);
+                            const childMarginBottomPx = this._resolveCoordinate(childRawMargin.bottom, visibleContentHeight);
+                            const childEffectiveX = childConfig._finalX - (visibleContentX - currentScrollLeft) + childMarginLeftPx;
+                            const childEffectiveY = childConfig._finalY - (visibleContentY - currentScrollTop) + childMarginTopPx;
+                            maxChildRelativeX = Math.max(maxChildRelativeX, (childEffectiveX - childMarginLeftPx) + childConfig._resolvedWidth + childMarginRightPx);
+                            maxChildRelativeY = Math.max(maxChildRelativeY, (childEffectiveY - childMarginTopPx) + childConfig._resolvedHeight + childMarginBottomPx);
+                        });
+                    }
+                    originalElementConfig._contentActualWidth = maxChildRelativeX;
+                    originalElementConfig._contentActualHeight = maxChildRelativeY;
+                    if (originalElementConfig._contentActualHeight > visibleContentHeight) {
+                        originalElementConfig._showVerticalScrollbar = true;
+                        originalElementConfig.maxScrollTop = originalElementConfig._contentActualHeight - visibleContentHeight;
+                        originalElementConfig.scrollTop = Math.max(0, Math.min(originalElementConfig.scrollTop, originalElementConfig.maxScrollTop));
+                        const sbX = visibleContentX + visibleContentWidth - scrollbarSize; const sbY = visibleContentY; const sbH = visibleContentHeight;
+                        const thumbH = Math.max(20, sbH * (visibleContentHeight / originalElementConfig._contentActualHeight));
+                        const thumbY = sbY + (originalElementConfig.scrollTop / originalElementConfig.maxScrollTop) * (sbH - thumbH);
+                        originalElementConfig._verticalScrollbarRect = { x: sbX, y: sbY, width: scrollbarSize, height: sbH, thumbX: sbX, thumbY: thumbY, thumbWidth: scrollbarSize, thumbHeight: thumbH };
+                    } else {
+                        originalElementConfig._showVerticalScrollbar = false; originalElementConfig.scrollTop = 0; originalElementConfig._verticalScrollbarRect = null;
+                    }
+                    const availableWidthForHScroll = visibleContentWidth - (originalElementConfig._showVerticalScrollbar ? scrollbarSize : 0);
+                    if (originalElementConfig._contentActualWidth > availableWidthForHScroll) {
+                        originalElementConfig._showHorizontalScrollbar = true;
+                    } else {
+                        originalElementConfig._showHorizontalScrollbar = false; originalElementConfig.scrollLeft = 0;
+                    }
+                    if (originalElementConfig._showVerticalScrollbar && originalElementConfig._verticalScrollbarRect) {
+                        const sb = originalElementConfig._verticalScrollbarRect;
+                        this.ctx.fillStyle = element.scrollbarTrackColor || '#DDDDDD';
+                        this.ctx.fillRect(sb.x, sb.y, sb.width, sb.height);
+                        this.ctx.fillStyle = element.scrollbarThumbColor || '#888888';
+                        this.ctx.fillRect(sb.thumbX, sb.thumbY, sb.thumbWidth, sb.thumbHeight);
+                    }
+                }
+                break;
+            }
+            default: console.warn(`Unsupported element type: ${element.type}`);
+          }
+        });
+      } // end applyFormLayout
+
+    // --- Moved Helper and Drawing Functions as Private Class Methods ---
+    _normalizePadding(paddingValue = 0) {
+        if (typeof paddingValue === 'number' || (typeof paddingValue === 'string' && paddingValue.endsWith('%'))) {
+        return { top: paddingValue, right: paddingValue, bottom: paddingValue, left: paddingValue };
+        }
+        if (typeof paddingValue === 'object' && paddingValue !== null) {
+        return {
+            top: paddingValue.top !== undefined ? paddingValue.top : 0,
+            right: paddingValue.right !== undefined ? paddingValue.right : 0,
+            bottom: paddingValue.bottom !== undefined ? paddingValue.bottom : 0,
+            left: paddingValue.left !== undefined ? paddingValue.left : 0,
+        };
+        }
+        return { top: 0, right: 0, bottom: 0, left: 0 };
+    }
+
+    _normalizeMargin(marginValue = 0) {
+        if (typeof marginValue === 'number' || (typeof marginValue === 'string' && marginValue.endsWith('%'))) {
+        return { top: marginValue, right: marginValue, bottom: marginValue, left: marginValue };
+        }
+        if (typeof marginValue === 'object' && marginValue !== null) {
+        return {
+            top: marginValue.top !== undefined ? marginValue.top : 0,
+            right: marginValue.right !== undefined ? marginValue.right : 0,
+            bottom: marginValue.bottom !== undefined ? marginValue.bottom : 0,
+            left: marginValue.left !== undefined ? marginValue.left : 0,
+        };
+        }
+        return { top: 0, right: 0, bottom: 0, left: 0 };
+    }
+
+    _applyShadow(props) {
+        if (props && props.shadowColor) {
+        this.ctx.shadowColor = props.shadowColor;
+        this.ctx.shadowBlur = props.shadowBlur || 0;
+        this.ctx.shadowOffsetX = props.shadowOffsetX || 0;
+        this.ctx.shadowOffsetY = props.shadowOffsetY || 0;
+        }
+    }
+
+    _resetShadow() {
+        this.ctx.shadowColor = 'transparent';
+        this.ctx.shadowBlur = 0;
+        this.ctx.shadowOffsetX = 0;
+        this.ctx.shadowOffsetY = 0;
+    }
+
+    _drawText(props) {
+        const originalFont = this.ctx.font;
+        const { text, x, y, font = '16px Arial', color = 'black', halign = 'left', valign = 'top' } = props;
+        this._applyShadow(props);
+        this.ctx.font = font;
+        this.ctx.fillStyle = color;
+        this.ctx.textAlign = halign;
+        this.ctx.textBaseline = valign;
+        this.ctx.fillText(text, x, y);
+        this.ctx.font = originalFont;
+        this._resetShadow();
+    }
+
+    _drawButton(element) {
+        const originalFont = this.ctx.font;
+        const {
+            label, _x: x, _y: y, _resolvedWidth: width, _resolvedHeight: height,
+            textColor = 'black', font = '16px Arial', padding = 5
+        } = element;
+        const rawPadding = this._normalizePadding(padding);
+        const paddingLeftPx = this._resolveCoordinate(rawPadding.left, width);
+        const paddingRightPx = this._resolveCoordinate(rawPadding.right, width);
+        const paddingTopPx = this._resolveCoordinate(rawPadding.top, height);
+        const paddingBottomPx = this._resolveCoordinate(rawPadding.bottom, height);
+        const contentWidth = width - paddingLeftPx - paddingRightPx;
+        const contentHeight = height - paddingTopPx - paddingBottomPx;
+        const textX = x + paddingLeftPx + contentWidth / 2;
+        const textY = y + paddingTopPx + contentHeight / 2;
+        this.ctx.font = font;
+        this.ctx.fillStyle = textColor;
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(label, textX, textY);
+        this.ctx.font = originalFont;
+    }
+
+    _drawTextInput(element) {
+        const originalFont = this.ctx.font;
+        const rawPadding = this._normalizePadding(element.padding || 0);
+        const x = element._x;
+        const y = element._y;
+        const width = element._resolvedWidth;
+        const height = element._resolvedHeight;
+        const paddingLeftPx = this._resolveCoordinate(rawPadding.left, width);
+        const paddingRightPx = this._resolveCoordinate(rawPadding.right, width);
+        const paddingTopPx = this._resolveCoordinate(rawPadding.top, height);
+        const paddingBottomPx = this._resolveCoordinate(rawPadding.bottom, height);
+        this.ctx.font = element.font || '16px Arial';
+        const inputContentX = x + paddingLeftPx;
+        const inputContentWidth = width - paddingLeftPx - paddingRightPx;
+        const inputContentY = y + paddingTopPx;
+        const inputContentHeight = height - paddingTopPx - paddingBottomPx;
+        this.ctx.save();
+        this.ctx.beginPath();
+        this.ctx.rect(inputContentX, inputContentY, inputContentWidth, inputContentHeight);
+        this.ctx.clip();
+        this.ctx.textAlign = 'left';
+        this.ctx.textBaseline = 'middle';
+        element.scrollOffset = element.scrollOffset || 0;
+        const textDisplayY = inputContentY + inputContentHeight / 2;
+        let currentTextValue = element.value || '';
+        let textForDisplay = currentTextValue;
+        let textForMeasurement = currentTextValue;
+        if (element.isPassword) {
+            textForDisplay = '*'.repeat(currentTextValue.length);
+            textForMeasurement = '*'.repeat(currentTextValue.length);
+        }
+        const textBeforeCursorForMeasurement = textForMeasurement.substring(0, element.cursorPosition);
+        const cursorPixelOffsetWithinText = this.ctx.measureText(textBeforeCursorForMeasurement).width;
+        const totalTextPixelWidth = this.ctx.measureText(textForMeasurement).width;
+        if (element.isFocused) {
+            if (cursorPixelOffsetWithinText - element.scrollOffset > inputContentWidth) {
+                element.scrollOffset = cursorPixelOffsetWithinText - inputContentWidth;
+            } else if (cursorPixelOffsetWithinText - element.scrollOffset < 0) {
+                element.scrollOffset = cursorPixelOffsetWithinText;
+            }
+            element.scrollOffset = Math.max(0, element.scrollOffset);
+            const maxPossibleScroll = Math.max(0, totalTextPixelWidth - inputContentWidth);
+            element.scrollOffset = Math.min(element.scrollOffset, maxPossibleScroll);
+        }
+        if (element.isFocused || currentTextValue) {
+            this.ctx.fillStyle = element.textColor || '#000000';
+            this.ctx.fillText(textForDisplay, inputContentX - element.scrollOffset, textDisplayY);
+            if (element.isFocused && this.cursorVisible) {
+                const cursorDrawX = inputContentX + cursorPixelOffsetWithinText - element.scrollOffset;
+                if (cursorDrawX >= inputContentX && cursorDrawX <= inputContentX + inputContentWidth) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(cursorDrawX + 0.5, inputContentY + 2);
+                    this.ctx.lineTo(cursorDrawX + 0.5, inputContentY + inputContentHeight - 2);
+                    this.ctx.strokeStyle = element.textColor || '#000000';
+                    this.ctx.lineWidth = 1;
+                    this.ctx.stroke();
+                }
+            }
+        } else if (element.placeholder) {
+            this.ctx.fillStyle = element.placeholderColor || '#AAAAAA';
+            this.ctx.fillText(element.placeholder, inputContentX, textDisplayY, inputContentWidth);
+        }
+        this.ctx.restore();
+        this.ctx.font = originalFont;
+    }
+
+    _drawCheckBox(element) {
+        const x = element._x;
+        const y = element._y;
+        const size = element.size || 18;
+        const label = element.label || '';
+        const labelPadding = element.labelPadding || 8;
+        const borderRadius = element.borderRadius || 0;
+        const borderWidth = element.borderWidth || 1;
+        this._applyShadow(element);
+        this.ctx.beginPath();
+        this.ctx.moveTo(x + borderRadius, y);
+        this.ctx.lineTo(x + size - borderRadius, y);
+        this.ctx.arcTo(x + size, y, x + size, y + borderRadius, borderRadius);
+        this.ctx.lineTo(x + size, y + size - borderRadius);
+        this.ctx.arcTo(x + size, y + size, x + size - borderRadius, y + size, borderRadius);
+        this.ctx.lineTo(x + borderRadius, y + size);
+        this.ctx.arcTo(x, y + size, x, y + size - borderRadius, borderRadius);
+        this.ctx.lineTo(x, y + borderRadius);
+        this.ctx.arcTo(x, y, x + borderRadius, y, borderRadius);
+        this.ctx.closePath();
+        if (borderWidth > 0) {
+        this.ctx.lineWidth = borderWidth;
+        this.ctx.strokeStyle = element.borderColor || '#000000';
+        this.ctx.stroke();
+        }
+        this._resetShadow();
+        if (element.isChecked) {
+        this.ctx.beginPath();
+        this.ctx.moveTo(x + size * 0.2, y + size * 0.5);
+        this.ctx.lineTo(x + size * 0.45, y + size * 0.75);
+        this.ctx.lineTo(x + size * 0.8, y + size * 0.3);
+        this.ctx.strokeStyle = element.checkMarkColor || element.textColor || '#000000';
+        this.ctx.lineWidth = element.checkMarkWidth || 2;
+        this.ctx.stroke();
+        }
+        if (label) {
+        this._drawText({
+            text: label, x: x + size + labelPadding, y: y + size / 2,
+            font: element.font || '16px Arial', color: element.textColor || '#000000',
+            halign: 'left', valign: 'middle'
+        });
+        }
+        this.ctx.lineWidth = 1;
+    }
+
+    _drawRadioButton(element) {
+        const x = element._x;
+        const y = element._y;
+        const radius = (element.size || 18) / 2;
+        const label = element.label || '';
+        const labelPadding = element.labelPadding || 8;
+        this._applyShadow(element);
+        this.ctx.beginPath();
+        this.ctx.arc(x + radius, y + radius, radius, 0, Math.PI * 2);
+        if ((element.borderWidth || 1) > 0) {
+        this.ctx.strokeStyle = element.borderColor || '#000000';
+        this.ctx.lineWidth = element.borderWidth || 1;
+        this.ctx.stroke();
+        }
+        this._resetShadow();
+        if (element.isChecked) {
+        this.ctx.beginPath();
+        this.ctx.arc(x + radius, y + radius, radius * 0.5, 0, Math.PI * 2);
+        this.ctx.fillStyle = element.dotColor || '#000000';
+        this.ctx.fill();
+        }
+        if (label) {
+        this._drawText({
+            text: label, x: x + radius * 2 + labelPadding, y: y + radius,
+            font: element.font || '16px Arial', color: element.textColor || '#000000',
+            halign: 'left', valign: 'middle'
+        });
+        }
+        this.ctx.lineWidth = 1;
+    }
+
+    // --- Event Handlers (now private methods) ---
+    _onMouseDown(clickX, clickY) {
+    let focusChangedThisMouseDown = false;
+    const processMouseDownOnElements = (elements, cX, cY, parentElement = null) => {
+        for (const originalElConfig of elements) {
+            const el = this.computeEffectiveElement(originalElConfig);
+            let effectiveClickX = cX; let effectiveClickY = cY;
+            if (parentElement && parentElement.scrollable) {
+                const p = this._normalizePadding(parentElement.padding || 0);
+                const parentPaddingLeftPx = this._resolveCoordinate(p.left, parentElement._resolvedWidth);
+                const parentPaddingTopPx = this._resolveCoordinate(p.top, parentElement._resolvedHeight);
+                effectiveClickX = cX - (parentElement._finalX + parentPaddingLeftPx) + (parentElement.scrollLeft || 0);
+                effectiveClickY = cY - (parentElement._finalY + parentPaddingTopPx) + (parentElement.scrollTop || 0);
+            }
+            const elScreenX = originalElConfig._finalX; const elScreenY = originalElConfig._finalY;
+
+            if (el.type === 'textInput') {
+                const inputRect = { x: elScreenX, y: elScreenY, width: originalElConfig._resolvedWidth, height: originalElConfig._resolvedHeight };
+                if (this.isPointInRect({ x: cX, y: cY }, inputRect)) {
+                    if (!originalElConfig.isFocused) {
+                        function unfocusAllInputs(layout) {
+                            layout.forEach(item => {
+                                if ((item.type === 'textInput' || item.type === 'multiLineTextInput') && item.isFocused && item.id !== originalElConfig.id) item.isFocused = false;
+                                if (item.elements) unfocusAllInputs(item.elements);
+                            });
+                        }
+                        unfocusAllInputs(this.myFormLayout);
+                        this.focusedInputId = originalElConfig.id;
+                        originalElConfig.isFocused = true;
+                        this.startCursorBlinking();
+                        focusChangedThisMouseDown = true;
+                    }
+                    this.ctx.font = el.font || '16px Arial';
+                    originalElConfig.preferredCursorX = undefined;
+                    const rawPadding = this._normalizePadding(el.padding || 0);
+                    const paddingLeftPx = this._resolveCoordinate(rawPadding.left, originalElConfig._resolvedWidth);
+                    const relativeClickXInContent = cX - (elScreenX + paddingLeftPx) + (originalElConfig.scrollOffset || 0);
+                    const valueToMeasure = originalElConfig.value || ''; let newCursorPos = valueToMeasure.length;
+                    if (valueToMeasure.length > 0) {
+                        let currentWidth = 0;
+                        for (let i = 0; i < valueToMeasure.length; i++) {
+                            const charWidth = this.ctx.measureText(valueToMeasure[i]).width;
+                            if (relativeClickXInContent <= currentWidth + charWidth / 2) { newCursorPos = i; break; }
+                            currentWidth += charWidth;
+                        }
+                    } else newCursorPos = 0;
+                    originalElConfig.cursorPosition = Math.min(Math.max(0, newCursorPos), valueToMeasure.length);
+                    return true;
+                }
+            } else if (el.type === 'multiLineTextInput') {
+                 const inputRect = { x: elScreenX, y: elScreenY, width: originalElConfig._resolvedWidth, height: originalElConfig._resolvedHeight };
+                 if (this.isPointInRect({ x: cX, y: cY }, inputRect)) {
+                    if (!originalElConfig.isFocused) {
+                        function unfocusAllInputs(layout) { /* as above */
+                            layout.forEach(item => {
+                                if ((item.type === 'textInput' || item.type === 'multiLineTextInput') && item.isFocused && item.id !== originalElConfig.id) item.isFocused = false;
+                                if (item.elements) unfocusAllInputs(item.elements);
+                            });
+                        }
+                        unfocusAllInputs(this.myFormLayout);
+                        this.focusedInputId = originalElConfig.id;
+                        originalElConfig.isFocused = true;
+                        this.startCursorBlinking();
+                        focusChangedThisMouseDown = true;
+                    }
+                    this.ctx.font = el.font || '16px Arial';
+                    const lineHeight = this._getLineHeight(this.ctx.font, el.lineHeight);
+                    const rawPadding = this._normalizePadding(el.padding || 0);
+                    const paddingLeftPx = this._resolveCoordinate(rawPadding.left, originalElConfig._resolvedWidth);
+                    const paddingTopPx = this._resolveCoordinate(rawPadding.top, originalElConfig._resolvedHeight);
+                    const relativeClickX = cX - (elScreenX + paddingLeftPx);
+                    const relativeClickY = cY - (elScreenY + paddingTopPx) + (originalElConfig.scrollOffsetY || 0);
+                    const targetLineIndex = Math.floor(relativeClickY / lineHeight);
+                    let targetOffsetInLine = 0;
+                    if (originalElConfig._renderLines && targetLineIndex >= 0 && targetLineIndex < originalElConfig._renderLines.length) {
+                        const targetLineText = originalElConfig._renderLines[targetLineIndex].text;
+                        let currentWidth = 0;
+                        for (let i = 0; i <= targetLineText.length; i++) {
+                            targetOffsetInLine = i;
+                            if (i < targetLineText.length) {
+                                const charWidth = this.ctx.measureText(targetLineText[i]).width;
+                                if (relativeClickX <= currentWidth + charWidth / 2) break;
+                                currentWidth += charWidth;
+                            } else break;
+                        }
+                    }
+                    originalElConfig.cursorPosition = this._mapLineAndOffsetToFlatCursor(targetLineIndex, targetOffsetInLine, originalElConfig._renderLines);
+                    originalElConfig.preferredCursorX = undefined;
+                    return true;
+                 }
+            } else if (el.type === 'button') {
+                const buttonRect = { x: elScreenX, y: elScreenY, width: originalElConfig._resolvedWidth, height: originalElConfig._resolvedHeight };
+                if (this.isPointInRect({ x: cX, y: cY }, buttonRect)) {
+                    if (el.id && typeof el.onClick === 'function') el.onClick(el.id, el.label);
+                    else alert(`Button "${el.label}" (ID: ${el.id || 'N/A'}) clicked!`);
+                    return true;
+                }
+            } else if (el.type === 'checkBox' || el.type === 'radioButton') {
+                const itemRect = { x: elScreenX, y: elScreenY, width: el.size, height: el.size };
+                if (this.isPointInRect({ x: cX, y: cY }, itemRect)) {
+                    if (el.type === 'checkBox') {
+                        originalElConfig.isChecked = !originalElConfig.isChecked;
+                        if (typeof el.onChange === 'function') el.onChange(originalElConfig.isChecked, el.id, el.label);
+                    } else { // This is for radioButton
+                        if (originalElConfig.isChecked) { // State on original
+                            // If already checked, uncheck it
+                            originalElConfig.isChecked = false;
+                            if (typeof el.onChange === 'function') { // onChange from effective
+                                // Pass null to indicate deselection
+                                el.onChange(null, el.id, el.label);
+                            }
+                        } else {
+                            // If not checked, then uncheck others in group and check this one.
+                            function uncheckGroup(layout, groupName, exceptId) {
+                                layout.forEach(item => {
+                                    if (item.type === 'radioButton' && item.groupName === groupName && item.id !== exceptId) {
+                                        item.isChecked = false; // Modify original
+                                    }
+                                    if (item.elements) {
+                                        uncheckGroup(item.elements, groupName, exceptId);
+                                    }
+                                });
+                            }
+                            uncheckGroup(this.myFormLayout, el.groupName, el.id); // groupName from effective
+                            originalElConfig.isChecked = true; // State on original
+                            if (typeof el.onChange === 'function') { // onChange from effective
+                                const eventValue = el.value !== undefined ? el.value : (el.id || el.label);
+                                el.onChange(eventValue, el.id, el.label);
+                            }
+                        }
+                    }
+                    return true;
+                }
+            }
+            if (el.elements && el.elements.length > 0) {
+                if (processMouseDownOnElements(el.elements, cX, cY, originalElConfig)) return true; // Recursive call
+            }
+        }
+        return false;
+    }; // end processMouseDownOnElements (as arrow function)
+
+    const findAndHandleScrollbarClick = (elements, cX, cY) => {
+        for (let i = elements.length - 1; i >= 0; i--) {
+            const originalEl = elements[i];
+            const elRect = { x: originalEl._finalX, y: originalEl._finalY, width: originalEl._resolvedWidth, height: originalEl._resolvedHeight };
+            if (this.isPointInRect({ x: cX, y: cY }, elRect)) {
+                if (originalEl.elements && findAndHandleScrollbarClick(originalEl.elements, cX, cY)) return true; // Recursive call
+                let scrollbarHandled = false;
+                if ((originalEl.type === 'formContainer' && originalEl.scrollable && originalEl._showVerticalScrollbar) || (originalEl.type === 'multiLineTextInput' && originalEl._showVerticalScrollbar)) {
+                    if (originalEl._verticalScrollbarRect) {
+                        const vsbRect = originalEl._verticalScrollbarRect;
+                        const vsbThumbRect = { x: vsbRect.thumbX, y: vsbRect.thumbY, width: vsbRect.thumbWidth, height: vsbRect.thumbHeight };
+                        if (this.isPointInRect({ x: cX, y: cY }, vsbThumbRect)) {
+                            this.isDraggingScrollbar = true; this.draggedElement = originalEl;
+                            this.dragStartY = cY;
+                            this.dragStartScrollTop = originalEl.type === 'formContainer' ? (originalEl.scrollTop || 0) : (originalEl.scrollOffsetY || 0);
+                            scrollbarHandled = true;
+                        } else if (this.isPointInRect({ x: cX, y: cY }, vsbRect)) {
+                            const effectiveEl = this.computeEffectiveElement(originalEl);
+                            const rawPadding = this._normalizePadding(effectiveEl.padding || 0);
+                            const paddingTopPx = this._resolveCoordinate(rawPadding.top, originalEl._resolvedHeight);
+                            const paddingBottomPx = this._resolveCoordinate(rawPadding.bottom, originalEl._resolvedHeight);
+                            const contentH = originalEl._resolvedHeight - paddingTopPx - paddingBottomPx;
+                            const scrollChange = cY < vsbThumbRect.y ? -contentH : contentH;
+                            if (originalEl.type === 'formContainer') originalEl.scrollTop = Math.max(0, Math.min(originalEl.maxScrollTop, (originalEl.scrollTop || 0) + scrollChange));
+                            else {
+                                const maxScroll = Math.max(0, originalEl._totalTextHeight - contentH);
+                                originalEl.scrollOffsetY = Math.max(0, Math.min(maxScroll, (originalEl.scrollOffsetY || 0) + scrollChange));
+                            }
+                            scrollbarHandled = true;
+                        }
+                    }
+                }
+                if (scrollbarHandled) { this.renderUI(); return true; }
+            }
+        }
+        return false;
+    }; // end findAndHandleScrollbarClick (as arrow function)
+
+    let eventHandled = findAndHandleScrollbarClick(this.myFormLayout, clickX, clickY);
+    if (!eventHandled) eventHandled = processMouseDownOnElements(this.myFormLayout, clickX, clickY, null);
+    if (!focusChangedThisMouseDown && !eventHandled && this.focusedInputId) {
+        let previouslyFocusedElement = this.findElementById(this.focusedInputId);
+        if (previouslyFocusedElement && previouslyFocusedElement.isFocused) {
+            previouslyFocusedElement.isFocused = false; this.focusedInputId = null;
+            this.stopCursorBlinking(); focusChangedThisMouseDown = true;
+        }
+    }
+    if (eventHandled || focusChangedThisMouseDown) this.renderUI();
+  }
+
+  _onMouseMove(mouseX, mouseY) {
+    if (this.isDraggingScrollbar && this.draggedElement) {
+        const draggedEl = this.draggedElement; const deltaY = mouseY - this.dragStartY;
+        const sb = draggedEl._verticalScrollbarRect; const scrollableTrackHeight = sb.height - sb.thumbHeight;
+        if (scrollableTrackHeight <= 0) return;
+        const scrollDeltaRatio = deltaY / scrollableTrackHeight;
+        if (draggedEl.type === 'formContainer') {
+            draggedEl.scrollTop = this.dragStartScrollTop + (scrollDeltaRatio * draggedEl.maxScrollTop);
+            draggedEl.scrollTop = Math.max(0, Math.min(draggedEl.scrollTop, draggedEl.maxScrollTop));
+        } else if (draggedEl.type === 'multiLineTextInput') {
+            const effectiveEl = this.computeEffectiveElement(draggedEl);
+            const contentH = draggedEl._resolvedHeight - this._resolveCoordinate(this._normalizePadding(effectiveEl.padding).top, draggedEl._resolvedHeight) - this._resolveCoordinate(this._normalizePadding(effectiveEl.padding).bottom, draggedEl._resolvedHeight);
+            const maxScroll = Math.max(0, draggedEl._totalTextHeight - contentH);
+            draggedEl.scrollOffsetY = this.dragStartScrollTop + (scrollDeltaRatio * maxScroll);
+            draggedEl.scrollOffsetY = Math.max(0, Math.min(draggedEl.scrollOffsetY, maxScroll));
+        }
+        this.renderUI();
+    }
+  }
+
+  _onMouseUp() {
+    if (this.isDraggingScrollbar) {
+        this.isDraggingScrollbar = false; this.draggedElement = null;
+    }
+  }
+
+  _onWheel(event, mouseX, mouseY) {
+    event.preventDefault();
+    const findInnermostScrollableElement = (elements, mX, mY) => {
+        for (let i = elements.length - 1; i >= 0; i--) {
+            const el = elements[i];
+            const elRect = { x: el._finalX, y: el._finalY, width: el._resolvedWidth, height: el._resolvedHeight };
+            if (this.isPointInRect({ x: mX, y: mY }, elRect)) {
+                if (el.type === 'multiLineTextInput' && el.isFocused && el.id === this.focusedInputId) {
+                    const effectiveEl = this.computeEffectiveElement(el);
+                    if (el._totalTextHeight > (el._resolvedHeight - this._resolveCoordinate(this._normalizePadding(effectiveEl.padding).top, el._resolvedHeight) - this._resolveCoordinate(this._normalizePadding(effectiveEl.padding).bottom, el._resolvedHeight))) return el;
+                }
+                if (el.elements) {
+                    const nestedScrollable = findInnermostScrollableElement(el.elements, mX, mY); // Recursive call
+                    if (nestedScrollable) return nestedScrollable;
+                }
+                if (el.scrollable && (el._showVerticalScrollbar)) return el;
+            }
+        }
+        return null;
+    }; // end findInnermostScrollableElement (as arrow function)
+
+    let activeScrolledElement = findInnermostScrollableElement(this.myFormLayout, mouseX, mouseY);
+    if (activeScrolledElement) {
+        const scrollAmount = event.deltaY > 0 ? 40 : -40;
+        if (activeScrolledElement.type === 'multiLineTextInput') {
+            const effectiveEl = this.computeEffectiveElement(activeScrolledElement);
+            const contentHeight = activeScrolledElement._resolvedHeight - this._resolveCoordinate(this._normalizePadding(effectiveEl.padding).top, activeScrolledElement._resolvedHeight) - this._resolveCoordinate(this._normalizePadding(effectiveEl.padding).bottom, activeScrolledElement._resolvedHeight);
+            const maxScroll = Math.max(0, activeScrolledElement._totalTextHeight - contentHeight);
+            activeScrolledElement.scrollOffsetY = (activeScrolledElement.scrollOffsetY || 0) + scrollAmount;
+            activeScrolledElement.scrollOffsetY = Math.max(0, Math.min(activeScrolledElement.scrollOffsetY, maxScroll));
+        } else if (activeScrolledElement.type === 'formContainer' && activeScrolledElement._showVerticalScrollbar) {
+            activeScrolledElement.scrollTop = (activeScrolledElement.scrollTop || 0) + scrollAmount;
+            activeScrolledElement.scrollTop = Math.max(0, Math.min(activeScrolledElement.scrollTop, activeScrolledElement.maxScrollTop));
+        }
+        this.renderUI();
+    }
+  }
+
+  _onKeyDown(event) {
+    if (!this.focusedInputId) return;
+    let activeInputOriginal = this.findElementById(this.focusedInputId);
+    if (!activeInputOriginal) return;
+    const activeInput = this.computeEffectiveElement(activeInputOriginal);
+    let valueChanged = false;
+    this.ctx.font = activeInput.font || '16px Arial';
+    const lineHeight = this._getLineHeight(this.ctx.font, activeInput.lineHeight);
+    const TAB_REPLACEMENT = '    ';
+    if (event.key === 'Tab') {
+        event.preventDefault();
+        activeInputOriginal.value = activeInputOriginal.value.substring(0, activeInputOriginal.cursorPosition) + TAB_REPLACEMENT + activeInputOriginal.value.substring(activeInputOriginal.cursorPosition);
+        activeInputOriginal.cursorPosition += TAB_REPLACEMENT.length; valueChanged = true;
+        if (activeInput.type === 'multiLineTextInput') activeInputOriginal.preferredCursorX = undefined;
+    } else if (activeInput.type === 'textInput') {
+        if (event.key === 'Backspace') { if (activeInputOriginal.cursorPosition > 0) { activeInputOriginal.value = activeInputOriginal.value.substring(0, activeInputOriginal.cursorPosition - 1) + activeInputOriginal.value.substring(activeInputOriginal.cursorPosition); activeInputOriginal.cursorPosition--; valueChanged = true; } }
+        else if (event.key === 'Delete') { if (activeInputOriginal.cursorPosition < activeInputOriginal.value.length) { activeInputOriginal.value = activeInputOriginal.value.substring(0, activeInputOriginal.cursorPosition) + activeInputOriginal.value.substring(activeInputOriginal.cursorPosition + 1); valueChanged = true; } }
+        else if (event.key === 'ArrowLeft') { if (activeInputOriginal.cursorPosition > 0) activeInputOriginal.cursorPosition--; }
+        else if (event.key === 'ArrowRight') { if (activeInputOriginal.cursorPosition < activeInputOriginal.value.length) activeInputOriginal.cursorPosition++; }
+        else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) { activeInputOriginal.value = activeInputOriginal.value.substring(0, activeInputOriginal.cursorPosition) + event.key + activeInputOriginal.value.substring(activeInputOriginal.cursorPosition); activeInputOriginal.cursorPosition++; valueChanged = true; }
+    } else if (activeInput.type === 'multiLineTextInput') {
+        const padding = this._normalizePadding(activeInput.padding);
+        let textWidthForLines = activeInputOriginal._resolvedWidth - this._resolveCoordinate(padding.left, activeInputOriginal._resolvedWidth) - this._resolveCoordinate(padding.right, activeInputOriginal._resolvedWidth);
+        if (activeInputOriginal._showVerticalScrollbar) textWidthForLines -= (activeInput.scrollbarSize || this.DEFAULT_SCROLLBAR_SIZE);
+        const renderLines = activeInputOriginal._renderLines || this._generateRenderableLines(activeInputOriginal.value || "", textWidthForLines, this.ctx.font);
+        let { lineIndex: cursorLine, offsetInLine: cursorOffset } = this._mapFlatCursorToLineAndOffset(activeInputOriginal.cursorPosition, renderLines);
+        if (event.key === 'Enter') { activeInputOriginal.value = activeInputOriginal.value.substring(0, activeInputOriginal.cursorPosition) + '\n' + activeInputOriginal.value.substring(activeInputOriginal.cursorPosition); activeInputOriginal.cursorPosition++; valueChanged = true; activeInputOriginal.preferredCursorX = undefined; }
+        else if (event.key === 'Backspace') { if (activeInputOriginal.cursorPosition > 0) { activeInputOriginal.value = activeInputOriginal.value.substring(0, activeInputOriginal.cursorPosition - 1) + activeInputOriginal.value.substring(activeInputOriginal.cursorPosition); activeInputOriginal.cursorPosition--; valueChanged = true; activeInputOriginal.preferredCursorX = undefined; } }
+        else if (event.key === 'Delete') { if (activeInputOriginal.cursorPosition < activeInputOriginal.value.length) { activeInputOriginal.value = activeInputOriginal.value.substring(0, activeInputOriginal.cursorPosition) + activeInputOriginal.value.substring(activeInputOriginal.cursorPosition + 1); valueChanged = true; activeInputOriginal.preferredCursorX = undefined; } }
+        else if (event.key === 'ArrowLeft') { if (activeInputOriginal.cursorPosition > 0) activeInputOriginal.cursorPosition--; activeInputOriginal.preferredCursorX = undefined; }
+        else if (event.key === 'ArrowRight') { if (activeInputOriginal.cursorPosition < activeInputOriginal.value.length) activeInputOriginal.cursorPosition++; activeInputOriginal.preferredCursorX = undefined; }
+        else if (event.key === 'ArrowUp') {
+            if (cursorLine > 0) {
+                if (activeInputOriginal.preferredCursorX === undefined) activeInputOriginal.preferredCursorX = this.ctx.measureText(renderLines[cursorLine].text.substring(0, cursorOffset)).width;
+                let newOffset = 0; const prevLineText = renderLines[cursorLine - 1].text; let currentWidth = 0;
+                for (let i = 0; i <= prevLineText.length; i++) { newOffset = i; if (i < prevLineText.length) { const charWidth = this.ctx.measureText(prevLineText[i]).width; if (activeInputOriginal.preferredCursorX <= currentWidth + charWidth / 2) break; currentWidth += charWidth; } else break; }
+                activeInputOriginal.cursorPosition = this._mapLineAndOffsetToFlatCursor(cursorLine - 1, newOffset, renderLines);
+            }
+        } else if (event.key === 'ArrowDown') {
+            if (cursorLine < renderLines.length - 1) {
+                 if (activeInputOriginal.preferredCursorX === undefined) activeInputOriginal.preferredCursorX = this.ctx.measureText(renderLines[cursorLine].text.substring(0, cursorOffset)).width;
+                let newOffset = 0; const nextLineText = renderLines[cursorLine + 1].text; let currentWidth = 0;
+                for (let i = 0; i <= nextLineText.length; i++) { newOffset = i; if (i < nextLineText.length) { const charWidth = this.ctx.measureText(nextLineText[i]).width; if (activeInputOriginal.preferredCursorX <= currentWidth + charWidth / 2) break; currentWidth += charWidth; } else break; }
+                activeInputOriginal.cursorPosition = this._mapLineAndOffsetToFlatCursor(cursorLine + 1, newOffset, renderLines);
+            }
+        } else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) { activeInputOriginal.value = activeInputOriginal.value.substring(0, activeInputOriginal.cursorPosition) + event.key + activeInputOriginal.value.substring(activeInputOriginal.cursorPosition); activeInputOriginal.cursorPosition++; valueChanged = true; activeInputOriginal.preferredCursorX = undefined; }
+        if (valueChanged || ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Backspace', 'Delete'].includes(event.key)) {
+            const contentHeight = activeInputOriginal._resolvedHeight - this._resolveCoordinate(this._normalizePadding(activeInput.padding).top, activeInputOriginal._resolvedHeight) - this._resolveCoordinate(this._normalizePadding(activeInput.padding).bottom, activeInputOriginal._resolvedHeight);
+            const newRenderLines = this._generateRenderableLines(activeInputOriginal.value || "", textWidthForLines, this.ctx.font);
+            const { lineIndex: newCursorLine } = this._mapFlatCursorToLineAndOffset(activeInputOriginal.cursorPosition, newRenderLines);
+            const cursorYPosInText = newCursorLine * lineHeight; const scrollOffsetY = activeInputOriginal.scrollOffsetY || 0;
+            if (cursorYPosInText < scrollOffsetY) activeInputOriginal.scrollOffsetY = cursorYPosInText;
+            else if (cursorYPosInText + lineHeight > scrollOffsetY + contentHeight) activeInputOriginal.scrollOffsetY = cursorYPosInText + lineHeight - contentHeight;
+            const maxScroll = Math.max(0, (newRenderLines.length * lineHeight) - contentHeight);
+            activeInputOriginal.scrollOffsetY = Math.max(0, Math.min(activeInputOriginal.scrollOffsetY || 0, maxScroll));
+        }
+    }
+    if (valueChanged && typeof activeInput.onChange === 'function') activeInput.onChange(activeInputOriginal.value, activeInput.id, activeInput.placeholder);
+    if (event.key === 'Tab' || ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter'].includes(event.key) || (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey)) event.preventDefault();
+    this.renderUI();
+  }
+
+    // --- Font Loading System (now private methods) ---
+    async _parseAndLoadFontString(fontString) {
+        if (!fontString || typeof fontString !== 'string') return fontString;
+        const fontRegex = /^\s*(?:(italic|oblique)\s+)?(?:(normal|bold|bolder|lighter|[1-9]00)\s+)?(\d+(?:\.\d+)?(?:px|pt|em|rem|%|vw|vh))\s+(.+)\s*$/i;
+        const match = fontString.match(fontRegex);
+        let styleAndSizePrefix = ""; let fontFamilyCandidate = "";
+        if (match) {
+        const stylePart = match[1] ? match[1] + ' ' : ''; const weightPart = match[2] ? match[2] + ' ' : '';
+        const sizePart = match[3] ? match[3] + ' ' : '';
+        styleAndSizePrefix = `${stylePart}${weightPart}${sizePart}`; fontFamilyCandidate = match[4].trim();
+        } else {
+        const trimmedFontString = fontString.trim();
+        if ((trimmedFontString.toLowerCase().startsWith('url(') && trimmedFontString.endsWith(')')) || /\.(ttf|otf|woff|woff2)$/i.test(trimmedFontString)) {
+            fontFamilyCandidate = trimmedFontString; if (!styleAndSizePrefix && fontFamilyCandidate) styleAndSizePrefix = '16px ';
+        } else if (/\d+(?:px|pt|em|rem|%|vw|vh)/i.test(trimmedFontString)) {
+            styleAndSizePrefix = trimmedFontString + (trimmedFontString.endsWith(' ') ? '' : ' '); fontFamilyCandidate = "Arial";
+        } else if (trimmedFontString) {
+            fontFamilyCandidate = trimmedFontString; if (!styleAndSizePrefix && fontFamilyCandidate) styleAndSizePrefix = '16px ';
+        }
+        }
+        if (!fontFamilyCandidate) return '16px Arial'; // Default fallback
+        const finalFontFamily = await this._loadAndRegisterFontIfNeeded(fontFamilyCandidate);
+        return (styleAndSizePrefix + finalFontFamily).trim();
+    }
+
+    async _loadAndRegisterFontIfNeeded(fontFamilyCandidate) {
+        let familyNameInput = fontFamilyCandidate.trim();
+        let isUrl = false; let actualUrl = '';
+        const urlMatch = familyNameInput.match(/^url\((['"]?)(.*?)\1\)$/i);
+        if (urlMatch) { isUrl = true; actualUrl = urlMatch[2]; }
+        else if (/\.(ttf|otf|woff|woff2)$/i.test(familyNameInput)) { isUrl = true; actualUrl = familyNameInput; }
+
+        if (isUrl) {
+        if (this.loadedFontUrls.has(actualUrl)) return this.loadedFontUrls.get(actualUrl);
+        const baseName = actualUrl.substring(actualUrl.lastIndexOf('/') + 1).replace(/\.[^/.]+$/, "").replace(/[^a-zA-Z0-9_.-]/g, "_");
+        let proposedRegisteredName = (baseName || "FontFromFile") + "FontFile";
+        let finalRegisteredName = proposedRegisteredName; let counter = 0;
+        while (Array.from(document.fonts).some(f => f.family === finalRegisteredName)) {
+            counter++; finalRegisteredName = proposedRegisteredName + counter;
+        }
+        try {
+            const fontFace = new FontFace(finalRegisteredName, `url("${actualUrl}")`);
+            await fontFace.load(); document.fonts.add(fontFace);
+            this.loadedFontUrls.set(actualUrl, finalRegisteredName); return finalRegisteredName;
+        } catch (error) { console.error(`Failed to load font from URL '${actualUrl}':`, error); return "Arial"; /* Fallback */ }
+        } else {
+            // Handle named fonts (system fonts or previously registered via CSS @font-face)
+            if (document.fonts.check(`1em ${familyNameInput}`)) return fontFamilyCandidate;
+            else {
+                const unquotedFamilyName = familyNameInput.replace(/^['"]|['"]$/g, '');
+                if (document.fonts.check(`1em ${unquotedFamilyName}`)) return unquotedFamilyName;
+                return "Arial"; // Fallback if not found
+            }
+        }
+    }
+
+    async _loadCustomFonts() {
+        const customFonts = [
+            { family: 'AmperzandCustom', url: 'Amperzand.ttf' }, // Example
+        ];
+        for (const font of customFonts) {
+            await this._loadAndAddFont(font.family, font.url);
+        }
+        // Note: The global window.findElementById definition previously here is removed
+        // as the class provides this.findElementById.
+        // Layout onClick handlers might need adjustment if they relied on the global one.
+    }
+
+    async _loadAndAddFont(fontFamily, fontUrl) {
+        const fontFace = new FontFace(fontFamily, `url(${fontUrl})`);
+        try {
+            await fontFace.load();
+            document.fonts.add(fontFace);
+            console.log(`${fontFamily} font loaded and added.`);
+        } catch (error) {
+            console.error(`${fontFamily} font loading failed:`, error);
+        }
+    }
+
+    // --- Other Text and Drawing Utilities as Private Methods ---
+    _getLineHeight(font, customLineHeight) {
+        if (customLineHeight && isFinite(customLineHeight) && customLineHeight > 0) return customLineHeight;
+        const fontSizeMatch = font.match(/(\d+)\s*(px|pt|em|rem)?/i);
+        const fontSize = fontSizeMatch && fontSizeMatch[1] ? parseInt(fontSizeMatch[1], 10) : 16;
+        return fontSize * 1.2; // Default line height factor
+    }
+
+    _generateRenderableLines(text, maxWidth, font) {
+        const originalFont = this.ctx.font; this.ctx.font = font; const resultLines = [];
+        let globalFlatTextIndex = 0;
+        if (text === null || text === undefined) text = "";
+        if (text === "") {
+            resultLines.push({ text: "", width: 0, startIndexFlat: 0, endIndexFlat: -1 });
+            this.ctx.font = originalFont; return resultLines;
+        }
+        const paragraphs = text.split('\n');
+        for (let p = 0; p < paragraphs.length; p++) {
+            const paragraph = paragraphs[p]; let currentLineBuffer = "";
+            let currentLineGlobalStartIndex = globalFlatTextIndex;
+            if (paragraph === "") {
+                resultLines.push({ text: "", width: 0, startIndexFlat: currentLineGlobalStartIndex, endIndexFlat: currentLineGlobalStartIndex - 1 });
+                if (p < paragraphs.length - 1) globalFlatTextIndex++; // Account for the '\n' character
+                continue;
+            }
+            const tokens = paragraph.match(/\S+|\s+/g) || []; // Split by words and sequences of whitespace
+            for (const token of tokens) {
+                const testLine = currentLineBuffer + token;
+                if (this.ctx.measureText(testLine).width > maxWidth && currentLineBuffer !== "") {
+                    resultLines.push({ text: currentLineBuffer, width: this.ctx.measureText(currentLineBuffer).width, startIndexFlat: currentLineGlobalStartIndex, endIndexFlat: currentLineGlobalStartIndex + currentLineBuffer.length - 1 });
+                    currentLineBuffer = token; currentLineGlobalStartIndex = globalFlatTextIndex;
+                } else { currentLineBuffer = testLine; }
+                globalFlatTextIndex += token.length;
+            }
+            if (currentLineBuffer !== "") {
+                resultLines.push({ text: currentLineBuffer, width: this.ctx.measureText(currentLineBuffer).width, startIndexFlat: currentLineGlobalStartIndex, endIndexFlat: currentLineGlobalStartIndex + currentLineBuffer.length - 1 });
+            }
+            if (p < paragraphs.length - 1) globalFlatTextIndex++; // Account for the '\n' character that was split on
+        }
+        this.ctx.font = originalFont; return resultLines;
+    }
+
+    _mapFlatCursorToLineAndOffset(flatCursorPos, renderLines) {
+        if (!renderLines || renderLines.length === 0) return { lineIndex: 0, offsetInLine: 0 };
+        for (let i = 0; i < renderLines.length; i++) {
+            const line = renderLines[i];
+            // Cursor can be AT the end of the line (startIndexFlat + text.length)
+            if (flatCursorPos >= line.startIndexFlat && flatCursorPos <= line.startIndexFlat + line.text.length) {
+                return { lineIndex: i, offsetInLine: flatCursorPos - line.startIndexFlat };
+            }
+        }
+        // If cursor is beyond all text, place it at the end of the last line
+        const lastLine = renderLines[renderLines.length - 1];
+        if (flatCursorPos > lastLine.startIndexFlat + lastLine.text.length) {
+             return { lineIndex: renderLines.length - 1, offsetInLine: lastLine.text.length };
+        }
+        // Default fallback, should ideally not be reached if logic above is correct
+        return { lineIndex: 0, offsetInLine: 0 };
+    }
+
+    _mapLineAndOffsetToFlatCursor(targetLineIndex, targetOffsetInLine, renderLines) {
+        if (!renderLines || renderLines.length === 0) return 0;
+        const safeLineIndex = Math.max(0, Math.min(targetLineIndex, renderLines.length - 1));
+        const targetLine = renderLines[safeLineIndex];
+        const safeOffset = Math.max(0, Math.min(targetOffsetInLine, targetLine.text.length));
+        return targetLine.startIndexFlat + safeOffset;
+    }
+
+    _getCursorPixelCoordinates(element, renderLines, cursorLineIndex, cursorOffsetInLine, lineHeight, contentX, contentY) {
+        // This method seems unused in the current code but kept for completeness if needed later
+        const lineTextBeforeCursor = renderLines[cursorLineIndex].text.substring(0, cursorOffsetInLine);
+        const cursorPxX = contentX + this.ctx.measureText(lineTextBeforeCursor).width;
+        const cursorPxY = contentY + (cursorLineIndex * lineHeight);
+        return { x: cursorPxX, y: cursorPxY };
+    }
+
+    _drawMultiLineTextInput(element) {
+        const originalFont = this.ctx.font;
+        const x = element._x; const y = element._y;
+        const width = element._resolvedWidth; const height = element._resolvedHeight;
+        const rawPadding = this._normalizePadding(element.padding || 0);
+        const paddingLeftPx = this._resolveCoordinate(rawPadding.left, width);
+        const paddingRightPx = this._resolveCoordinate(rawPadding.right, width);
+        const paddingTopPx = this._resolveCoordinate(rawPadding.top, height);
+        const paddingBottomPx = this._resolveCoordinate(rawPadding.bottom, height);
+        this.ctx.font = element.font || '16px Arial';
+        const lineHeight = this._getLineHeight(this.ctx.font, element.lineHeight);
+        const scrollbarSize = element.scrollbarSize || this.DEFAULT_SCROLLBAR_SIZE;
+        const initialContentX = x + paddingLeftPx; const initialContentY = y + paddingTopPx;
+        const initialContentWidth = width - paddingLeftPx - paddingRightPx;
+        const initialContentHeight = height - paddingTopPx - paddingBottomPx;
+        let textRenderWidth = initialContentWidth;
+        let renderLines = this._generateRenderableLines(element.value || "", textRenderWidth, this.ctx.font);
+        let currentTotalTextHeight = renderLines.length * lineHeight;
+        element._showVerticalScrollbar = false;
+        if (currentTotalTextHeight > initialContentHeight && initialContentWidth > scrollbarSize) {
+            element._showVerticalScrollbar = true;
+            textRenderWidth = initialContentWidth - scrollbarSize;
+            renderLines = this._generateRenderableLines(element.value || "", textRenderWidth, this.ctx.font);
+            currentTotalTextHeight = renderLines.length * lineHeight;
+        }
+        element._renderLines = renderLines; element._totalTextHeight = currentTotalTextHeight;
+        const finalContentX = initialContentX; const finalContentY = initialContentY;
+        const finalContentHeight = initialContentHeight;
+        const maxScrollOffsetY = Math.max(0, currentTotalTextHeight - finalContentHeight);
+        element.scrollOffsetY = Math.max(0, Math.min(element.scrollOffsetY || 0, maxScrollOffsetY));
+        this.ctx.save(); this.ctx.beginPath();
+        this.ctx.rect(initialContentX, initialContentY, initialContentWidth, initialContentHeight);
+        this.ctx.clip();
+        this.ctx.textAlign = 'left'; this.ctx.textBaseline = 'top';
+        const textToDraw = element.value || "";
+        if (!textToDraw && !element.isFocused && element.placeholder) {
+            this.ctx.fillStyle = element.placeholderColor || '#AAAAAA';
+            const placeholderLines = this._generateRenderableLines(element.placeholder, textRenderWidth, this.ctx.font);
+            placeholderLines.forEach((line, i) => {
+                if (i * lineHeight < finalContentHeight) this.ctx.fillText(line.text, finalContentX, finalContentY + i * lineHeight);
+            });
+        } else {
+            this.ctx.fillStyle = element.textColor || '#000000';
+            renderLines.forEach((line, i) => {
+                const lineYPos = finalContentY + (i * lineHeight) - element.scrollOffsetY;
+                if (lineYPos + lineHeight > finalContentY && lineYPos < finalContentY + finalContentHeight) {
+                    this.ctx.fillText(line.text, finalContentX, lineYPos);
+                }
+            });
+            if (element.isFocused && this.cursorVisible) {
+                const { lineIndex: cursorLineIndex, offsetInLine: cursorOffsetInLine } = this._mapFlatCursorToLineAndOffset(element.cursorPosition, renderLines);
+                const lineTextBeforeCursor = renderLines[cursorLineIndex].text.substring(0, cursorOffsetInLine);
+                const cursorVisualX = finalContentX + this.ctx.measureText(lineTextBeforeCursor).width;
+                const cursorVisualY = finalContentY + (cursorLineIndex * lineHeight) - element.scrollOffsetY;
+                if (cursorVisualY >= finalContentY && cursorVisualY < finalContentY + finalContentHeight) {
+                     if (cursorVisualX >= finalContentX && cursorVisualX <= finalContentX + textRenderWidth) {
+                        this.ctx.beginPath(); this.ctx.moveTo(cursorVisualX + 0.5, cursorVisualY);
+                        this.ctx.lineTo(cursorVisualX + 0.5, cursorVisualY + lineHeight);
+                        this.ctx.strokeStyle = element.textColor || '#000000'; this.ctx.lineWidth = 1; this.ctx.stroke();
+                    }
+                }
+            }
+        }
+        if (element._showVerticalScrollbar) {
+            const sbTrackX = finalContentX + textRenderWidth; const sbTrackY = finalContentY;
+            const sbTrackActualHeight = finalContentHeight;
+            const thumbHeightRatio = currentTotalTextHeight > 0 ? (finalContentHeight / currentTotalTextHeight) : 1;
+            const thumbHeight = Math.max(20, sbTrackActualHeight * thumbHeightRatio);
+            const thumbYRatio = maxScrollOffsetY > 0 ? (element.scrollOffsetY / maxScrollOffsetY) : 0;
+            const thumbY = sbTrackY + thumbYRatio * (sbTrackActualHeight - thumbHeight);
+            element._verticalScrollbarRect = {
+                x: sbTrackX, y: sbTrackY, width: scrollbarSize, height: sbTrackActualHeight,
+                thumbX: sbTrackX, thumbY: thumbY, thumbWidth: scrollbarSize, thumbHeight: thumbHeight
+            };
+            this.ctx.fillStyle = element.scrollbarTrackColor || '#EEEEEE';
+            this.ctx.fillRect(sbTrackX, sbTrackY, scrollbarSize, sbTrackActualHeight);
+            this.ctx.fillStyle = element.scrollbarThumbColor || '#888888';
+            this.ctx.fillRect(sbTrackX, thumbY, scrollbarSize, thumbHeight);
+        } else { element._verticalScrollbarRect = null; }
+        this.ctx.restore(); this.ctx.font = originalFont;
+    }
+
+    _drawImageElement(element, applyOwnShadow = true) {
+        const { src, _x: x, _y: y, _resolvedWidth: width, _resolvedHeight: height } = element;
+        if (!src) return;
+        if (width === 0 || height === 0) return;
+        if (this.imageCache.has(src)) {
+          const cached = this.imageCache.get(src);
+          if (cached.loaded && cached.image) {
+            if (applyOwnShadow) {
+              this._applyShadow(element);
+            }
+            this.ctx.drawImage(cached.image, x, y, width, height);
+            if (applyOwnShadow) {
+              this._resetShadow();
+            }
+            // No restore here, as _applyShadow and _resetShadow don't use save/restore internally for shadows.
+            // If a clip was active from the caller, it remains active until the caller restores.
+          }
+          return;
+        }
+        const img = new Image();
+        // Ensure crossOrigin is set if loading from different domains, though not strictly necessary for local files.
+        // However, if you ever load from a CDN or other domain, this is crucial for canvas to not be tainted.
+        // For local files, it might not be needed, but good practice if URLs could be external.
+        if (src.startsWith('http')) img.crossOrigin = "Anonymous";
+        this.imageCache.set(src, { loaded: false, error: false, image: img, loading: true });
+        img.onload = () => {
+          this.imageCache.set(src, { loaded: true, error: false, image: img, loading: false });
+          this.renderUI();
+        };
+        img.onerror = () => {
+          console.error(`Failed to load image: ${src}`);
+          this.imageCache.set(src, { loaded: false, error: true, image: null, loading: false });
+          this.renderUI();
+        };
+        img.src = src;
+    }
+
+    _drawBackgroundImage(element, imageConfig) {
+        const { src, style = 'stretch', opacity = 1.0 } = imageConfig;
+        const elX = element._finalX; const elY = element._finalY;
+        const elW = element._resolvedWidth; const elH = element._resolvedHeight;
+        if (!src || !elW || !elH || elW === 0 || elH === 0) return;
+        if (this.imageCache.has(src)) {
+            const cached = this.imageCache.get(src);
+            if (cached.loaded && cached.image) {
+                const img = cached.image;
+                if (img.naturalWidth === 0 || img.naturalHeight === 0) return;
+                const originalAlpha = this.ctx.globalAlpha;
+                this.ctx.globalAlpha = opacity;
+                const imgW = img.naturalWidth; const imgH = img.naturalHeight;
+                let drawX = elX, drawY = elY, drawW = elW, drawH = elH;
+                if (style === 'fit') {
+                    const rX = elW / imgW; const rY = elH / imgH; const r = Math.min(rX, rY);
+                    drawW = imgW * r; drawH = imgH * r;
+                    drawX = elX + (elW - drawW) / 2; drawY = elY + (elH - drawH) / 2;
+                } else if (style === 'fitByWidth') {
+                    const r = elW / imgW; drawW = elW; drawH = imgH * r;
+                    drawX = elX; drawY = elY + (elH - drawH) / 2;
+                } else if (style === 'fitByHeight') {
+                    const r = elH / imgH; drawW = imgW * r; drawH = elH;
+                    drawX = elX + (elW - drawW) / 2; drawY = elY;
+                } // 'stretch' is the default if no other style matches, using elW, elH
+                this.ctx.drawImage(img, drawX, drawY, drawW, drawH);
+                this.ctx.globalAlpha = originalAlpha;
+            }
+            return;
+        }
+        const img = new Image();
+        this.imageCache.set(src, { loaded: false, error: false, image: img, loading: true });
+        img.onload = () => {
+            this.imageCache.set(src, { loaded: true, error: false, image: img, loading: false });
+            this.renderUI();
+        };
+        img.onerror = () => {
+            console.error(`Failed to load BG image: ${src}`);
+            this.imageCache.set(src, { loaded: false, error: true, image: null, loading: false });
+            this.renderUI();
+        };
+        img.src = src;
+    }
+
+    _drawMultiLineText(element) {
+        const originalFont = this.ctx.font; const originalTextAlign = this.ctx.textAlign; const originalTextBaseline = this.ctx.textBaseline;
+        const {
+            labelText, _x: x, _y: y, _resolvedWidth: width, _resolvedHeight: height,
+            font = '16px Arial', color = 'black', lineHeight: customLineHeight,
+            halign = 'left', valign = 'top', padding = 0
+        } = element;
+        if (!labelText || width <= 0 || height <= 0) return;
+        this._applyShadow(element);
+        this.ctx.font = font; this.ctx.fillStyle = color;
+        const rawPadding = this._normalizePadding(padding);
+        const paddingLeftPx = this._resolveCoordinate(rawPadding.left, width);
+        const paddingRightPx = this._resolveCoordinate(rawPadding.right, width);
+        const paddingTopPx = this._resolveCoordinate(rawPadding.top, height);
+        const paddingBottomPx = this._resolveCoordinate(rawPadding.bottom, height);
+        const contentX = x + paddingLeftPx; const contentY = y + paddingTopPx;
+        const contentWidth = width - paddingLeftPx - paddingRightPx;
+        const contentHeight = height - paddingTopPx - paddingBottomPx;
+        if (contentWidth <= 0 || contentHeight <= 0) { this._resetShadow(); return; }
+        const fontSizeMatch = font.match(/(\d+)(px|pt|em|rem)?/);
+        const fontSize = fontSizeMatch ? parseInt(fontSizeMatch[1], 10) : 16;
+        const actualLineHeight = customLineHeight || fontSize * 1.2;
+        const words = labelText.split(' '); let lines = []; let currentLine = '';
+        for (const word of words) {
+            const testLine = currentLine ? currentLine + ' ' + word : word;
+            const metrics = this.ctx.measureText(testLine);
+            if (metrics.width > contentWidth && currentLine !== '') {
+                lines.push(currentLine); currentLine = word;
+            } else { currentLine = testLine; }
+        }
+        lines.push(currentLine);
+        let startY = contentY; const totalTextHeight = lines.length * actualLineHeight;
+        if (valign === 'middle') startY = contentY + (contentHeight - totalTextHeight) / 2;
+        else if (valign === 'bottom') startY = contentY + contentHeight - totalTextHeight;
+        startY += actualLineHeight * 0.8; // Approximation for alphabetic baseline
+        this.ctx.textBaseline = 'alphabetic'; // Consistent baseline for measurement and drawing
+        this.ctx.save(); this.ctx.beginPath(); this.ctx.rect(contentX, contentY, contentWidth, contentHeight); this.ctx.clip();
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i]; let drawX = contentX;
+            if (halign === 'center') drawX = contentX + (contentWidth - this.ctx.measureText(line).width) / 2;
+            else if (halign === 'right') drawX = contentX + contentWidth - this.ctx.measureText(line).width;
+            const drawY = startY + i * actualLineHeight;
+            // Basic clipping: only draw lines that are at least partially visible
+            if (drawY - actualLineHeight < contentY + contentHeight && drawY > contentY) this.ctx.fillText(line, drawX, drawY);
+        }
+        this.ctx.restore(); this._resetShadow();
+        this.ctx.font = originalFont; this.ctx.textAlign = originalTextAlign; this.ctx.textBaseline = originalTextBaseline;
+    }
+
+  } // End class InteractiveCanvasUI
+
+  function initializeUI() {
+    const canvasElement = document.getElementById('myCanvas');
+    const ui = new InteractiveCanvasUI(canvasElement, myFormLayout, uiClassStyles);
+    window.canvasUI = ui; // Make instance globally accessible
+    ui.initialize();
+  }
+
+  async function initializeApp() {
+    if (document.getElementById('myCanvas') && document.getElementById('myCanvas').getContext('2d')) {
+      myFormLayout = [
+        {
+          type: 'formContainer', id: 'mainForm', classObjects: ['container-bg-image-default', 'shadow-medium'],
+          x: '5%', y: '15%', width: '90%', height: '70%', margin: 5, padding: {top: 20, right: '5%', bottom: 20, left: '5%'},
+          scrollable: true, scrollbarSize: 4, scrollbarTrackColor: '#e0e0e0', scrollbarThumbColor: '#a0a0a0',
+          borderColor: '#888', borderWidth: 2, borderRadius: 15,
+          elements: [
+            { type: 'text', labelText: 'User Registration Form', x: '50%', y: 30, font: 'bold 32px Amperzand.ttf', classObjects: ['text-white', 'shadow-light'], halign: 'center', valign: 'top' },
+            { type: 'text', labelText: 'Username:', x: '10%', y: 104.5, font: '18px', classObjects: ['text-white'], halign: 'left', valign: 'middle' },
+            { type: 'textInput', id: 'usernameInput', classObjects: ['input-dark-theme', 'shadow-medium'], x: '30%', y: 85, width: '60%', height: 35, placeholder: 'Enter username (e.g. with url(font.ttf))', value: 'This is a very long username to test scrolling behavior and see if it works as expected.', font: '16px', isFocused: false, cursorPosition: 0, margin: { top: 2, bottom: 5 }, onChange: (v,id,p) => console.log(`Input '${p}' (ID:${id}) changed: "${v}"`) },
+            { type: 'text', labelText: 'Password:', x: '10%', y: 172.5, font: '18px', classObjects: ['text-white'], halign: 'left', valign: 'middle' },
+            { type: 'textInput', id: 'passwordInput', classObjects: ['input-default'], x: '30%', y: 155, width: '60%', height: 35, placeholder: 'Enter password', value: '', font: '16px Amperzand.ttf', isFocused: false, cursorPosition: 0, isPassword: true, onChange: (v,id,p) => console.log(`Input '${p}' (ID:${id}) changed. Len: ${v.length}`) },
+            { type: 'button', label: 'Register', id: 'registerButton', classObjects: ['button-primary', 'shadow-medium'], x: '30%', y: 195, width: 120, margin: { left: '0%', top: 5, bottom: 5 }, height: 45, backgroundImage: { src: 'https://via.placeholder.com/30x30.png?text=BG', style: 'fitByHeight', opacity: 0.3 }, gradientType: 'linear', gradientColors: [ { offset: 0, color: '#6abf4b' }, { offset: 1, color: '#4CAF50' } ], gradientDirection: { x0: 0, y0: 0, x1: 0, y1: 45 }, onClick: (id,lbl) => { console.log(`Btn clicked: ID=${id}, Lbl=${lbl}`); alert('Reg Submitted!'); } },
+            { type: 'checkBox', id: 'agreeTermsCheckbox', classObjects: ['text-white', 'shadow-light'], label: 'I agree to the terms and conditions', x: '30%', y: 255, margin: { bottom: 5 }, size: 18, isChecked: false, font: '14px', borderColor: '#fff', checkMarkColor: '#4f0', onChange: (chk,id,lbl) => { console.log(`Chk '${lbl}' (ID:${id}) changed: ${chk}`); alert(`Terms: ${chk ? 'Agreed' : 'Not Agreed'}`); } },
+            { type: 'text', labelText: 'Preferred Contact:', x: '30%', y: 285, font: '16px', color: '#555', halign: 'left' },
+            { type: 'radioButton', id: 'contactEmailRadio', classObjects: ['text-white'], label: 'Email', value: 'email_contact', groupName: 'contactMethod', x: '30%', y: 310, margin: { bottom: 5 }, size: 18, dotColor: '#4f0', isChecked: false, font: '14px', borderColor: '#fff', borderWidth: 1 },
+            { type: 'radioButton', id: 'contactPhoneRadio', label: 'Phone', value: 'phone_contact', classObjects: ['text-white'], groupName: 'contactMethod', x: '30%', y: 338, margin: { bottom: 5 }, size: 18, isChecked: false, font: '14px', dotColor: '#4f0', borderColor: '#fff', borderWidth: 1, onChange: (val,id,lbl) => { console.log(`Radio '${lbl}' (ID:${id}) sel. Val: ${val}`); alert(`Contact: ${lbl} (Val: ${val})`); } },
+            { type: 'multiLineTextInput', id: 'notesInput', classObjects: ['input-default', 'shadow-light'], x: '10%', y: 370, width: '45%', height: 80, placeholder: 'Enter notes here...\nNew lines are supported.\nTry typing a lot of text to see wrapping and scrolling.', value: 'Initial text for the multi-line input.\nThis can span multiple lines.', font: '16px Amperzand.ttf', padding: {top: 5, right: 8, bottom: 5, left: 8}, lineHeight: 18, isFocused: false, scrollbarSize: 8, scrollbarTrackColor: 'rgba(0,0,0,0.1)', scrollbarThumbColor: 'rgba(0,0,0,0.3)', cursorPosition: 0 },
+            { type: 'image', id: 'sampleSvgImage', classObjects: ['shadow-medium'], src: 'try1.svg', x: '60%', y: 370, width: 100, height: 100, margin: { right: 10 } },
+            { type: 'image', id: 'houseImage', src: 'house.png', x: '75%', y: 370, width: 100, height: 100, classObjects: ['shadow-light'], borderColor: 'green', borderWidth: 3, borderRadius: 10, backgroundColor: 'rgba(200, 255, 200, 0.5)' },
+            { type: 'multiLineText', id: 'descriptionText', classObjects: ['text-dark'], labelText: 'This is a longer piece of text that should wrap over multiple lines. It demonstrates the multiLineText component with various alignment and styling options. We can add more words to see how it behaves with even more content. The quick brown fox jumps over the lazy dog.', x: '10%', y: 580, width: '80%', height: 100, font: '14px Arial', halign: 'left', valign: 'top', padding: {top: 5, right: 10, bottom: 5, left: 10}, backgroundColor: 'rgba(230, 230, 230, 0.8)', borderRadius: 5 },
+            { type: 'image', id: 'samplePngImage', src: 'https://via.placeholder.com/100x50.png?text=PNG+Image', x: '60%', y: 440, width: 100, height: 50 },
+            { type: 'button', label: 'Cancel', id: 'cancelButton', classObjects: ['button-cancel', 'shadow-medium'], x: '55%', y: 195, margin: { top: 5, bottom: 5 }, width: 120, height: 45, onClick: (id,lbl) => { console.log(`Cancel btn: ID=${id}, Lbl=${lbl}`); const u=window.canvasUI.findElementById('usernameInput'); const p=window.canvasUI.findElementById('passwordInput'); if(u)u.value=''; if(p)p.value=''; if(window.canvasUI)window.canvasUI.renderUI(); alert('Action Cancelled.'); } },
+            { type: 'horizontalList', x: '10%', y: 455, spacing: 10, padding: 5, classObjects: ['shadow-light'], margin: { bottom: 5 }, backgroundImage: { src: 'https://via.placeholder.com/150x50.png?text=List+BG', style: 'fit', opacity: 0.5 }, width: 250, height: 40, backgroundColor: '#e0e0e0', borderRadius: 5, borderWidth: 1, borderColor: 'grey', elements: [ { type: 'button', label: 'Yes', id: 'yesButton', width: 70, classObjects: ['button-primary', 'shadow-light'], height: 30, margin: { left: 2, right: 2}, onClick: (id,lbl) => alert(`Clicked '${lbl}'!`) }, { type: 'button', label: 'No', id: 'noButton', classObjects: ['button-cancel', 'shadow-light'], width: 70, height: 30, margin: { left: 2, right: 2}, onClick: (id,lbl) => alert(`Clicked '${lbl}' (ID:${id}).`) }, { type: 'button', label: 'Maybe', id: 'maybeButton', width: 70, height: 30, borderRadius: 4, classObjects: ['shadow-light'], onClick: (id,lbl) => alert(`Maybe ${lbl}? (ID:${id})`) } ] },
+            { type: 'verticalList', x: '75%', y: 280, spacing: 8, padding: 10, classObjects: ['shadow-light'], margin: {bottom: 5}, elements: [ { type: 'checkBox', id: 'opt1', label: 'Option 1', size: 18, isChecked: true, borderRadius: 3, classObjects: ['text-white'] }, { type: 'checkBox', id: 'opt2', label: 'Option 2', size: 18, isChecked: false, borderRadius: 3, classObjects: ['text-white'] }, { type: 'radioButton', id: 'radA', groupName: 'vg1', label: 'Choice A', size: 18, isChecked: true, classObjects: ['text-white'] } ] },
+            { type: 'table', x: '10%', y: 505, margin: { top: 5 }, colWidths: [100, 120, 100], rowHeight: 35, defaultCellPadding: {top: '5%', right: 5, bottom: '5%', left: 5}, elements: [ { type: 'text', labelText: 'Name', font: 'bold 14px', classObjects: ['text-white']}, { type: 'text', labelText: 'Role', font: 'bold 14px', classObjects: ['text-white']}, { type: 'text', labelText: 'Status', font: 'bold 14px', classObjects: ['text-white']}, { type: 'textInput', id: 'nameInTable', value: 'Alice', width: 90, height: 25, borderRadius: 3, classObjects: ['input-default']}, { type: 'text', labelText: 'Admin', font: '14px', classObjects: ['text-white']}, { type: 'checkBox', id: 'statusInTable', isChecked: true, size: 18, label: 'Active', borderRadius: 3, classObjects: ['text-white'], onChange: (chk,id,lbl) => console.log(`Tbl chk ${lbl} (${id}): ${chk}`) } ] },
+            { type: 'text', labelText: 'Extra Item 1', x: '10%', y: 690, font: '16px', classObjects: ['text-white'] },
+            { type: 'text', labelText: 'Extra Item 2', x: '10%', y: 720, font: '16px', classObjects: ['text-white'] },
+            { type: 'text', labelText: 'Extra Item 3', x: '10%', y: 750, font: '16px', classObjects: ['text-white'] },
+            { type: 'text', labelText: 'Extra Item 4', x: '10%', y: 780, font: '16px', classObjects: ['text-white'] },
+            { type: 'text', labelText: 'Extra Item 5', x: '10%', y: 810, font: '16px', classObjects: ['text-white'] },
+            { type: 'text', labelText: 'Extra Item 6 (End of Content)', x: '10%', y: 840, font: '16px', classObjects: ['text-white'] },
+          ]
+        }
+      ];
+      initializeUI();
+    } else {
+      console.error('Canvas element not found or context could not be retrieved.');
+    }
+  }
+  initializeApp();
+</script>
+
+</body>
+</html>

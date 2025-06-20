@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>WAT to Wasm with libwabt.js</title>
+        <style>
+            body {
+                font-family: sans-serif;
+                margin: 20px;
+            }
+            pre {
+                background-color: #f4f4f4;
+                padding: 10px;
+                border-radius: 5px;
+                white-space: pre-wrap;
+                word-wrap: break-word;
+            }
+            .output {
+                margin-top: 20px;
+                border: 1px solid #ccc;
+                padding: 10px;
+            }
+        </style>
+    </head>
+    <script type="importmap">
+        {
+            "imports": {
+                "topsCompiler": "./js/topsCompiler.js",
+                "try2": "./js/try2.js",
+				
+            }
+        }
+    </script>
+	<script src="./js/libwabt.js"></script>
+    <body>
+        <script type="module">
+            import { hi } from 'topsCompiler'
+            
+            try {
+				//alert(WabtModule);
+                //
+                hi()
+                alert('done')
+            } catch (err) {
+                alert(err)
+                alert(err.stackTrace)
+            }
+        </script>
+    </body>
+</html>

@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebAssembly WAT Compiler Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        div { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"], textarea {
+            width: 80%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-family: monospace;
+        }
+        textarea { height: 150px; }
+        button {
+            padding: 10px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover { background-color: #0056b3; }
+        #messages {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            background-color: #f9f9f9;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>WebAssembly WAT Compiler Test</h1>
+
+    <div>
+        <label for="watFileName">WAT File Name (e.g., mymodule.wat):</label>
+        <input type="text" id="watFileName" value="test.wat">
+    </div>
+
+    <div>
+        <label for="wasmFileName">WASM Output File Name (e.g., mymodule.wasm):</label>
+        <input type="text" id="wasmFileName" value="test.wasm">
+    </div>
+
+    <div>
+        <label for="watCodeInput">WAT Code Input:</label>
+        <textarea id="watCodeInput">
+(module
+  (func (export "add") (param i32) (param i32) (result i32)
+    local.get 0
+    local.get 1
+    i32.add))
+        </textarea>
+    </div>
+
+    <button id="saveAndCompileBtn">Save and Compile Files</button>
+
+    <div>
+        <label for="jsCodeInput">JavaScript Code to Run WebAssembly Exports:</label>
+        <textarea id="jsCodeInput">
+async function runWasm() {
+    try {
+        const wasmFile = document.getElementById('wasmFileName').value;
+        const response = await fetch(wasmFile);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch WASM file: ${response.statusText}`);
+        }
+        const buffer = await response.arrayBuffer();
+        const module = await WebAssembly.compile(buffer);
+        const instance = await WebAssembly.instantiate(module);
+
+        const addResult = instance.exports.add(5, 3);
+        appendMessage(`WebAssembly 'add(5, 3)' result: ${addResult}`);
+    } catch (error) {
+        appendMessage(`Error running WASM: ${error.message}`);
+        console.error(error);
+    }
+}
+runWasm();
+        </textarea>
+    </div>
+
+    <button id="runCompiledFileBtn">Run Compiled File</button>
+
+    <div id="messages">
+        Messages will appear here...
+    </div>
+
+    <script>
+        const watFileNameInput = document.getElementById('watFileName');
+        const wasmFileNameInput = document.getElementById('wasmFileName');
+        const watCodeInput = document.getElementById('watCodeInput');
+        const jsCodeInput = document.getElementById('jsCodeInput');
+        const saveAndCompileBtn = document.getElementById('saveAndCompileBtn');
+        const runCompiledFileBtn = document.getElementById('runCompiledFileBtn');
+        const messagesDiv = document.getElementById('messages');
+
+        function appendMessage(msg) {
+            messagesDiv.textContent += msg + '\n';
+            messagesDiv.scrollTop = messagesDiv.scrollHeight; // Auto-scroll to bottom
+        }
+
+        saveAndCompileBtn.addEventListener('click', async () => {
+            const watFileName = watFileNameInput.value.trim();
+            const wasmFileName = wasmFileNameInput.value.trim();
+            const watCode = watCodeInput.value.trim();
+
+            if (!watFileName || !wasmFileName || !watCode) {
+                appendMessage("Error: All fields (WAT File Name, WASM File Name, WAT Code) must be filled.");
+                return;
+            }
+
+            messagesDiv.textContent = ''; // Clear previous messages
+            appendMessage("Attempting to save and compile...");
+
+            try {
+                // 1. Save WAT file
+                appendMessage(`Saving ${watFileName}...`);
+                const saveWatResponse = await fetch('/', {
+                    method: 'POST', // Or GET, if your SAVEFILE handler accepts GET with body or query param
+                    headers: {
+                        'SAVEFILE': 'true',
+                        'path': watFileName,
+                        'Content-Type': 'text/plain' // Specify content type if sending in body
+                    },
+                    body: watCode // Send WAT code in the request body
+                });
+
+                if (!saveWatResponse.ok) {
+                    throw new Error(`Failed to save WAT file: ${saveWatResponse.status} ${await saveWatResponse.text()}`);
+                }
+                appendMessage(`Successfully saved ${watFileName}.`);
+
+                // 2. Compile WAT to WASM
+                appendMessage(`Compiling ${watFileName} to ${wasmFileName}...`);
+                const compileWatResponse = await fetch('/', {
+                    method: 'POST', // Or GET, if your COMPILEWAT handler accepts GET with body or query param
+                    headers: {
+                        'COMPILEWAT': 'true',
+                        'OUTPUT-PATH': wasmFileName,
+                        'Content-Type': 'text/plain' // Specify content type if sending in body
+                    },
+                    body: watCode // Send WAT code in the request body for compilation
+                });
+
+                if (!compileWatResponse.ok) {
+                    throw new Error(`Failed to compile WAT: ${compileWatResponse.status} ${await compileWatResponse.text()}`);
+                }
+                appendMessage(`Successfully compiled ${wasmFileName}.`);
+
+            } catch (error) {
+                appendMessage(`Operation failed: ${error.message}`);
+                console.error('Error:', error);
+            }
+        });
+
+        runCompiledFileBtn.addEventListener('click', () => {
+            const jsCode = jsCodeInput.value;
+            messagesDiv.textContent = ''; // Clear previous messages
+            appendMessage("Attempting to run compiled WebAssembly...");
+            try {
+                // Using a script tag to execute the code for better scope and error handling
+                const script = document.createElement('script');
+                script.textContent = jsCode;
+                script.id = 'dynamicWasmRunner';
+
+                // Remove previous dynamic script if exists
+                const existingScript = document.getElementById('dynamicWasmRunner');
+                if (existingScript) {
+                    existingScript.remove();
+                }
+
+                document.body.appendChild(script);
+                appendMessage("JS code executed. Check console for detailed WASM output or errors.");
+
+            } catch (error) {
+                appendMessage(`Error executing JS code: ${error.message}`);
+                console.error(error);
+            }
+        });
+    </script>
+</body>
+</html>
+

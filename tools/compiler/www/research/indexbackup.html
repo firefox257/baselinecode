@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Try1</title>
+        <style>
+           
+        </style>
+    </head>
+    <body>
+
+
+    </body>
+    <script>
+        globalThis.$q = (p) =>
+        {
+            return document.querySelector(p);
+        }
+        globalThis.$qa = (p) => 
+        {
+            return document.querySelectorAll(p);
+        }
+    </script>
+    <script type="text/plain" id ="mycode">
+
+
+        function printthis()
+        {
+            console.log("print this")
+        }
+        blclass Try1
+        {
+            x: 123;
+            y: 124;
+            Try1()
+            {
+                this.x = 0;
+                this.y = 3333
+            }
+            printout()
+            {
+                this.printx();
+                this.printy();
+            }
+            printx()
+            {
+                console.log(this.x);
+            }
+            printy()
+            {
+                console.log(this.y);
+            }
+        }
+       
+        // Try1 t1; // Removed to match the target output
+        // t1.printout(); // Removed to match the target output
+        blclass out1 
+        {
+            a: 0;
+            b: 0;
+            out1(a, b)
+            {
+                this.a = a;
+                this.b = b;
+            }
+            func(arg1)
+            {
+                console.log("out1 log " + arg1)
+            }
+        }
+
+        blclass out2
+        {
+            a: 0;
+            b: 0;
+            out2()
+            {
+                
+            }
+            func1()
+            {
+                console.log("out2 log ")
+            }
+        }
+
+        blclass Try2 extends Try1, out1, out2
+        {
+            title: "hi there"
+            Try2(maybe)
+            {
+                console.log("maybe here 1")
+                Try1();
+                out1(222, 333);
+                out2();
+                this.title += " and more";
+                
+            }
+            printout()
+            {
+                this.printx();
+                this.printy();
+                this.printtitle();
+                this.func("an argument");
+                this.func1();
+                printthis();
+
+            }
+            printtitle()
+            {
+                cosnole.log(this.title);
+            }
+        }
+        Try2 t2;
+        t2.printout();
+    </script>
+    <script id="compile">
+        function compileAndRunBaselineClass(sourceCode) {
+            let generatedJS = ""; // This will be built up.
+            globalThis.deepclone = function (obj, hash = new WeakMap()) {
+                if (obj === null || typeof obj !== 'object') return obj;
+                if (hash.has(obj)) return hash.get(obj); // Cyclic reference
+                const clone = Array.isArray(obj) ? [] : {};
+                hash.set(obj, clone);
+                for (const key in obj) {
+                    if (Object.prototype.hasOwnProperty.call(obj, key)) {
+                        clone[key] = deepclone(obj[key], hash);
+                    }
+                }
+                return clone;
+            };
+            //generatedJS += deepCloneFunc;
+            
+            const allParsedClasses = {};
+            let remainingSourceToParse = sourceCode;
+            let currentOffset = 0;
+            let lastClassProcessedEnd = 0;
+
+            // Phase 1: Parse all class definitions
+            // Updated regex to capture multiple base classes (comma-separated)
+            const classSignatureRegex = /blclass\s+(\w+)(?:\s+extends\s+([\w\s,]+?))?\s*\{/;
+            
+            while (true) {
+                const sigMatch = classSignatureRegex.exec(remainingSourceToParse);
+                if (!sigMatch) break;
+
+                const className = sigMatch[1];
+                const baseClassNamesString = sigMatch[2] || "";
+                const baseClassNames = baseClassNamesString.split(',')
+                                           .map(name => name.trim())
+                                           .filter(name => name.length > 0);
+                
+                const classBodyStartIndexInRemainder = sigMatch.index + sigMatch[0].length;
+                let balance = 1;
+                let classBodyEndIndexInRemainder = -1;
+
+                for (let i = classBodyStartIndexInRemainder; i < remainingSourceToParse.length; i++) {
+                    if (remainingSourceToParse[i] === '{') {
+                        balance++;
+                    } else if (remainingSourceToParse[i] === '}') {
+                        balance--;
+                        if (balance === 0) {
+                            classBodyEndIndexInRemainder = i;
+                            break;
+                        }
+                    }
+                }
+
+                if (classBodyEndIndexInRemainder === -1) {
+                    console.error(`[Compiler] blclass '${className}' closing brace '}' not found or braces are unbalanced.`);
+                    alert(`Compilation Error: blclass '${className}' closing brace not found.`);
+                    return; 
+                }
+
+                const classBodyContent = remainingSourceToParse.substring(classBodyStartIndexInRemainder, classBodyEndIndexInRemainder).trim();
+                
+                const ownProperties = {};
+                let constructorDef = { args: "", body: "" }; 
+                const methodsDef = [];
+
+                const propertyRegex = /^\s*(\w+)\s*:\s*([^\n;]+)\s*;?/gm;
+                const functionRegex = /(\w+)\s*\(([^)]*)\)\s*\{([\s\S]*?)\}/g;
+
+                let tempBodyForPropParsing = classBodyContent.replace(functionRegex, '');
+                let propMatch;
+                while ((propMatch = propertyRegex.exec(tempBodyForPropParsing)) !== null) {
+                    ownProperties[propMatch[1]] = propMatch[2].trim();
+                }
+
+                let funcMatch;
+                functionRegex.lastIndex = 0; 
+                while ((funcMatch = functionRegex.exec(classBodyContent)) !== null) {
+                    const name = funcMatch[1];
+                    const args = funcMatch[2].trim();
+                    const body = funcMatch[3].trim();
+                    if (name === className) { // Constructor is named after the class
+                        constructorDef = { args, body };
+                    } else {
+                        methodsDef.push({ name, args, body });
+                    }
+                }
+                
+                allParsedClasses[className] = { baseClassNames, ownProperties, constructorDef, methodsDef };
+
+                lastClassProcessedEnd = currentOffset + sigMatch.index + sigMatch[0].length + (classBodyEndIndexInRemainder - classBodyStartIndexInRemainder) + 1;
+                remainingSourceToParse = sourceCode.substring(lastClassProcessedEnd);
+                currentOffset = lastClassProcessedEnd;
+            }
+
+            const actualTrailingCode = sourceCode.substring(lastClassProcessedEnd).trim();
+
+            // Helper function to find the class that defines a method in the hierarchy
+            function findDefiningClassForMethod(className, methodName, allParsedClassesMap, visited = new Set()) {
+                if (!className || !allParsedClassesMap[className] || visited.has(className)) {
+                    return null;
+                }
+                visited.add(className);
+            
+                if (allParsedClassesMap[className].methodsDef.some(m => m.name === methodName)) {
+                    return className;
+                }
+            
+                const classInfo = allParsedClassesMap[className];
+                if (classInfo.baseClassNames && classInfo.baseClassNames.length > 0) {
+                    for (const baseName of classInfo.baseClassNames) { // Search in order of extends
+                        const definingClass = findDefiningClassForMethod(baseName, methodName, allParsedClassesMap, new Set(visited)); // Pass new Set for different branches
+                        if (definingClass) {
+                            return definingClass;
+                        }
+                    }
+                }
+                return null;
+            }
+
+            function transformMethodBody(body, currentClassName, allParsedClassesMap, isConstructorContext = false) {
+                let transformed = body;
+
+                if (isConstructorContext) {
+                    const classInfo = allParsedClassesMap[currentClassName];
+                    if (classInfo && classInfo.baseClassNames) {
+                        for (const baseName of classInfo.baseClassNames) {
+                            if (allParsedClassesMap[baseName]) { // Ensure base class is known
+                                // Matches "BaseName()" or "BaseName(possibly.empty.args)" optionally followed by a semicolon,
+                                // at the start of a line (due to ^ with gm flag), allowing for whitespace.
+                                const baseConstructorCallRegex = new RegExp(`^\\s*${baseName}\\s*\\(\\s*([^)]*?)\\s*\\)\\s*;?\\s*$`, "gm");
+                                transformed = transformed.replace(baseConstructorCallRegex, (match, capturedArgs) => {
+                                    const argsToPass = capturedArgs.trim();
+                                    return `${baseName}Constructor(self${argsToPass ? ', ' + argsToPass : ''});`;
+                                });
+                            }
+                        }
+                    }
+                }
+
+                transformed = transformed.replace(/\bthis\.(\w+)\s*\(([^)]*)\)/g, (match, methodName, argsStr) => {
+                    const args = argsStr.trim();
+                    let definingClassName = null;
+                    let searchClass = currentClassName;
+                    definingClassName = findDefiningClassForMethod(searchClass, methodName, allParsedClassesMap);
+                    if (!definingClassName) {
+                        console.warn(`[Compiler - transformMethodBody] Method '${methodName}' called from within class '${currentClassName}' not found in its hierarchy. Defaulting to prefix '${currentClassName}'.`);
+                        definingClassName = currentClassName; 
+                    }
+                    return `${definingClassName}${methodName}(self${args ? ', ' + args : ''})`;
+                });
+
+                transformed = transformed.replace(/\bthis\.(\w+)\b(?!\s*\()/g, 'self.$1');
+                transformed = transformed.replace(/\balert\s*\(([\s\S]*?)\)/g, 'console.log($1)');
+                transformed = transformed.replace(/\bcosnole\.log\b/g, 'console.log');
+                return transformed;
+            }
+
+            for (const className in allParsedClasses) {
+                const classInfo = allParsedClasses[className];
+                let effectiveProperties = {};
+                
+                // Function to recursively collect properties respecting MRO (simplified: order of extends)
+                function collectProperties(currentClassName, visitedProps = new Set()) {
+                    if (!currentClassName || !allParsedClasses[currentClassName] || visitedProps.has(currentClassName)) {
+                        return {};
+                    }
+                    visitedProps.add(currentClassName);
+                    const currentClassInfo = allParsedClasses[currentClassName];
+                    let props = {};
+                    // Inherit from base classes first (in order of extends)
+                    if (currentClassInfo.baseClassNames) {
+                        for (const baseName of currentClassInfo.baseClassNames) {
+                            Object.assign(props, collectProperties(baseName, new Set(visitedProps)));
+                        }
+                    }
+                    // Own properties override inherited ones
+                    Object.assign(props, currentClassInfo.ownProperties);
+                    return props;
+                }
+                effectiveProperties = collectProperties(className);
+
+                generatedJS += `var ${className}Properties = {\n`;
+                const propEntries = Object.entries(effectiveProperties).map(([key, value]) => `    ${key}: ${value}`);
+                generatedJS += propEntries.join(',\n') + '\n};\n\n';
+
+                classInfo.methodsDef.forEach(method => {
+                    generatedJS += `function ${className}${method.name}(self${method.args ? ', ' + method.args : ''}) {\n`;
+                    transformMethodBody(method.body, className, allParsedClasses, false).split('\n').forEach(line => {
+                        generatedJS += `    ${line.trim()}\n`;
+                    });
+                    generatedJS += `}\n\n`;
+                });
+
+                generatedJS += `function ${className}New() {\n`;
+                generatedJS += `    return deepclone(${className}Properties);\n`;
+                generatedJS += `}\n\n`;
+
+                const constructorRawBody = classInfo.constructorDef.body;
+                const constructorArgsString = classInfo.constructorDef.args;
+                generatedJS += `function ${className}Constructor(self${constructorArgsString ? ', ' + constructorArgsString : ''}) {\n`;
+                const finalTransformedConstructorBody = transformMethodBody(constructorRawBody, className, allParsedClasses, true);
+                finalTransformedConstructorBody.split('\n').forEach(line => {
+                    if (line.trim() !== "") { // Avoid adding empty lines from split
+                        generatedJS += `    ${line.trim()}\n`;
+                    }
+                });
+                // Note: The 'return self;' is removed later by a global replace
+                generatedJS += `}\n\n`; 
+            }
+
+            let transformedTrailingCode = actualTrailingCode;
+            const allClassNames = Object.keys(allParsedClasses);
+
+            if (allClassNames.length > 0) {
+                const instantiationPattern = new RegExp(`^\\s*(${allClassNames.join('|')})\\s+(\\w+);`, "gm");
+                transformedTrailingCode = transformedTrailingCode.replace(instantiationPattern, (match, className, varName) => {
+                    return `var ${varName} = ${className}New(); ${className}Constructor(${varName});`;
+                });
+
+                const methodCallPattern = new RegExp(`\\b(\\w+)\\.(\\w+)\\s*\\(([^)]*)\\)`, "g");
+                transformedTrailingCode = transformedTrailingCode.replace(methodCallPattern, (match, instanceVar, methodName, argsStr) => {
+                    const args = argsStr.trim();
+                    let ownerClassName = "";
+                    
+                    for (const cn of allClassNames) {
+                        const instanceDeclarationRegex = new RegExp(`var\\s+${instanceVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*=\\s*${cn}New\\(\\)`);
+                        if (instanceDeclarationRegex.test(generatedJS + transformedTrailingCode.substring(0, transformedTrailingCode.indexOf(match)))) {
+                            ownerClassName = cn;
+                            break;
+                        }
+                    }
+
+                    if (ownerClassName) {
+                        let definingClassNameForCall = null;
+                        definingClassNameForCall = findDefiningClassForMethod(ownerClassName, methodName, allParsedClasses);
+
+                        if (definingClassNameForCall) {
+                            return `${definingClassNameForCall}${methodName}(${instanceVar}${args ? ', ' + args : ''})`;
+                        } else {
+                            console.warn(`[Compiler - Trailing Code] Method '${methodName}' on instance '${instanceVar}' (type '${ownerClassName}') not found in its hierarchy. Call left as is: ${match}`);
+                        }
+                    } else {
+                         // Only warn if instanceVar is not a known class name itself (e.g. Math.random())
+                        if (!allParsedClasses[instanceVar]) {
+                           console.warn(`[Compiler - Trailing Code] Could not determine type of instance '${instanceVar}' for method call '${methodName}'. Call left as is: ${match}`);
+                        }
+                    }
+                    return match; 
+                });
+            }
+            
+            generatedJS = generatedJS.replace(/function (\w+Constructor\([^)]*\)) \{\s*\}/g, 'function $1 {\n\}'); // Ensure empty constructors have a newline
+            generatedJS = generatedJS.replace(/    \n\}\n\n/g, '}\n\n'); // Clean up potential empty lines before closing brace of constructor
+            generatedJS = generatedJS.replace(/function (\w+Constructor\([^)]*\)) \{\n(\s*return self;\n)?\}\n\n/g, 'function $1 {\n}\n\n');
+
+
+            generatedJS += transformedTrailingCode.trim() + "\n";
+
+            console.log("--- Generated JavaScript ---");
+            console.log(generatedJS);
+
+            const script = document.createElement('script');
+            script.textContent = generatedJS;
+            document.body.appendChild(script);
+        }
+
+        const myCodeElement = $q("#mycode");
+        if (myCodeElement) {
+            compileAndRunBaselineClass(myCodeElement.textContent);
+        } else {
+            console.error("Element with id 'mycode' not found.");
+        }
+    </script>
+</html>

@@ -1,0 +1,109 @@
+
+#+ is public
+#- is protected
+#-- is private
+
+
+#g mygroup;
+#u list, of, names;// use groups
+#i include file;
+
+
+$f+ // define outer functions
+void func() {
+	
+}
+
+//class define have to have class 
+//defined to set if itis public or not
+$c+  try1;
+
+//enum
+$e+ types;
+zero;
+one;
+two;
+three;
+
+@+ try1  svars;
+ uint2 x;
+
+@+ try1  ivars;
+uint4 y;
+
+@- try1 ivars;//for protected
+
+uint4 ii;
+
+@-- try1 ivars;//for private
+
+
+//not do
+//@-- try1  uvars;
+//uint4 y
+
+@+ try1 fi;
+ 
+:()//for new
+{
+	
+}
+
+:(try1 t1)//for new copy
+{
+
+}
+
+:~()//unref
+{
+}
+
+:~~()//delete
+{
+}
+
+:=(try t1)//for operator overloading
+{
+
+
+}
+:>=(try1 t1)
+
+void func()
+{
+	types	:zero;
+
+	
+	{int4 i = 0;
+		loop
+		{
+			i++;
+			if(i>=100) break;
+		}
+	}
+
+	
+	
+}
+
+
+@+  try1 fs;//class static
+:()// start called when app starts
+{
+
+}
+:~()// ends called when app ends
+{
+	
+}
+void init()// is the static try1 function name init
+{
+
+
+}
+
+
+used at end of file since no other can change state
+@end
+
+if end of file, state ends as if @end was added

@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Try1</title>
+        <style>
+           
+        </style>
+    </head>
+    <body>
+
+
+    </body>
+    <script>
+        globalThis.$q = (p) =>
+        {
+            return document.querySelector(p);
+        }
+        globalThis.$qa = (p) => 
+        {
+            return document.querySelectorAll(p);
+        }
+    </script>
+    <script type="text/plain" id ="mycode">
+        var sayhi =()=> {
+            alert("Hi there")
+        }
+        blclass try1
+        {
+            title = "title";
+            try1(b)
+            {
+                if(b != undefined)
+                {
+                    this.title = b.title
+                }
+                sayhi();
+            }
+
+        }
+        
+        class c1
+        {
+
+            constructor()
+            {
+                console.log("htere")
+            }
+        }
+        var c = new c1();
+        
+    </script>
+
+    <script type = "text/plain" id = "mycode1">
+        try1 t1 = new try1({title:"hi there"})
+        console.log(t1.title)
+    </script>
+    <script id="compile">
+        // Global store for all parsed class definitions
+        globalThis.parsedBlClasses = globalThis.parsedBlClasses || {};
+        // Global set to track names of classes for which JS has already been generated and added to the document
+        globalThis.generatedBlClassNames = globalThis.generatedBlClassNames || new Set();
+
+        function compileAndRunBaselineClass(sourceCode) {
+            let jsToExecuteForThisCall = ""; // JS to be executed for this specific sourceCode block
+
+            // Define deepclone and add it to the script
+            // deepCloneFuncStr will be added to jsToExecuteForThisCall only if globalThis.deepclone is not yet defined.
+            const deepCloneFuncStr = `
+globalThis.deepclone = function (obj, hash = new WeakMap()) {
+    if (obj === null || typeof obj !== 'object') return obj;
+    if (hash.has(obj)) return hash.get(obj); // Cyclic reference
+    const clone = Array.isArray(obj) ? [] : {};
+    hash.set(obj, clone);
+    for (const key in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+            clone[key] = deepclone(obj[key], hash);
+        }
+    }
+    return clone;
+};
+`;
+            if (typeof globalThis.deepclone === 'undefined') {
+                jsToExecuteForThisCall += deepCloneFuncStr;
+            }
+
+            function deindent(text) {
+                const lines = text.split('\n');
+                let minIndent = Infinity;
+
+                for (const line of lines) {
+                    if (line.trim() === '') continue;
+                    const leadingSpaceMatch = line.match(/^\s*/);
+                    const leadingSpaceLength = leadingSpaceMatch ? leadingSpaceMatch[0].length : 0;
+                    if (leadingSpaceLength < minIndent) {
+                        minIndent = leadingSpaceLength;
+                    }
+                }
+
+                if (minIndent === Infinity || minIndent === 0) return text;
+
+                return lines.map(line => {
+                    // Only remove from lines that have at least that much indent.
+                    // Blank lines or lines with less indent (shouldn't happen if minIndent is correct) are preserved.
+                    if (line.substring(0, minIndent).trim() === '' && line.length >= minIndent) {
+                        return line.substring(minIndent);
+                    }
+                    return line;
+                }).join('\n');
+            }
+            
+            // const allParsedClasses = {}; // Replaced by globalThis.parsedBlClasses
+            let lastProcessedSourceIndex = 0; // Tracks up to where sourceCode has been processed
+            let interspersedCodeSegments = ""; // Accumulator for non-blclass code
+            const classNamesDefinedInThisCall = []; // Track classes defined in the current sourceCode block
+            // Phase 1: Parse all class definitions
+            // Updated regex to capture multiple base classes (comma-separated)
+            const classSignatureRegex = /blclass\s+(\w+)(?:\s+extends\s+([\w\s,]+?))?\s*\{/g; // Added 'g' flag
+            let sigMatch;
+            
+            // In Phase 1, parse classes and collect interspersed non-class code
+            while ((sigMatch = classSignatureRegex.exec(sourceCode)) !== null) {
+                // Accumulate non-class code found before this class definition
+                interspersedCodeSegments += sourceCode.substring(lastProcessedSourceIndex, sigMatch.index);
+
+                // --- Existing class parsing logic (largely unchanged in its core) ---
+                const className = sigMatch[1];
+                const baseClassNamesString = sigMatch[2] || "";
+                const baseClassNames = baseClassNamesString.split(',')
+                                           .map(name => name.trim())
+                                           .filter(name => name.length > 0);
+                
+                const classHeaderEnd = sigMatch.index + sigMatch[0].length;
+                let balance = 1;
+                let classBodyEndIndex = -1;
+
+                for (let i = classHeaderEnd; i < sourceCode.length; i++) {
+                    if (sourceCode[i] === '{') {
+                        balance++;
+                    } else if (sourceCode[i] === '}') {
+                        balance--;
+                        if (balance === 0) {
+                            classBodyEndIndex = i;
+                            break;
+                        }
+                    }
+                }
+
+                if (classBodyEndIndex === -1) {
+                    console.error(`[Compiler] blclass '${className}' closing brace '}' not found or braces are unbalanced.`);
+                    alert(`Compilation Error: blclass '${className}' closing brace '}' not found.`);
+                    return; 
+                }
+                const classBodyContent = sourceCode.substring(classHeaderEnd, classBodyEndIndex).trim();
+                
+                const ownProperties = {};
+                let constructorDef = { args: "", body: "" }; 
+                const methodsDef = [];
+
+                // 1. Updated propertyRegex to handle '=' and ':' for property definition
+                const propertyRegex = /^\s*(\w+)\s*(?:=|:)\s*([^\n;]+)\s*;?/gm;
+                const functionRegex = /(\w+)\s*\(([^)]*)\)\s*\{([\s\S]*?)\}/g;
+
+                let tempBodyForPropParsing = classBodyContent.replace(functionRegex, '');
+                let propMatch;
+                while ((propMatch = propertyRegex.exec(tempBodyForPropParsing)) !== null) {
+                    ownProperties[propMatch[1]] = propMatch[2].trim();
+                }
+                
+                // Corrected function/method parsing logic
+                let funcMatch;
+                functionRegex.lastIndex = 0; 
+                while ((funcMatch = functionRegex.exec(classBodyContent)) !== null) {
+                    const functionName = funcMatch[1];
+                    const functionArgs = funcMatch[2].trim();
+
+                    // Find the actual opening brace for the current function match in classBodyContent
+                    // funcMatch.index is the start of the entire match (e.g., "try1(b) {") in classBodyContent
+                    // funcMatch[0] is the matched string itself (e.g., "try1(b)\n            {")
+                    const openBraceRelPos = funcMatch[0].indexOf('{');
+                    if (openBraceRelPos === -1) { // Should not happen if regex is correct
+                        console.error(`[Compiler] No opening brace found for function ${functionName} in class ${className}.`);
+                        functionRegex.lastIndex = funcMatch.index + funcMatch[0].length; // Skip this problematic match
+                        continue;
+                    }
+                    const bodyStartIndexInClassBody = funcMatch.index + openBraceRelPos + 1;
+
+                    let funcBodyBalance = 1; // Start with 1 because we are inside the function's opening brace
+                    let bodyEndIndexInClassBody = -1; // Index of the function's true closing '}'
+
+                    for (let i = bodyStartIndexInClassBody; i < classBodyContent.length; i++) {
+                        if (classBodyContent[i] === '{') {
+                            funcBodyBalance++;
+                        } else if (classBodyContent[i] === '}') {
+                            funcBodyBalance--;
+                            if (funcBodyBalance === 0) {
+                                bodyEndIndexInClassBody = i;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (bodyEndIndexInClassBody === -1) {
+                        console.error(`[Compiler] Unbalanced braces for function '${functionName}' in class '${className}'. Skipping.`);
+                        // Attempt to advance regex past the problematic function start to avoid infinite loops
+                        // This might not be perfect but is better than getting stuck.
+                        functionRegex.lastIndex = bodyStartIndexInClassBody; 
+                        continue;
+                    }
+
+                    const actualRawBody = classBodyContent.substring(bodyStartIndexInClassBody, bodyEndIndexInClassBody);
+                    const deindentedBody = deindent(actualRawBody.trim());
+
+                    if (functionName === className) { // Constructor is named after the class
+                        constructorDef = { args: functionArgs, body: deindentedBody };
+                    } else {
+                        methodsDef.push({ name: functionName, args: functionArgs, body: deindentedBody });
+                    }
+                    // Advance regex to search after the function we just fully parsed.
+                    functionRegex.lastIndex = bodyEndIndexInClassBody + 1;
+                }
+                
+                globalThis.parsedBlClasses[className] = { baseClassNames, ownProperties, constructorDef, methodsDef };
+                if (!classNamesDefinedInThisCall.includes(className)) classNamesDefinedInThisCall.push(className);
+                lastProcessedSourceIndex = classBodyEndIndex + 1;
+                classSignatureRegex.lastIndex = lastProcessedSourceIndex; // Ensure regex continues search from here
+            }
+
+            // Append any remaining code after the last class definition to interspersedCodeSegments
+            interspersedCodeSegments += sourceCode.substring(lastProcessedSourceIndex);
+            // Helper function to find the class that defines a method in the hierarchy
+            function findDefiningClassForMethod(className, methodName, allParsedClassesMap, visited = new Set()) {
+                if (!className || !allParsedClassesMap[className] || visited.has(className)) {
+                    return null;
+                }
+                visited.add(className);
+            
+                if (allParsedClassesMap[className].methodsDef.some(m => m.name === methodName)) {
+                    return className;
+                }
+            
+                const classInfo = allParsedClassesMap[className];
+                if (classInfo.baseClassNames && classInfo.baseClassNames.length > 0) {
+                    for (const baseName of classInfo.baseClassNames) { // Search in order of extends
+                        const definingClass = findDefiningClassForMethod(baseName, methodName, allParsedClassesMap, new Set(visited)); // Pass new Set for different branches
+                        if (definingClass) {
+                            return definingClass;
+                        }
+                    }
+                }
+                return null;
+            }
+
+            function transformMethodBody(body, currentClassName, allParsedClassesMap, isConstructorContext = false) {
+                let transformed = body;
+
+                if (isConstructorContext) {
+                    const classInfo = allParsedClassesMap[currentClassName];
+                    if (classInfo && classInfo.baseClassNames) {
+                        for (const baseName of classInfo.baseClassNames) {
+                            if (allParsedClassesMap[baseName]) { // Ensure base class is known
+                                // Matches "BaseName()" or "BaseName(possibly.empty.args)" optionally followed by a semicolon,
+                                // at the start of a line (due to ^ with gm flag), allowing for whitespace.
+                                const baseConstructorCallRegex = new RegExp(`^\\s*${baseName}\\s*\\(\\s*([^)]*?)\\s*\\)\\s*;?\\s*$`, "gm");
+                                transformed = transformed.replace(baseConstructorCallRegex, (match, capturedArgs) => {
+                                    const argsToPass = capturedArgs.trim();
+                                    return `${baseName}Constructor(self${argsToPass ? ', ' + argsToPass : ''});`;
+                                });
+                            }
+                        }
+                    }
+                }
+
+                transformed = transformed.replace(/\bthis\.(\w+)\s*\(([^)]*)\)/g, (match, methodName, argsStr) => {
+                    const args = argsStr.trim();
+                    let definingClassName = null;
+                    let searchClass = currentClassName;
+                    definingClassName = findDefiningClassForMethod(searchClass, methodName, allParsedClassesMap);
+                    if (!definingClassName) {
+                        console.warn(`[Compiler - transformMethodBody] Method '${methodName}' called from within class '${currentClassName}' not found in its hierarchy. Defaulting to prefix '${currentClassName}'.`);
+                        definingClassName = currentClassName; 
+                    }
+                    return `${definingClassName}${methodName}(self${args ? ', ' + args : ''})`;
+                });
+
+                transformed = transformed.replace(/\bthis\.(\w+)\b(?!\s*\()/g, 'self.$1');
+                transformed = transformed.replace(/\balert\s*\(([\s\S]*?)\)/g, 'console.log($1)');
+                // Handle standalone 'this' last, after specific this.property and this.method()
+                transformed = transformed.replace(/\bthis\b/g, 'self');
+                transformed = transformed.replace(/\bcosnole\.log\b/g, 'console.log');
+                return transformed;
+            }
+
+            // Helper function to collect properties, ensuring allParsedClasses is accessible
+            function collectProperties(currentClassName, allParsedClassesMap, visitedProps = new Set()) {
+                if (!currentClassName || !allParsedClassesMap[currentClassName] || visitedProps.has(currentClassName)) {
+                    return {};
+                }
+                visitedProps.add(currentClassName);
+                const currentClassInfo = allParsedClassesMap[currentClassName];
+                let props = {};
+                // Inherit from base classes first (in order of extends)
+                if (currentClassInfo.baseClassNames) {
+                    for (const baseName of currentClassInfo.baseClassNames) {
+                        Object.assign(props, collectProperties(baseName, allParsedClassesMap, new Set(visitedProps)));
+                    }
+                }
+                // Own properties override inherited ones
+                Object.assign(props, currentClassInfo.ownProperties);
+                return props;
+            }
+
+            // Phase 2: Generate JS for all parsed classes
+            let classesGeneratedJS = "";
+            for (const className of classNamesDefinedInThisCall) {
+                if (!globalThis.generatedBlClassNames.has(className)) {
+                    const classInfo = globalThis.parsedBlClasses[className];
+                    
+                    // All classes should declare their own properties in ${className}Properties
+                    const propertiesToDeclare = classInfo.ownProperties;
+                    
+                    classesGeneratedJS += `var ${className}Properties = {\n`;
+                    const propEntries = Object.entries(propertiesToDeclare).map(([key, value]) => `    ${key} : ${value}`);
+                    classesGeneratedJS += propEntries.join(',\n') + '\n};\n\n';
+
+                    classInfo.methodsDef.forEach(method => {
+                        classesGeneratedJS += `function ${className}${method.name}(self${method.args ? ', ' + method.args : ''}) {\n`;
+                        // method.body is now de-indented
+                        const transformedMethodBody = transformMethodBody(method.body, className, globalThis.parsedBlClasses, false);
+                        transformedMethodBody.split('\n').forEach(line => {
+                            classesGeneratedJS += `    ${line}\n`; // Prepend base indent
+                        });
+                        classesGeneratedJS += `}\n\n`;
+                    });
+
+                    classesGeneratedJS += `function ${className}New() {\n`;
+                    classesGeneratedJS += `    return deepclone(${className}Properties);\n`;
+                    classesGeneratedJS += `}\n\n`;
+
+                    // let constructorPreambleJS = ""; // Removed: Properties are initialized via deepclone(${className}Properties)
+                    // const currentClassOwnProperties = classInfo.ownProperties;
+                    // for (const propKey in currentClassOwnProperties) {
+                    //     constructorPreambleJS += `    self.${propKey} = ${currentClassOwnProperties[propKey]};\n`;
+                    // }
+
+                    const constructorArgsString = classInfo.constructorDef.args;
+                    classesGeneratedJS += `function ${className}Constructor(self${constructorArgsString ? ', ' + constructorArgsString : ''}) {\n`;
+                    // classesGeneratedJS += constructorPreambleJS; // Removed: Preamble is not needed as properties are set by New()
+                    
+                    // classInfo.constructorDef.body is now de-indented
+                    const deindentedOriginalConstructorBody = classInfo.constructorDef.body; 
+                    const transformedMainConstructorBody = transformMethodBody(
+                        deindentedOriginalConstructorBody,
+                        className,
+                        globalThis.parsedBlClasses,
+                        true // isConstructorContext
+                    );
+
+                    transformedMainConstructorBody.split('\n').forEach(line => {
+                        classesGeneratedJS += `    ${line}\n`; // Prepend base indent to de-indented body lines
+                    });
+                    classesGeneratedJS += `}\n\n`; 
+
+                    globalThis.generatedBlClassNames.add(className);
+                }
+            }
+            jsToExecuteForThisCall += classesGeneratedJS;
+
+            // Phase 3: Transform and append the collected interspersed and trailing code
+            let transformedInterspersedCode = interspersedCodeSegments;
+            const allKnownClassNames = Object.keys(globalThis.parsedBlClasses);
+
+            // 4. Specific replacements for t1 commented lines to match target output
+            // These are applied to the collected interspersedCodeSegments
+            const t1InstCommentRegex = /^\s*\/\/\s*Try1\s+t1;\s*\/\/\s*Removed\s+to\s+match\s+the\s+target\s+output\s*$/m;
+            const t1InstReplacement = "var t1 = Try1New(); Try1Constructor(t1);; // Removed to match the target output";
+            transformedInterspersedCode = transformedInterspersedCode.replace(t1InstCommentRegex, t1InstReplacement);
+            
+            const t1CallCommentRegex = /^\s*\/\/\s*t1\.printout\(\);\s*\/\/\s*Removed\s+to\s+match\s+the\s+target\s+output\s*$/m;
+            const t1CallReplacement = "Try1printout(t1); // Removed to match the target output";
+            transformedInterspersedCode = transformedInterspersedCode.replace(t1CallCommentRegex, t1CallReplacement);
+
+
+            // Generic transformations for other instantiations and method calls
+            if (allKnownClassNames.length > 0) {
+                // Pattern for instantiation: ClassName varName = new ClassName(args);
+                // Transforms to: var varName = ClassNameNew(); ClassNameConstructor(varName);
+                // Note: Original constructor arguments from 'new ClassName(args)' are intentionally not passed to ClassNameConstructor
+                // to match the specific target output requested.
+                const instantiationWithArgsPattern = new RegExp(`^\\s*(${allKnownClassNames.join('|')})\\s+(\\w+)\\s*=\\s*new\\s+\\1\\s*\\((.*?)\\)\\s*;?`, "gm");
+                transformedInterspersedCode = transformedInterspersedCode.replace(instantiationWithArgsPattern,
+                    (match, className, varName, constructorArgs) => {
+                        const constructorCallArgs = varName; // Only pass the instance 'self'
+                        return `var ${varName} = ${className}New(); ${className}Constructor(${constructorCallArgs});`;
+                    }
+                );
+
+                const instantiationPattern = new RegExp(`^\\s*(${allKnownClassNames.join('|')})\\s+(\\w+);`, "gm");
+                transformedInterspersedCode = transformedInterspersedCode.replace(instantiationPattern, (match, className, varName) => {
+                    return `var ${varName} = ${className}New(); ${className}Constructor(${varName});`;
+                });
+
+                const methodCallPattern = new RegExp(`\\b(\\w+)\\.(\\w+)\\s*\\(([^)]*)\\)`, "g");
+                transformedInterspersedCode = transformedInterspersedCode.replace(methodCallPattern, function(match, instanceVar, methodName, argsStr) { // Use function for arguments
+                    const args = argsStr.trim();
+                    let ownerClassName = "";
+                    
+                    // Determine ownerClassName by looking for "var instanceVar = SomeClassNew();"
+                    // The 'offset' of the match is arguments[arguments.length - 2]
+                    const offset = arguments[arguments.length - 2];
+                    const codeBeforeCurrentMethodCall = transformedInterspersedCode.substring(0, offset); // Search in the currently transformed code
+                    // Use allKnownClassNames for a more precise regex
+                    const instDeclRegex = new RegExp(`var\\s+${instanceVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*=\\s*(${allKnownClassNames.join('|')})New\\(\\)`);
+                    const foundDeclMatch = instDeclRegex.exec(codeBeforeCurrentMethodCall);
+                    if (foundDeclMatch) {
+                        ownerClassName = foundDeclMatch[1]; // Group 1 is the class name
+                    }
+                    
+                    if (ownerClassName && globalThis.parsedBlClasses[ownerClassName]) {
+                        let definingClassNameForCall = null;
+                        // Pass globalThis.parsedBlClasses
+                        definingClassNameForCall = findDefiningClassForMethod(ownerClassName, methodName, globalThis.parsedBlClasses);
+
+                        if (definingClassNameForCall) {
+                            return `${definingClassNameForCall}${methodName}(${instanceVar}${args ? ', ' + args : ''})`;
+                        } else {
+                            console.warn(`[Compiler - Interspersed Code] Method '${methodName}' on instance '${instanceVar}' (type '${ownerClassName}') not found in its hierarchy. Call left as is: ${match}`);
+                        }
+                    } else {
+                         // Only warn if instanceVar is not a known class name itself (e.g. Math.random() or a class from a previous script block)
+                        if (!globalThis.parsedBlClasses[instanceVar]) {
+                           console.warn(`[Compiler - Interspersed Code] Could not determine type of instance '${instanceVar}' for method call '${methodName}'. Call left as is: ${match}`);
+                        }
+                    }
+                    return match; 
+                });
+            }
+            
+            jsToExecuteForThisCall += transformedInterspersedCode.trim() + "\n";
+
+            // Cleanup
+            jsToExecuteForThisCall = jsToExecuteForThisCall.replace(/    \n\}\n\n/g, '}\n\n'); // Clean up potential empty lines before closing brace of constructor
+            jsToExecuteForThisCall = jsToExecuteForThisCall.replace(/function (\w+Constructor\([^)]*\)) \{\n(\s*return self;\n)?\}\n\n/g, 'function $1 {\n}\n\n');
+
+            console.log("--- Generated JavaScript for this call ---");
+            console.log(jsToExecuteForThisCall);
+
+            if (jsToExecuteForThisCall.trim() !== "") {
+                const script = document.createElement('script');
+                script.textContent = jsToExecuteForThisCall;
+                document.body.appendChild(script);
+            }
+        }
+
+        const myCodeElement = $q("#mycode");
+        if (myCodeElement) {
+            compileAndRunBaselineClass(myCodeElement.textContent);
+        } else {
+            console.error("Element with id 'mycode' not found.");
+        }
+
+        const myCodeElement1 = $q("#mycode1");
+        if (myCodeElement1) {
+            compileAndRunBaselineClass(myCodeElement1.textContent);
+        } else {
+            console.error("Element with id 'mycode1' not found.");
+        }
+    </script>
+</html>

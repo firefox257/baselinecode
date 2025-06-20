@@ -1,0 +1,188 @@
+
+
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Server File Operations Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h2 {
+            color: #0056b3;
+        }
+        input[type="text"], textarea {
+            width: calc(100% - 22px);
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        pre {
+            background-color: #e2e2e2;
+            padding: 10px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .response {
+            margin-top: 15px;
+            border-top: 1px solid #eee;
+            padding-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Server File Operations Test Page</h1>
+    <p>This page allows you to test the custom LS, READFILE, and SAVEFILE headers on your Node.js server.</p>
+    <p>All paths are relative to the server's `files` directory.</p>
+
+    <div class="container">
+        <h2>LS (List Files/Directories)</h2>
+        <p>Enter a path (e.g., `/public`, `/api`, `/public/*.html`, or just `/`) to list its contents. Wildcards (`*`) are supported for file names.</p>
+        <input type="text" id="lsPath" value="/public" placeholder="e.g., /public, /api, /public/*.html">
+        <button onclick="sendLsRequest()">Send LS Request</button>
+        <div class="response">
+            <h3>LS Response:</h3>
+            <pre id="lsResponse"></pre>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>READFILE (Read File Content)</h2>
+        <p>Enter the full path to a file (e.g., `/public/index.html`, `/api/data.api.js`) to read its content.</p>
+        <input type="text" id="readFilePath" value="/public/index.html" placeholder="e.g., /public/somefile.txt">
+        <button onclick="sendReadFileRequest()">Send READFILE Request</button>
+        <div class="response">
+            <h3>READFILE Response:</h3>
+            <pre id="readFileResponse"></pre>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>SAVEFILE (Save File Content)</h2>
+        <p>Enter the full path to the file you want to create or overwrite (e.g., `/test_files/new_file.txt`).</p>
+        <p>Enter the content to save in the textarea below.</p>
+        <input type="text" id="saveFilePath" value="/test_files/my_test_file.txt" placeholder="e.g., /my_files/new_document.txt">
+        <textarea id="saveFileContent" rows="10" placeholder="Enter content to save here."></textarea>
+        <button onclick="sendSaveFileRequest()">Send SAVEFILE Request (POST)</button>
+        <div class="response">
+            <h3>SAVEFILE Response:</h3>
+            <pre id="saveFileResponse"></pre>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = window.location.origin; // Dynamically get protocol and host
+
+        async function sendLsRequest() {
+            const lsPath = document.getElementById('lsPath').value;
+            const responseElement = document.getElementById('lsResponse');
+            responseElement.textContent = 'Loading...';
+
+            try {
+                const response = await fetch(API_BASE_URL + '/', {
+                    method: 'GET',
+                    headers: {
+                        'X-LS-Path': lsPath,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP error! Status: ${response.status}, Message: ${errorText}`);
+                }
+
+                const data = await response.json();
+                responseElement.textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                console.error('LS Request failed:', error);
+                responseElement.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function sendReadFileRequest() {
+            const readFilePath = document.getElementById('readFilePath').value;
+            const responseElement = document.getElementById('readFileResponse');
+            responseElement.textContent = 'Loading...';
+
+            try {
+                const response = await fetch(API_BASE_URL + '/', {
+                    method: 'GET',
+                    headers: {
+                        'X-Read-File': readFilePath,
+                        'Content-Type': 'text/plain'
+                    }
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP error! Status: ${response.status}, Message: ${errorText}`);
+                }
+
+                const data = await response.text();
+                responseElement.textContent = data;
+            } catch (error) {
+                console.error('READFILE Request failed:', error);
+                responseElement.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function sendSaveFileRequest() {
+            const saveFilePath = document.getElementById('saveFilePath').value;
+            const saveFileContent = document.getElementById('saveFileContent').value;
+            const responseElement = document.getElementById('saveFileResponse');
+            responseElement.textContent = 'Saving...';
+
+            try {
+                const response = await fetch(API_BASE_URL + '/', {
+                    method: 'POST', // Or 'PUT'
+                    headers: {
+                        'X-Save-File': saveFilePath,
+                        'Content-Type': 'text/plain' // Or the appropriate content type if sending binary
+                    },
+                    body: saveFileContent
+                });
+
+                const data = await response.text();
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}, Message: ${data}`);
+                }
+
+                responseElement.textContent = data;
+            } catch (error) {
+                console.error('SAVEFILE Request failed:', error);
+                responseElement.textContent = `Error: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

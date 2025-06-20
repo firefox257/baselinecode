@@ -1,0 +1,115 @@
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Server Test</title>
+</head>
+<body>
+    <h1>Web Server API Test</h1>
+    <button id="lsButton">List Files in /public</button>
+    <button id="readFileButton">Read index.html</button>
+    <button id="saveFileButton">Save Test File</button>
+    <button id="mkPathButton">Make New Directory</button>
+    <button id="mvButton">Move Test File</button>
+    <button id="delButton">Delete Test File</button>
+    <pre id="output"></pre>
+
+    <script type="module">
+        // Import the api object from your apiCalls.js module
+        import { api } from './js/apiCalls.js'; // Adjust path if apiCalls.js is in a different directory
+
+        const outputElem = document.getElementById('output');
+
+        document.getElementById('lsButton').addEventListener('click', async () => {
+            outputElem.textContent = 'Listing files...';
+            try {
+                const files = await api.ls('public/*'); // List all files in /files/public
+                outputElem.textContent = 'Files in /public/:\n' + JSON.stringify(files, null, 2);
+            } catch (error) {
+                outputElem.textContent = 'Error listing files: ' + error.message;
+            }
+        });
+
+        document.getElementById('readFileButton').addEventListener('click', async () => {
+            outputElem.textContent = 'Reading index.html...';
+            try {
+                const content = await api.readFile('public/index.html');
+                outputElem.textContent = 'Content of index.html:\n' + content.substring(0, 200) + '...'; // Show first 200 chars
+            } catch (error) {
+                outputElem.textContent = 'Error reading file: ' + error.message;
+            }
+        });
+
+        document.getElementById('saveFileButton').addEventListener('click', async () => {
+            outputElem.textContent = 'Saving test file...';
+            const fileName = `test_file_${Date.now()}.txt`;
+            const fileContent = `Hello from the browser at ${new Date().toISOString()}`;
+            try {
+                const response = await api.saveFile(`public/${fileName}`, fileContent);
+                outputElem.textContent = 'Save File Response: ' + response;
+            } catch (error) {
+                outputElem.textContent = 'Error saving file: ' + error.message;
+            }
+        });
+
+        document.getElementById('mkPathButton').addEventListener('click', async () => {
+            outputElem.textContent = 'Making new directory...';
+            const newDirPath = `public/new_dir_${Date.now()}`;
+            try {
+                const response = await api.mkPath(newDirPath);
+                outputElem.textContent = 'Make Path Response: ' + response;
+            } catch (error) {
+                outputElem.textContent = 'Error making directory: ' + error.message;
+            }
+        });
+
+        document.getElementById('mvButton').addEventListener('click', async () => {
+            outputElem.textContent = 'Moving test file...';
+            // First, ensure a file exists to move
+            const sourceFileName = `move_me_${Date.now()}.txt`;
+            const sourcePath = `public/${sourceFileName}`;
+            const destinationPath = `public/moved_files`; // Ensure this directory exists or create it first
+
+            try {
+                // Create a file to move
+                await api.saveFile(sourcePath, "This file will be moved.");
+                outputElem.textContent = `File created for moving: ${sourcePath}. Now moving...`;
+
+                // Ensure destination directory exists
+                await api.mkPath(destinationPath);
+                outputElem.textContent += `\nDestination directory ensured: ${destinationPath}.`;
+
+                const response = await api.mv(sourcePath, destinationPath);
+                outputElem.textContent += '\nMove File Response: ' + response;
+            } catch (error) {
+                outputElem.textContent = 'Error moving file: ' + error.message;
+            }
+        });
+
+        document.getElementById('delButton').addEventListener('click', async () => {
+            outputElem.textContent = 'Deleting test file...';
+            // First, ensure a file exists to delete
+            const deleteFileName = `delete_me_${Date.now()}.txt`;
+            const deletePath = `public/${deleteFileName}`;
+
+            try {
+                await api.saveFile(deletePath, "This file will be deleted.");
+                outputElem.textContent = `File created for deletion: ${deletePath}. Now deleting...`;
+
+                const response = await api.del(deletePath);
+                outputElem.textContent += '\nDelete File Response: ' + response;
+            } catch (error) {
+                outputElem.textContent = 'Error deleting file: ' + error.message;
+            }
+        });
+
+    </script>
+</body>
+</html>
+
+
+

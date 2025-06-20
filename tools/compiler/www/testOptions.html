@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Operations Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        div { margin-bottom: 10px; }
+        label { display: inline-block; width: 100px; }
+        input[type="text"] { width: 300px; padding: 5px; }
+        textarea { width: 500px; height: 150px; padding: 5px; }
+        button { padding: 8px 15px; margin-right: 10px; cursor: pointer; }
+        pre { background-color: #f4f4f4; padding: 10px; border: 1px solid #ddd; max-height: 300px; overflow-y: auto; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>File Operations Test</h1>
+
+    <div>
+        <h2>LS (List Files/Directories)</h2>
+        <div>
+            <label for="lsPath">Path:</label>
+            <input type="text" id="lsPath" value="/" placeholder="e.g., / or /myfolder">
+        </div>
+        <div>
+            <label for="lsWildcard">Wildcard (optional):</label>
+            <input type="text" id="lsWildcard" value="" placeholder="e.g., *.html or my*">
+        </div>
+        <button onclick="testLs()">Test LS</button>
+        <pre id="lsOutput"></pre>
+    </div>
+
+    <hr>
+
+    <div>
+        <h2>READFILE</h2>
+        <div>
+            <label for="readFilePath">File Path:</label>
+            <input type="text" id="readFilePath" value="/test_read.txt" placeholder="e.g., /myfile.txt">
+        </div>
+        <button onclick="testReadFile()">Test READFILE</button>
+        <pre id="readFileOutput"></pre>
+    </div>
+
+    <hr>
+
+    <div>
+        <h2>SAVEFILE</h2>
+        <div>
+            <label for="saveFilePath">File Path:</label>
+            <input type="text" id="saveFilePath" value="/test_write.txt" placeholder="e.g., /newfile.txt">
+        </div>
+        <div>
+            <label for="saveFileContent">Content:</label>
+            <textarea id="saveFileContent">Hello from SAVEFILE! This is a test content.</textarea>
+        </div>
+        <button onclick="testSaveFile()">Test SAVEFILE (Header)</button>
+        <button onclick="testSaveFileBody()">Test SAVEFILE (Body)</button>
+        <pre id="saveFileOutput"></pre>
+    </div>
+
+    <script>
+        const baseUrl = window.location.protocol + '//' + window.location.hostname + ':' + window.location.port;
+
+        async function makeRequest(headers, method = 'GET', body = null) {
+            const options = {
+                method: method,
+                headers: {
+                    'Content-Type': 'text/plain',
+                    ...headers
+                }
+            };
+            if (body) {
+                options.body = body;
+            }
+
+            try {
+                const response = await fetch(baseUrl, options);
+                const text = await response.text();
+                return { ok: response.ok, status: response.status, text: text, json: null };
+            } catch (error) {
+                return { ok: false, status: 0, text: `Network Error: ${error.message}`, json: null };
+            }
+        }
+
+        async function testLs() {
+            const lsPath = document.getElementById('lsPath').value;
+            const lsWildcard = document.getElementById('lsWildcard').value;
+            const outputElement = document.getElementById('lsOutput');
+            outputElement.className = '';
+            outputElement.textContent = 'Loading...';
+
+            const headers = {
+                'LS': 'true',
+                'Path': lsPath
+            };
+            if (lsWildcard) {
+                headers['Wildcard'] = lsWildcard;
+            }
+
+            const result = await makeRequest(headers, 'GET');
+
+            if (result.ok) {
+                try {
+                    const jsonResponse = JSON.parse(result.text);
+                    outputElement.className = 'success';
+                    outputElement.textContent = JSON.stringify(jsonResponse, null, 2);
+                } catch (e) {
+                    outputElement.className = 'error';
+                    outputElement.textContent = `LS Error (Invalid JSON): ${result.text}`;
+                }
+            } else {
+                outputElement.className = 'error';
+                outputElement.textContent = `LS Error (${result.status}): ${result.text}`;
+            }
+        }
+
+        async function testReadFile() {
+            const readFilePath = document.getElementById('readFilePath').value;
+            const outputElement = document.getElementById('readFileOutput');
+            outputElement.className = '';
+            outputElement.textContent = 'Loading...';
+
+            const headers = {
+                'READFILE': 'true',
+                'Path': readFilePath
+            };
+
+            const result = await makeRequest(headers, 'GET');
+
+            if (result.ok) {
+                outputElement.className = 'success';
+                outputElement.textContent = result.text;
+            } else {
+                outputElement.className = 'error';
+                outputElement.textContent = `READFILE Error (${result.status}): ${result.text}`;
+            }
+        }
+
+        async function testSaveFile() {
+            const saveFilePath = document.getElementById('saveFilePath').value;
+            const saveFileContent = document.getElementById('saveFileContent').value;
+            const outputElement = document.getElementById('saveFileOutput');
+            outputElement.className = '';
+            outputElement.textContent = 'Loading...';
+
+            const headers = {
+                'SAVEFILE': 'true',
+                'Path': saveFilePath,
+                'Content': saveFileContent // Sending content via header
+            };
+
+            const result = await makeRequest(headers, 'POST'); // Use POST for SAVEFILE
+
+            if (result.ok) {
+                outputElement.className = 'success';
+                outputElement.textContent = result.text;
+            } else {
+                outputElement.className = 'error';
+                outputElement.textContent = `SAVEFILE Error (${result.status}): ${result.text}`;
+            }
+        }
+
+        async function testSaveFileBody() {
+            const saveFilePath = document.getElementById('saveFilePath').value;
+            const saveFileContent = document.getElementById('saveFileContent').value;
+            const outputElement = document.getElementById('saveFileOutput');
+            outputElement.className = '';
+            outputElement.textContent = 'Loading...';
+
+            const headers = {
+                'SAVEFILE': 'true',
+                'Path': saveFilePath
+            };
+
+            const result = await makeRequest(headers, 'POST', saveFileContent); // Sending content via request body
+
+            if (result.ok) {
+                outputElement.className = 'success';
+                outputElement.textContent = result.text;
+            } else {
+                outputElement.className = 'error';
+                outputElement.textContent = `SAVEFILE Error (${result.status}): ${result.text}`;
+            }
+        }
+    </script>
+</body>
+</html>

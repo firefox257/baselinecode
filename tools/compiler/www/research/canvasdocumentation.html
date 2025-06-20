@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InteractiveCanvasUI Documentation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1, h2, h3, h4 {
+            color: #333;
+        }
+        h1 {
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+        h2 {
+            margin-top: 30px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+        h3 {
+            margin-top: 20px;
+        }
+        code {
+            background-color: #eef;
+            padding: 2px 5px;
+            border-radius: 4px;
+            font-family: "Courier New", Courier, monospace;
+        }
+        pre {
+            background-color: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-family: "Courier New", Courier, monospace;
+            font-size: 0.9em;
+        }
+        pre code {
+            background-color: transparent;
+            padding: 0;
+            border-radius: 0;
+        }
+        ul {
+            list-style-type: disc;
+            margin-left: 20px;
+        }
+        li {
+            margin-bottom: 5px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f0f0f0;
+        }
+        .property-name {
+            font-weight: bold;
+        }
+        .optional {
+            font-style: italic;
+            color: #555;
+        }
+        .required {
+            font-weight: bold;
+            color: #d00;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>InteractiveCanvasUI Documentation</h1>
+
+        <p>The <code>InteractiveCanvasUI</code> class allows you to build a custom user interface directly on an HTML canvas. This documentation outlines how to define layouts, apply styles, handle events, and use various UI elements.</p>
+
+        <h2>1. Layout System (<code>myFormLayout</code>)</h2>
+        <p>The structure of your UI is defined by an array of element configuration objects, typically stored in a variable like <code>myFormLayout</code>. Each object in this array describes a single UI element or a container with nested elements.</p>
+
+        <h3>Core Structure</h3>
+        <pre><code class="language-javascript">
+let myFormLayout = [
+  { /* element 1 configuration */ },
+  { /* element 2 configuration */ },
+  // ... more elements
+];
+        </code></pre>
+
+        <h3>Common Element Properties</h3>
+        <ul>
+            <li>
+                <span class="property-name">type</span>: <code>string</code> (<span class="required">Required</span>)
+                <p>Defines the kind of UI element. Examples: <code>'button'</code>, <code>'textInput'</code>, <code>'formContainer'</code>, <code>'text'</code>.</p>
+            </li>
+            <li>
+                <span class="property-name">id</span>: <code>string</code> (<span class="optional">Optional, but highly recommended for interactive elements</span>)
+                <p>A unique identifier for the element. Crucial for retrieving state and identifying event sources. Example: <code>id: 'submitButton'</code></p>
+            </li>
+            <li>
+                <span class="property-name">classObjects</span>: <code>Array&lt;string&gt;</code> (<span class="optional">Optional</span>)
+                <p>An array of class names corresponding to style definitions in <code>uiClassStyles</code>. Example: <code>classObjects: ['button-primary', 'shadow-medium']</code></p>
+            </li>
+        </ul>
+
+        <h3>Positioning and Sizing Properties</h3>
+        <p>Coordinates are generally relative to the parent container's content area (inside its padding).</p>
+        <ul>
+            <li>
+                <span class="property-name">x, y</span>: <code>number | string</code> (<span class="optional">Optional, default to 0</span>)
+                <p>Top-left corner of the element's margin box. Numbers are pixels, strings ending with <code>'%'</code> are percentages of parent's content area width/height.
+                <br>Example: <code>{ type: 'text', labelText: 'Hello', x: 50, y: '10%' }</code></p>
+            </li>
+            <li>
+                <span class="property-name">width, height</span>: <code>number | string</code> (<span class="optional">Optional</span>)
+                <p>Dimensions of the element's outer box (including border). Numbers are pixels, strings ending with <code>'%'</code> are percentages of parent's available space (parent content area minus element's margins).
+                <br>Example: <code>{ type: 'button', label: 'Click Me', width: 150, height: '20%' }</code></p>
+            </li>
+            <li>
+                <span class="property-name">margin</span>: <code>number | string | object</code> (<span class="optional">Optional, defaults to 0</span>)
+                <p>Space outside the element's border. Can be a single value (pixels or '%') for all sides, or an object: <code>{ top?: number | string, right?: number | string, bottom?: number | string, left?: number | string }</code>. Percentages are relative to parent's content area.
+                <br>Example: <code>{ type: 'textInput', margin: 10 }</code> or <code>{ type: 'text', margin: { top: 5, left: '2%' } }</code></p>
+            </li>
+            <li>
+                <span class="property-name">padding</span>: <code>number | string | object</code> (<span class="optional">Optional, defaults to 0</span>)
+                <p>Space inside the element's border (for containers and inputs). Can be a single value or an object like <code>margin</code>. Percentages are relative to the element's own resolved width/height. For <code>table</code>, use <code>defaultCellPadding</code>.
+                <br>Example: <code>{ type: 'formContainer', padding: 20 }</code> or <code>{ type: 'textInput', padding: { top: '10%', left: 8 } }</code></p>
+            </li>
+        </ul>
+
+        <h2>2. Styling System (<code>uiClassStyles</code> and Element Properties)</h2>
+        <p>Styling combines predefined style classes (from <code>uiClassStyles</code>) with direct style properties on element configurations.</p>
+
+        <h3><code>uiClassStyles</code> Object</h3>
+        <p>A JavaScript object where keys are class names and values are style property objects.</p>
+        <pre><code class="language-javascript">
+const uiClassStyles = {
+  'text-white': {
+    textColor: '#FFFFFF',
+    color: '#FFFFFF'
+  },
+  'button-primary': {
+    backgroundColor: '#4CAF50',
+    textColor: 'white',
+    font: 'bold 16px Arial',
+    padding: 10,
+    borderRadius: 5
+  },
+  // ... more styles
+};
+        </code></pre>
+
+        <h3>Applying Styles with <code>classObjects</code></h3>
+        <pre><code class="language-javascript">
+{
+  type: 'button',
+  id: 'actionButton',
+  label: 'Submit',
+  classObjects: ['button-primary', 'shadow-medium']
+}
+        </code></pre>
+
+        <h3>Direct Styling (Overrides)</h3>
+        <p>Direct properties on an element override styles from <code>classObjects</code>.</p>
+        <pre><code class="language-javascript">
+{
+  type: 'button',
+  id: 'customButton',
+  label: 'Special',
+  classObjects: ['button-primary'],
+  backgroundColor: '#FF0000', // Overrides 'button-primary'
+  font: 'italic 18px Times New Roman' // Overrides 'button-primary'
+}
+        </code></pre>
+
+        <h3>Supported Style Properties</h3>
+        <h4>Font and Text:</h4>
+        <ul>
+            <li><code>font</code>: <code>string</code> - CSS-like font string (e.g., <code>'bold 16px Arial'</code>, <code>'italic 16px url(Amperzand.ttf)'</code>).</li>
+            <li><code>color</code>: <code>string</code> - Alias for <code>textColor</code>. CSS color value.</li>
+            <li><code>textColor</code>: <code>string</code> - Color of the text.</li>
+            <li><code>placeholderColor</code>: <code>string</code> - Color for placeholder text in inputs.</li>
+            <li><code>halign</code>: <code>string</code> - Horizontal alignment: <code>'left'</code>, <code>'center'</code>, <code>'right'</code>. (Default: <code>'left'</code>)</li>
+            <li><code>valign</code>: <code>string</code> - Vertical alignment: <code>'top'</code>, <code>'middle'</code>, <code>'bottom'</code>. (Default: <code>'top'</code>)</li>
+            <li><code>lineHeight</code>: <code>number</code> - Custom line height in pixels for multi-line text/input.</li>
+        </ul>
+
+        <h4>Background and Border:</h4>
+        <ul>
+            <li><code>backgroundColor</code>: <code>string</code> - CSS color value.</li>
+            <li><code>borderColor</code>: <code>string</code> - CSS color value.</li>
+            <li><code>borderWidth</code>: <code>number</code> - Border width in pixels.</li>
+            <li><code>borderRadius</code>: <code>number</code> - Radius for rounded corners in pixels.</li>
+        </ul>
+
+        <h4>Shadows:</h4>
+        <ul>
+            <li><code>shadowColor</code>: <code>string</code> - CSS color value (e.g., <code>'rgba(0,0,0,0.5)'</code>).</li>
+            <li><code>shadowBlur</code>: <code>number</code> - Blur radius.</li>
+            <li><code>shadowOffsetX</code>: <code>number</code> - Horizontal offset.</li>
+            <li><code>shadowOffsetY</code>: <code>number</code> - Vertical offset.</li>
+        </ul>
+
+        <h4>Gradients (for background):</h4>
+        <ul>
+            <li><code>gradientType</code>: <code>string</code> - <code>'linear'</code> or <code>'radial'</code>.</li>
+            <li><code>gradientColors</code>: <code>Array&lt;{offset: number, color: string}&gt;</code> - Color stops (offset 0.0-1.0).
+                <br>Example: <code>gradientColors: [ { offset: 0, color: '#6abf4b' }, { offset: 1, color: '#4CAF50' } ]</code></li>
+            <li><code>gradientDirection</code> (for linear): <code>object</code> - <code>{ x0, y0, x1, y1 }</code> (pixels or '%').
+                <br>Example: <code>gradientDirection: { x0: 0, y0: 0, x1: 0, y1: '100%' }</code></li>
+            <li><code>gradientCircles</code> (for radial): <code>object</code> - <code>{ x0, y0, r0, x1, y1, r1 }</code> (coordinates and radii).
+                <br>Example: <code>gradientCircles: { x0: '50%', y0: '50%', r0: 0, x1: '50%', y1: '50%', r1: '50%' }</code></li>
+        </ul>
+
+        <h4>Background Image:</h4>
+        <ul>
+            <li><code>backgroundImage</code>: <code>object</code> - <code>{ src: string, style?: string, opacity?: number }</code>
+                <ul>
+                    <li><code>src</code>: URL of the image.</li>
+                    <li><code>style</code>: <code>'stretch'</code> (default), <code>'fit'</code>, <code>'fitByWidth'</code>, <code>'fitByHeight'</code>.</li>
+                    <li><code>opacity</code>: <code>number</code> (0.0 to 1.0).</li>
+                </ul>
+                Example: <code>backgroundImage: { src: 'back1.png', style: 'fitByWidth', opacity: 0.5 }</code>
+            </li>
+        </ul>
+
+        <h4>Checkbox/Radio Button Specific:</h4>
+        <ul>
+            <li><code>checkMarkColor</code>: <code>string</code> - Color of the check mark (<code>checkBox</code>).</li>
+            <li><code>checkMarkWidth</code>: <code>number</code> - Line width of the check mark.</li>
+            <li><code>dotColor</code>: <code>string</code> - Color of the inner dot (selected <code>radioButton</code>).</li>
+            <li><code>size</code>: <code>number</code> - Width/height of <code>checkBox</code> or diameter of <code>radioButton</code> (default: 18).</li>
+        </ul>
+
+        <h4>Scrollbar Specific:</h4>
+        <ul>
+            <li><code>scrollbarSize</code>: <code>number</code> - Width of vertical scrollbar (default: 8).</li>
+            <li><code>scrollbarTrackColor</code>: <code>string</code> - Color of the scrollbar track.</li>
+            <li><code>scrollbarThumbColor</code>: <code>string</code> - Color of the scrollbar thumb.</li>
+        </ul>
+
+        <h2>3. Event Handling</h2>
+        <p>Define event handlers as functions directly on the element's configuration object.</p>
+
+        <ul>
+            <li>
+                <span class="property-name">onClick: (id?: string, label?: string) => void</span>
+                <p>Applies to: <code>button</code>. Triggered on click.
+                <br>Example:</p>
+                <pre><code class="language-javascript">
+{
+  type: 'button', id: 'registerButton', label: 'Register',
+  onClick: (id, lbl) => {
+    console.log(`Button clicked: ID=${id}, Label=${lbl}`);
+    alert('Registration Submitted!');
+  }
+}
+                </code></pre>
+            </li>
+            <li>
+                <span class="property-name">onChange: (newValue: any, id?: string, contextLabel?: string) => void</span>
+                <p>Applies to: <code>textInput</code>, <code>multiLineTextInput</code>, <code>checkBox</code>, <code>radioButton</code>. Triggered on value/state change.
+                <br><code>newValue</code>: Updated string for inputs, boolean for checkbox, <code>value</code> property for radio button.
+                <br><code>contextLabel</code>: Placeholder for inputs, label text for checkbox/radio.
+                <br>Example (TextInput):</p>
+                <pre><code class="language-javascript">
+{
+  type: 'textInput', id: 'usernameInput', placeholder: 'Enter username',
+  onChange: (v, id, p) => {
+    console.log(`Input '${p}' (ID:${id}) changed: "${v}"`);
+  }
+}
+                </code></pre>
+                 <br>Example (CheckBox):</p>
+                <pre><code class="language-javascript">
+{
+  type: 'checkBox', id: 'agreeTermsCheckbox', label: 'I agree',
+  onChange: (isChecked, id, lbl) => {
+    console.log(`Checkbox '${lbl}' (ID:${id}) state: ${isChecked}`);
+  }
+}
+                </code></pre>
+            </li>
+        </ul>
+
+        <h2>4. Element Types and Specific Properties</h2>
+        <p>Many common style properties (<code>font</code>, <code>color</code>, <code>backgroundColor</code>, etc.) apply to most visual elements and are covered in the Styling section.</p>
+
+        <!-- Detailed Element Documentation Start -->
+
+        <h3><code>button</code></h3>
+        <p>A clickable button with a text label and optional background/border.</p>
+        <h4>Layout Properties:</h4>
+        <ul>
+            <li><code>x, y, width, height</code>: Define the position and dimensions of the button.
+                <br><small>Example: <code>{ type: 'button', ..., x: 10, y: 10, width: 100, height: 30 }</code></small></li>
+            <li><code>margin</code>: Standard margin spacing.
+                <br><small>Example: <code>{ type: 'button', ..., margin: 5 }</code> or <code>{ type: 'button', ..., margin: { top: 2, bottom: 2 } }</code></small></li>
+            <li><code>padding</code>: Space between the button's border and its <code>label</code> text.
+                <br><small>Example: <code>{ type: 'button', ..., padding: 8 }</code> or <code>{ type: 'button', ..., padding: { left: 15, right: 15 } }</code></small></li>
+        </ul>
+        <h4>Style Properties:</h4>
+        <ul>
+            <li><code>font, textColor</code>: For the button's <code>label</code>.
+                <br><small>Example: <code>{ type: 'button', ..., font: 'bold 14px Arial', textColor: 'white' }</code></small></li>
+            <li><code>backgroundColor, borderColor, borderWidth, borderRadius</code>: Defines the button's visual appearance.
+                <br><small>Example: <code>{ type: 'button', ..., backgroundColor: 'blue', borderColor: 'darkblue', borderWidth: 2, borderRadius: 5 }</code></small></li>
+            <li><code>shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY</code>: Applies a shadow to the button.
+                <br><small>Example: <code>{ type: 'button', ..., shadowColor: 'grey', shadowBlur: 3, shadowOffsetX: 2, shadowOffsetY: 2 }</code></small></li>
+            <li><code>gradientType, gradientColors, gradientDirection, gradientCircles</code>: For gradient backgrounds.
+                <br><small>Example: <code>{ type: 'button', ..., gradientType: 'linear', gradientColors: [{offset:0, color:'lightblue'}, {offset:1, color:'blue'}], gradientDirection: {x0:0,y0:0,x1:0,y1:'100%'} }</code></small></li>
+            <li><code>backgroundImage</code>: For image backgrounds.
+                <br><small>Example: <code>{ type: 'button', ..., backgroundImage: { src: 'btn_bg.png', style: 'stretch', opacity: 0.7 } }</code></small></li>
+        </ul>
+        <h4>Element-Specific Properties:</h4>
+        <ul>
+            <li><code>label: string</code>: The text displayed on the button.
+                <br><small>Example: <code>{ type: 'button', label: 'Submit' }</code></small></li>
+            <li><code>onClick: (id?: string, label?: string) => void</code>: Event handler for button clicks.
+                <br><small>Example: <code>{ type: 'button', ..., onClick: (id, lbl) => console.log(lbl + ' clicked') }</code></small></li>
+        </ul>
+
+        <h3><code>checkBox</code></h3>
+        <p>A checkbox with an optional label.</p>
+        <h4>Layout Properties:</h4>
+        <ul>
+            <li><code>x, y</code>: Position of the top-left corner of the checkbox square.
+                <br><small>Example: <code>{ type: 'checkBox', ..., x: 30, y: 30 }</code></small></li>
+            <li><code>width, height</code>: Typically determined by the <code>size</code> property for the checkbox square itself. If a label is present, the overall conceptual width will be larger.
+                <br><small>Example: (Usually not set directly; <code>size</code> controls the box)</small></li>
+            <li><code>margin</code>: Standard margin spacing around the checkbox and its label.
+                <br><small>Example: <code>{ type: 'checkBox', ..., margin: { bottom: 10 } }</code></small></li>
+            <li><code>padding</code>: Not directly applicable to the checkbox square. Use <code>labelPadding</code> for space between the box and label.
+                <br><small>Example: Not used. See <code>labelPadding</code>.</small></li>
+        </ul>
+        <h4>Style Properties:</h4>
+        <ul>
+            <li><code>borderColor, borderWidth</code>: For the checkbox square. <code>borderRadius</code> can also be applied to the square.
+                <br><small>Example: <code>{ type: 'checkBox', ..., borderColor: 'blue', borderWidth: 2, borderRadius: 3 }</code></small></li>
+            <li><code>checkMarkColor, checkMarkWidth</code>: For the check mark inside.
+                <br><small>Example: <code>{ type: 'checkBox', ..., checkMarkColor: 'green', checkMarkWidth: 3 }</code></small></li>
+            <li><code>font, textColor</code>: For the associated <code>label</code> text.
+                <br><small>Example: <code>{ type: 'checkBox', ..., font: '12px Sans-Serif', textColor: '#444' }</code></small></li>
+            <li><code>shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY</code>: Can apply to the checkbox square.
+                <br><small>Example: <code>{ type: 'checkBox', ..., shadowColor: 'rgba(0,0,0,0.2)', shadowBlur: 1 }</code></small></li>
+            <li><code>size</code>: (Style-like) Defines the width and height of the checkbox square (default: 18).
+                <br><small>Example: <code>{ type: 'checkBox', ..., size: 20 }</code></small></li>
+        </ul>
+        <h4>Element-Specific Properties:</h4>
+        <ul>
+            <li><code>label: string</code>: Text label displayed next to the checkbox.
+                <br><small>Example: <code>{ type: 'checkBox', label: 'Agree to terms' }</code></small></li>
+            <li><code>isChecked: boolean</code>: The current checked state.
+                <br><small>Example: <code>{ type: 'checkBox', ..., isChecked: true }</code></small></li>
+            <li><code>labelPadding?: number</code>: Space between the checkbox square and its label (default: 8).
+                <br><small>Example: <code>{ type: 'checkBox', ..., labelPadding: 10 }</code></small></li>
+            <li><code>onChange: (isChecked: boolean, id?: string, label?: string) => void</code>: Event handler for state changes.
+                <br><small>Example: <code>{ type: 'checkBox', ..., onChange: (checked) => { myApp.agreed = checked; } }</code></small></li>
+        </ul>
+
+        <h3><code>formContainer</code></h3>
+        <p>A generic container for other UI elements. Can have a background, border, and be scrollable.</p>
+        <h4>Layout Properties:</h4>
+        <ul>
+            <li><code>x, y, width, height</code>: Define the container's position and dimensions.
+                <br><small>Example: <code>{ type: 'formContainer', ..., x: '10%', y: '10%', width: '80%', height: '80%' }</code></small></li>
+            <li><code>margin</code>: Standard margin spacing around the container.
+                <br><small>Example: <code>{ type: 'formContainer', ..., margin: 20 }</code></small></li>
+            <li><code>padding</code>: Space between the container's border and its child <code>elements</code>. Child element coordinates are relative to this padded area.
+                <br><small>Example: <code>{ type: 'formContainer', ..., padding: 15 }</code> or <code>{ type: 'formContainer', ..., padding: { top:10, left:20, bottom:10, right:20 } }</code></small></li>
+        </ul>
+        <h4>Style Properties:</h4>
+        <ul>
+            <li><code>backgroundColor, borderColor, borderWidth, borderRadius</code>: Defines the container's visual appearance.
+                <br><small>Example: <code>{ type: 'formContainer', ..., backgroundColor: '#f0f0f0', borderColor: 'silver', borderWidth: 1, borderRadius: 10 }</code></small></li>
+            <li><code>shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY</code>: Applies a shadow to the container.
+                <br><small>Example: <code>{ type: 'formContainer', ..., shadowColor: 'rgba(0,0,0,0.2)', shadowBlur: 10, shadowOffsetY: 5 }</code></small></li>
+            <li><code>gradientType, gradientColors, gradientDirection, gradientCircles</code>: For gradient backgrounds.
+                <br><small>Example: <code>{ type: 'formContainer', ..., gradientType: 'radial', gradientColors: [{offset:0, color:'white'}, {offset:1, color:'#e0e0e0'}], gradientCircles: {x0:'50%',y0:'50%',r0:0,x1:'50%',y1:'50%',r1:'70%'} }</code></small></li>
+            <li><code>backgroundImage</code>: For image backgrounds.
+                <br><small>Example: <code>{ type: 'formContainer', ..., backgroundImage: { src: 'texture.jpg', style: 'fitByWidth', opacity: 0.3 } }</code></small></li>
+            <li><code>scrollbarSize, scrollbarTrackColor, scrollbarThumbColor</code>: Styles for scrollbars if <code>scrollable</code> is true and content overflows.
+                <br><small>Example: <code>{ type: 'formContainer', ..., scrollable: true, scrollbarSize: 12, scrollbarTrackColor: '#ddd', scrollbarThumbColor: '#999' }</code></small></li>
+        </ul>
+        <h4>Element-Specific Properties:</h4>
+        <ul>
+            <li><code>elements: Array&lt;object&gt;</code>: An array of child element configurations.
+                <br><small>Example: <code>{ type: 'formContainer', elements: [ {type:'text', ...}, {type:'button', ...} ] }</code></small></li>
+            <li><code>scrollable?: boolean</code>: If <code>true</code>, enables vertical (and implicitly horizontal) scrolling if content exceeds container dimensions.
+                <br><small>Example: <code>{ type: 'formContainer', ..., scrollable: true }</code></small></li>
+            <li><em>Internal state: <code>scrollTop</code>, <code>scrollLeft</code>, <code>_contentActualWidth</code>, <code>_contentActualHeight</code>, etc.</em></li>
+        </ul>
+
+        <h3><code>horizontalList</code> / <code>verticalList</code></h3>
+        <p>Containers that arrange child elements in a single row (<code>horizontalList</code>) or column (<code>verticalList</code>) with specified spacing.</p>
+        <h4>Layout Properties:</h4>
+        <ul>
+            <li><code>x, y</code>: Position of the list container.
+                <br><small>Example: <code>{ type: 'horizontalList', ..., x: 0, y: 100 }</code></small></li>
+            <li><code>width, height</code>: Can be explicitly set, or may be intrinsically determined by the size and spacing of child elements if not set.
+                <br><small>Example: <code>{ type: 'horizontalList', ..., width: '100%', height: 50 }</code> (Height might be more common to set explicitly)</small></li>
+            <li><code>margin</code>: Standard margin spacing around the list.
+                <br><small>Example: <code>{ type: 'verticalList', ..., margin: { bottom: 20 } }</code></small></li>
+            <li><code>padding</code>: Space between the list's border (if any) and the area where child elements are laid out.
+                <br><small>Example: <code>{ type: 'horizontalList', ..., padding: 5 }</code></small></li>
+        </ul>
+        <h4>Style Properties:</h4>
+        <ul>
+            <li><code>backgroundColor, borderColor, borderWidth, borderRadius</code>: For the list container's visual appearance.
+                <br><small>Example: <code>{ type: 'verticalList', ..., backgroundColor: 'lightgrey', borderRadius: 5 }</code></small></li>
+            <li><code>shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY</code>: Applies a shadow to the list container.
+                <br><small>Example: <code>{ type: 'horizontalList', ..., shadowColor: 'rgba(0,0,0,0.1)', shadowBlur: 4 }</code></small></li>
+            <li><code>gradientType, gradientColors, gradientDirection, gradientCircles</code>: For gradient backgrounds.
+                <br><small>Example: Not commonly used for lists, but possible: <code>{ type: 'horizontalList', ..., gradientType: 'linear', ... }</code></small></li>
+            <li><code>backgroundImage</code>: For image backgrounds.
+                <br><small>Example: <code>{ type: 'verticalList', ..., backgroundImage: { src: 'list_bg.png', style: 'fit' } }</code></small></li>
+        </ul>
+        <h4>Element-Specific Properties:</h4>
+        <ul>
+            <li><code>elements: Array&lt;object&gt;</code>: An array of child element configurations.
+                <br><small>Example: <code>{ type: 'horizontalList', elements: [ {type:'button', ...}, {type:'button', ...} ] }</code></small></li>
+            <li><code>spacing?: number</code>: Space in pixels between each child element.
+                <br><small>Example: <code>{ type: 'verticalList', ..., spacing: 10 }</code></small></li>
+        </ul>
+
+        <h3><code>image</code></h3>
+        <p>Displays an image from a URL.</p>
+        <h4>Layout Properties:</h4>
+        <ul>
+            <li><code>x, y, width, height</code>: Define the position and dimensions for displaying the image. The image will be scaled to fit these dimensions.
+                <br><small>Example: <code>{ type: 'image', ..., x: 50, y: 50, width: 100, height: 80 }</code></small></li>
+            <li><code>margin</code>: Standard margin spacing.
+                <br><small>Example: <code>{ type: 'image', ..., margin: 10 }</code></small></li>
+            <li><code>padding</code>: Not applicable.
+                <br><small>Example: Not used for <code>image</code> elements.</small></li>
+        </ul>
+        <h4>Style Properties:</h4>
+        <ul>
+            <li><code>backgroundColor</code>: <code>string</code> - CSS color value for the background behind the image.
+                <br><small>Example: <code>{ type: 'image', ..., backgroundColor: '#eeeeee' }</code></small></li>
+            <li><code>borderColor, borderWidth, borderRadius</code>: Defines a border around the image.
+                <br><small>Example: <code>{ type: 'image', ..., borderColor: 'grey', borderWidth: 2, borderRadius: 5 }</code></small></li>
+            <li><code>shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY</code>: Applies a shadow. If a background/border is present, the shadow applies to that; otherwise, to the image itself.
+                <br><small>Example: <code>{ type: 'image', ..., shadowColor: 'black', shadowBlur: 5, shadowOffsetY: 3 }</code></small></li>
+        </ul>
+        <h4>Element-Specific Properties:</h4>
+        <ul>
+            <li><code>src: string</code> (<span class="required">Required</span>): URL of the image to display.
+                <br><small>Example: <code>{ type: 'image', src: 'logo.png' }</code></small></li>
+        </ul>
+
+        <h3><code>multiLineText</code></h3>
+        <p>Displays text that wraps automatically within its defined bounds. Can have a background and border.</p>
+        <h4>Layout Properties:</h4>
+        <ul>
+            <li><code>x, y, width, height</code>: Define the bounding box for the text. Text will wrap to fit <code>width</code>.
+                <br><small>Example: <code>{ type: 'multiLineText', ..., x: 10, y: 10, width: 200, height: 100 }</code></small></li>
+            <li><code>margin</code>: Standard margin spacing.
+                <br><small>Example: <code>{ type: 'multiLineText', ..., margin: 5 }</code></small></li>
+            <li><code>padding</code>: Space between the border (if any) and the text content area.
+                <br><small>Example: <code>{ type: 'multiLineText', ..., padding: 10 }</code></small></li>
+        </ul>
+        <h4>Style Properties:</h4>
+        <ul>
+            <li><code>font, textColor</code>: For the text content.
+                <br><small>Example: <code>{ type: 'multiLineText', ..., font: '12px Verdana', textColor: '#555' }</code></small></li>
+            <li><code>backgroundColor, borderColor, borderWidth, borderRadius</code>: If a visible container for the text is desired.
+                <br><small>Example: <code>{ type: 'multiLineText', ..., backgroundColor: '#efefef', borderColor: '#ddd', borderWidth: 1, borderRadius: 3 }</code></small></li>
+            <li><code>halign, valign</code>: Horizontal and vertical alignment of the text block within the padded content area.
+                <br><small>Example: <code>{ type: 'multiLineText', ..., halign: 'center', valign: 'middle' }</code></small></li>
+            <li><code>shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY</code>: Applies a shadow to the text or its container.
+                <br><small>Example: <code>{ type: 'multiLineText', ..., shadowColor: 'grey', shadowBlur: 1 }</code> (applies to container if it has visuals, else to text)</small></li>
+        </ul>
+        <h4>Element-Specific Properties:</h4>
+        <ul>
+            <li><code>labelText: string</code> (<span class="required">Required</span>): The text content to display.
+                <br><small>Example: <code>{ type: 'multiLineText', labelText: 'This is a long description...' }</code></small></li>
+            <li><code>lineHeight?: number</code>: Custom line height in pixels.
+                <br><small>Example: <code>{ type: 'multiLineText', ..., lineHeight: 18 }</code></small></li>
+        </ul>
+
+        <h3><code>textInput</code></h3>
+        <p>A single-line text input field.</p>
+        <h4>Layout Properties:</h4>
+        <ul>
+            <li><code>x, y, width, height</code>: Define the position and dimensions of the input field.
+                <br><small>Example: <code>{ type: 'textInput', ..., x: 20, y: 20, width: 200, height: 25 }</code></small></li>
+            <li><code>margin</code>: Standard margin spacing.
+                <br><small>Example: <code>{ type: 'textInput', ..., margin: 5 }</code></small></li>
+            <li><code>padding</code>: Space between the input field's border and the actual text entry area.
+                <br><small>Example: <code>{ type: 'textInput', ..., padding: 5 }</code> or <code>{ type: 'textInput', ..., padding: { left: 8, right: 8 } }</code></small></li>
+        </ul>
+        <h4>Style Properties:</h4>
+        <ul>
+            <li><code>font, textColor</code>: For the entered text.
+                <br><small>Example: <code>{ type: 'textInput', ..., font: '14px Consolas', textColor: '#333' }</code></small></li>
+            <li><code>placeholderColor</code>: For the placeholder text.
+                <br><small>Example: <code>{ type: 'textInput', ..., placeholderColor: '#AAA' }</code></small></li>
+            <li><code>backgroundColor, borderColor, borderWidth, borderRadius</code>: Defines the input field's visual appearance.
+                <br><small>Example: <code>{ type: 'textInput', ..., backgroundColor: 'white', borderColor: 'grey', borderWidth: 1, borderRadius: 3 }</code></small></li>
+            <li><code>shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY</code>: Applies a shadow to the input field.
+                <br><small>Example: <code>{ type: 'textInput', ..., shadowColor: 'rgba(0,0,0,0.1)', shadowBlur: 2, shadowOffsetX: 1, shadowOffsetY: 1 }</code></small></li>
+        </ul>
+        <h4>Element-Specific Properties:</h4>
+        <ul>
+            <li><code>value: string</code>: The current text content of the input.
+                <br><small>Example: <code>{ type: 'textInput', value: 'Initial text' }</code></small></li>
+            <li><code>placeholder: string</code>: Text displayed when the input is empty.
+                <br><small>Example: <code>{ type: 'textInput', placeholder: 'Enter name...' }</code></small></li>
+            <li><code>isPassword: boolean</code>: If <code>true</code>, masks input characters.
+                <br><small>Example: <code>{ type: 'textInput', ..., isPassword: true }</code></small></li>
+            <li><code>onChange: (newValue: string, id?: string, placeholder?: string) => void</code>: Event handler for value changes.
+                <br><small>Example: <code>{ type: 'textInput', ..., onChange: (val) => { myApp.username = val; } }</code></small></li>
+            <li><em>Internal state: <code>isFocused</code>, <code>cursorPosition</code>, <code>scrollOffset</code>.</em></li>
+        </ul>
+
+        <h3><code>radioButton</code></h3>
+        <p>A radio button, typically part of a group, with an optional label.</p>
+        <h4>Layout Properties:</h4>
+        <ul>
+            <li><code>x, y</code>: Position of the top-left corner of the radio button's bounding box (circle).
+                <br><small>Example: <code>{ type: 'radioButton', ..., x: 40, y: 40 }</code></small></li>
+            <li><code>width, height</code>: Typically determined by the <code>size</code> property for the radio button circle.
+                <br><small>Example: (Usually not set directly; <code>size</code> controls the circle)</small></li>
+            <li><code>margin</code>: Standard margin spacing.
+                <br><small>Example: <code>{ type: 'radioButton', ..., margin: { right: 15 } }</code></small></li>
+            <li><code>padding</code>: Not directly applicable to the circle. Use <code>labelPadding</code>.
+                <br><small>Example: Not used. See <code>labelPadding</code>.</small></li>
+        </ul>
+        <h4>Style Properties:</h4>
+        <ul>
+            <li><code>borderColor, borderWidth</code>: For the radio button circle.
+                <br><small>Example: <code>{ type: 'radioButton', ..., borderColor: '#999', borderWidth: 1 }</code></small></li>
+            <li><code>dotColor</code>: For the inner dot when selected.
+                <br><small>Example: <code>{ type: 'radioButton', ..., dotColor: 'darkblue' }</code></small></li>
+            <li><code>font, textColor</code>: For the associated <code>label</code> text.
+                <br><small>Example: <code>{ type: 'radioButton', ..., font: '13px Arial', textColor: 'black' }</code></small></li>
+            <li><code>shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY</code>: Can apply to the radio button circle.
+                <br><small>Example: <code>{ type: 'radioButton', ..., shadowColor: 'rgba(0,0,0,0.1)', shadowOffsetY: 1 }</code></small></li>
+            <li><code>size</code>: (Style-like) Defines the diameter of the radio button circle (default: 18).
+                <br><small>Example: <code>{ type: 'radioButton', ..., size: 16 }</code></small></li>
+        </ul>
+        <h4>Element-Specific Properties:</h4>
+        <ul>
+            <li><code>label: string</code>: Text label displayed next to the radio button.
+                <br><small>Example: <code>{ type: 'radioButton', label: 'Option A' }</code></small></li>
+            <li><code>isChecked: boolean</code>: The current selected state.
+                <br><small>Example: <code>{ type: 'radioButton', ..., isChecked: false }</code></small></li>
+            <li><code>groupName: string</code>: Identifies the group; only one radio button in a group can be selected.
+                <br><small>Example: <code>{ type: 'radioButton', ..., groupName: 'contactPreference' }</code></small></li>
+            <li><code>value: any</code>: The value passed to <code>onChange</code> when this radio button is selected.
+                <br><small>Example: <code>{ type: 'radioButton', ..., value: 'email' }</code></small></li>
+            <li><code>labelPadding?: number</code>: Space between the radio button circle and its label (default: 8).
+                <br><small>Example: <code>{ type: 'radioButton', ..., labelPadding: 5 }</code></small></li>
+            <li><code>onChange: (newValue: any, id?: string, label?: string) => void</code>: Event handler for state changes.
+                <br><small>Example: <code>{ type: 'radioButton', ..., onChange: (selectedValue) => { myApp.preference = selectedValue; } }</code></small></li>
+        </ul>
+
+        <h3><code>table</code></h3>
+        <p>Lays out child elements (cells) in a grid. Cells are populated row by row, left to right.</p>
+        <h4>Layout Properties:</h4>
+        <ul>
+            <li><code>x, y, width</code>: Define the table's position and overall width. <code>height</code> can be explicit or determined by row heights and content.
+                <br><small>Example: <code>{ type: 'table', ..., x: 20, y: 200, width: 400 }</code></small></li>
+            <li><code>margin</code>: Standard margin spacing around the table.
+                <br><small>Example: <code>{ type: 'table', ..., margin: 15 }</code></small></li>
+            <li><code>padding</code>: Not directly applicable to the table itself. Use <code>defaultCellPadding</code> for cell content.
+                <br><small>Example: Not used. See <code>defaultCellPadding</code>.</small></li>
+        </ul>
+        <h4>Style Properties:</h4>
+        <ul>
+            <li><code>backgroundColor, borderColor, borderWidth, borderRadius</code>: For the table's outer border and background (if desired). Individual cells can also have their own styles.
+                <br><small>Example: <code>{ type: 'table', ..., backgroundColor: '#fafafa', borderColor: '#ccc', borderWidth: 1 }</code></small></li>
+            <li><code>shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY</code>: Applies a shadow to the table.
+                <br><small>Example: <code>{ type: 'table', ..., shadowColor: 'grey', shadowBlur: 5 }</code></small></li>
+            <li><code>gradientType, gradientColors, gradientDirection, gradientCircles</code>: For gradient backgrounds on the table.
+                <br><small>Example: (Less common for tables) <code>{ type: 'table', ..., gradientType: 'linear', ... }</code></small></li>
+            <li><code>backgroundImage</code>: For an image background on the table.
+                <br><small>Example: (Less common for tables) <code>{ type: 'table', ..., backgroundImage: { src: 'table_pattern.png' } }</code></small></li>
+        </ul>
+        <h4>Element-Specific Properties:</h4>
+        <ul>
+            <li><code>elements: Array&lt;object&gt;</code>: An array of child element configurations, representing table cells.
+                <br><small>Example: <code>{ type: 'table', elements: [ {type:'text', ...}, {type:'textInput', ...} /* ...more cells */ ] }</code></small></li>
+            <li><code>colWidths?: Array&lt;number|string&gt;</code>: Specifies widths for each column (pixels or '%').
+                <br><small>Example: <code>{ type: 'table', ..., colWidths: [100, '50%', 150] }</code></small></li>
+            <li><code>numCols?: number</code>: If <code>colWidths</code> isn't provided, defines the number of columns (cells sized equally).
+                <br><small>Example: <code>{ type: 'table', ..., numCols: 3 }</code> (If <code>colWidths</code> is not set)</small></li>
+            <li><code>rowHeight?: number|string</code>: Default height for rows (pixels or '%'). Can be overridden by cell content.
+                <br><small>Example: <code>{ type: 'table', ..., rowHeight: 40 }</code> or <code>{ type: 'table', ..., rowHeight: '10%' }</code></small></li>
+            <li><code>defaultCellPadding?: number|string|object</code>: Padding applied *inside* each cell, around its content.
+                <br><small>Example: <code>{ type: 'table', ..., defaultCellPadding: 5 }</code> or <code>{ type: 'table', ..., defaultCellPadding: {top:2, bottom:2, left:8, right:8} }</code></small></li>
+        </ul>
+
+        <h3><code>text</code></h3>
+        <p>Displays a single line of text.</p>
+        <h4>Layout Properties:</h4>
+        <ul>
+            <li><code>x, y</code>: Position of the text's baseline (influenced by <code>valign</code>).
+                <br><small>Example: <code>{ type: 'text', labelText: 'Title', x: 100, y: 50 }</code></small></li>
+            <li><code>width, height</code>: Generally intrinsic. Explicitly setting these might not have a visual effect on text rendering itself but could be used for layout calculations by parent containers if needed.
+                <br><small>Example: <code>{ type: 'text', labelText: 'Short', width: 80, height: 20 }</code> (Primarily for layout context)</small></li>
+            <li><code>margin</code>: Applies standard margin spacing around the text's conceptual bounding box.
+                <br><small>Example: <code>{ type: 'text', labelText: 'Spaced', margin: 10 }</code> or <code>{ type: 'text', ..., margin: { top: 5, left: '2%' } }</code></small></li>
+            <li><code>padding</code>: Not directly applicable for visual spacing within a simple text element.
+                <br><small>Example: Not typically used for <code>text</code> elements.</small></li>
+        </ul>
+        <h4>Style Properties:</h4>
+        <ul>
+            <li><code>font</code>: Defines the font style, size, and family.
+                <br><small>Example: <code>{ type: 'text', ..., font: 'bold 20px Arial' }</code> or <code>{ type: 'text', ..., font: '16px url(myfont.ttf)' }</code></small></li>
+            <li><code>textColor</code> (or <code>color</code>): Sets the color of the text.
+                <br><small>Example: <code>{ type: 'text', ..., textColor: '#FF0000' }</code></small></li>
+            <li><code>halign</code>: Horizontal alignment (<code>'left'</code>, <code>'center'</code>, <code>'right'</code>) relative to the <code>x</code> coordinate.
+                <br><small>Example: <code>{ type: 'text', ..., x: 100, halign: 'center' }</code></small></li>
+            <li><code>valign</code>: Vertical alignment (<code>'top'</code>, <code>'middle'</code>, <code>'bottom'</code>) of the text baseline relative to the <code>y</code> coordinate.
+                <br><small>Example: <code>{ type: 'text', ..., y: 50, valign: 'middle' }</code></small></li>
+            <li><code>shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY</code>: Applies a shadow effect to the text.
+                <br><small>Example: <code>{ type: 'text', ..., shadowColor: 'rgba(0,0,0,0.5)', shadowBlur: 2, shadowOffsetX: 1, shadowOffsetY: 1 }</code></small></li>
+        </ul>
+        <h4>Element-Specific Properties:</h4>
+        <ul>
+            <li><code>labelText: string</code> (<span class="required">Required</span>): The text content to display.
+                <br><small>Example: <code>{ type: 'text', labelText: 'Hello World' }</code></small></li>
+        </ul>
+
+        <h3><code>multiLineTextInput</code></h3>
+        <p>A multi-line text input field with wrapping and vertical scrolling.</p>
+        <h4>Layout Properties:</h4>
+        <ul>
+            <li><code>x, y, width, height</code>: Define the position and dimensions of the input area.
+                <br><small>Example: <code>{ type: 'multiLineTextInput', ..., x: 10, y: 50, width: 300, height: 100 }</code></small></li>
+            <li><code>margin</code>: Standard margin spacing.
+                <br><small>Example: <code>{ type: 'multiLineTextInput', ..., margin: 10 }</code></small></li>
+            <li><code>padding</code>: Space between the input area's border and the text content.
+                <br><small>Example: <code>{ type: 'multiLineTextInput', ..., padding: 8 }</code></small></li>
+        </ul>
+        <h4>Style Properties:</h4>
+        <ul>
+            <li><code>font, textColor</code>: For the entered text.
+                <br><small>Example: <code>{ type: 'multiLineTextInput', ..., font: '15px Arial', textColor: 'black' }</code></small></li>
+            <li><code>placeholderColor</code>: For the placeholder text.
+                <br><small>Example: <code>{ type: 'multiLineTextInput', ..., placeholderColor: '#BBB' }</code></small></li>
+            <li><code>backgroundColor, borderColor, borderWidth, borderRadius</code>: Defines the input area's visual appearance.
+                <br><small>Example: <code>{ type: 'multiLineTextInput', ..., backgroundColor: '#f9f9f9', borderColor: '#ccc', borderWidth: 1, borderRadius: 4 }</code></small></li>
+            <li><code>shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY</code>: Applies a shadow to the input area.
+                <br><small>Example: <code>{ type: 'multiLineTextInput', ..., shadowColor: 'rgba(0,0,0,0.05)', shadowBlur: 3, shadowOffsetX: 0, shadowOffsetY: 1 }</code></small></li>
+            <li><code>scrollbarSize, scrollbarTrackColor, scrollbarThumbColor</code>: Styles for the vertical scrollbar if content overflows.
+                <br><small>Example: <code>{ type: 'multiLineTextInput', ..., scrollbarSize: 10, scrollbarTrackColor: '#eee', scrollbarThumbColor: '#aaa' }</code></small></li>
+        </ul>
+        <h4>Element-Specific Properties:</h4>
+        <ul>
+            <li><code>value: string</code>: The current text content, can include newlines (<code>\n</code>).
+                <br><small>Example: <code>{ type: 'multiLineTextInput', value: 'First line.\nSecond line.' }</code></small></li>
+            <li><code>placeholder: string</code>: Text displayed when the input is empty.
+                <br><small>Example: <code>{ type: 'multiLineTextInput', placeholder: 'Enter details here...' }</code></small></li>
+            <li><code>lineHeight?: number</code>: Custom line height in pixels. Defaults to ~1.2x font size.
+                <br><small>Example: <code>{ type: 'multiLineTextInput', ..., lineHeight: 20 }</code></small></li>
+            <li><code>onChange: (newValue: string, id?: string, placeholder?: string) => void</code>: Event handler for value changes.
+                <br><small>Example: <code>{ type: 'multiLineTextInput', ..., onChange: (text) => { myApp.notes = text; } }</code></small></li>
+            <li><em>Internal state: <code>isFocused</code>, <code>cursorPosition</code>, <code>scrollOffsetY</code>, <code>_renderLines</code>, <code>_totalTextHeight</code>, <code>_showVerticalScrollbar</code>.</em></li>
+        </ul>
+
+        <!-- Detailed Element Documentation End -->
+
+        <h3>Example: Main Form Container (<code>formContainer</code>)</h3>
+        <pre><code class="language-javascript">
+{
+  type: 'formContainer', id: 'mainForm',
+  x: '5%', y: '5%', width: '90%', height: '90%',
+  padding: 20, scrollable: true,
+  elements: [
+    { type: 'text', labelText: 'Inside the container' },
+    // ... more elements
+  ]
+}
+        </code></pre>
+
+        <h3>Example: Data Table (<code>table</code>)</h3>
+        <pre><code class="language-javascript">
+{
+  type: 'table', x: 10, y: 250, width: 300,
+  colWidths: [100, '50%', 50], // 3 columns
+  rowHeight: 30,
+  defaultCellPadding: 5,
+  elements: [
+    { type: 'text', labelText: 'R1C1' }, { type: 'text', labelText: 'R1C2' }, { type: 'text', labelText: 'R1C3' },
+    { type: 'textInput', value: 'R2C1' }, { type: 'textInput', value: 'R2C2' }, { type: 'textInput', value: 'R2C3' }
+  ]
+}
+        </code></pre>
+
+    </div>
+</body>
+</html>

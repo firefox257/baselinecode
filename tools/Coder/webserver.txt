@@ -1,0 +1,206 @@
+
+
+
+This code is for a node js web server.
+Create a seperate modules export js for the header options called apiCalls.js that will work on browsers import.
+Make the export as one export for api object so to call LS it will call api.ls.
+This needs to work on the browser and be part of the import.
+
+
+
+
+===========
+
+Reference webserver.js. Create a seperate apiCalls.js module that can be used in browsers.
+Reference all the header options like LS, READFILE, SAVEFILE, MKPATH, MV, DEL.
+
+===============
+
+
+
+
+
+
+This code is for a node js web server.
+
+Create option header functionality like LS and READFILE for the following, MKPATH, MV, DEL.
+MKPATH will create a path of directories. If a directory in a path doesn't exist thennitis created.
+MV moves file/files or directory/directories in to another path. MV will also have wildcards like LS.
+DEL will move file/files directory/directories into files/trash directory. if the DEL is in files/trash then permenerly remove the files and directories.
+DEL has wild cards like LSfor filtering.
+
+
+
+
+
+
+==========================
+This code is for a node js web server.
+
+change the code for SAVEFILE header option. if a directory and/or file doesnt exist. then create it.
+
+
+==========•••••••
+This code is for a node js web server.
+
+
+Create a html test page for using LS, READFILE, SAVEFILE request headers.
+
+
+
+
+
+=================
+This code is for a node js web server.
+
+
+Create option header functionality for the following, LS, READFILE, SAVEFILE.
+LS functions like linux ls. LS if it is a directort give a json response for a list files.
+If it is a file give the info for the file.
+The info should include the modified time both in fste formate and in milliseconds from epic.
+Also in the info include type ifnit is a file or a direcory, file size.
+LS should have wildcards like *.txt to get specific information.
+LS top directory starts in the files directory.
+do not use query uri, this should be in the headers.
+
+READFILE reads the file in plain text. 
+The top directory is the files directory.
+
+SAVEFILE saves the file. The top directory is in the files directory.
+
+
+===================••••
+This code is for a node js web server.
+
+create text documentation for all globalThis. defined functions and objects.
+give examples how to use them
+
+
+=============
+This code is for a node js web server.
+
+Tested test.api.js is going to files/public directory.
+This is the wrong directory. change the code for api calles with files ending in .api.js to handel api calls in files/api directory.
+
+
+
+=========================================
+This code is for a node js web server.
+
+Give condensed documentation for how to create .api.js file. 
+List out all send types of responses as part of the documentation.
+
+
+
+
+
+===============
+
+This code is for a node js web server.
+Change the api calls from a direcory api to a file ending .api.js.
+the api files will be dynamiclybrequested and if a file ends with ".api.js".
+If the api is loaded then just call the liaded api. if not then name.api.js is 
+dynamicly loaded and a function is called by passing in req and res.
+make globalThis plan text and json res handlers, handel both text and json objects and handel streaming files.
+have the api.js unloaded after an hour if not used.
+
+
+
+
+
+
+==================
+
+var _mimetype = {
+    '.txt': 'text/plain',
+    '.html': 'text/html',
+    '.htm': 'text/html',
+    '.js': 'text/javascript',
+    '.jpg': 'image/jpeg',
+	'.JPG': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.mp3': 'audio/mpeg',
+    '.mp4': 'video/mp4',
+    '.svg': 'image/svg+xml',
+    '.gltf': 'model/gltf+json',
+    '.bin': 'application/octet-stream',
+    '.css': 'text/css',
+    '.hdr': 'application/octet-stream',
+    '.json': 'application/json',
+    '.stl': 'application/sla',
+    '.dxf': 'application/dxf',
+    '.gif': 'image/gif',
+    '.woff2': 'font/woff2',
+    '.ico': 'image/vnd.microsoft.icon',
+	'.glb': 'model/gltf-binary',
+	'.wasm': 'application/wasm',
+	'.pvr': 'image/x-png',
+	'.usdz': 'vnd.usdz+zip',
+	'.mpd': 'application/dash+xml',
+	'.dae': 'model/vnd.collada+xml',
+	'.obj': 'multipart/form-data',
+	'.ply': 'model/mesh',
+	'.3dm': 'model/vnd.3dm',
+	'.3ds': 'application/x-3ds',
+	'.3mf': 'model/3mf',
+	'.amf': 'application/octet-stream',
+	'.bvh': 'animation/bvh',
+	'.drc': 'application/octet-stream',
+	'.fbx': 'application/octet-stream',
+	'.gcode': 'text/x-gcode',
+	'.kmz': 'application/vnd.google-earth.kmz+xml',
+	'.lwo': 'image/x-lwo',
+	'.md2': 'model/md2',
+	'.mdd': 'application/octet-stream',
+	'.nrrd': 'application/octet-stream',
+	'.mtl': 'text/plain',
+	'.pcd': 'application/vnd.pointcloud+json',
+	'.pdb': 'chemical/pdb',
+	'.vox': 'application/octet-stream',
+	'.wrl': 'model/x3d-vrl',
+	'.vtk': 'application/octet-stream',
+	'.dds': 'image/vnd.ms-dds',
+	'.exr': 'application/octet-stream',
+	'.ktx': 'application/octet-stream',
+	'.ktx2': 'application/octet-stream',
+	'.tga': 'image/x-tga',
+	'.tif': 'image/tiff',
+	'.tiff': 'image/tiff',
+	'.ttf': 'font/ttf',
+	'.vtp': 'application/vibrationview',
+	'.zip': 'application/zip',
+	'.xyz': 'application/octet-stream',
+	'.webm': 'video/webm',
+    '.wat': 'text/plain' // Added .wat mimetype
+}
+
+const serverOptions = {
+    port: 80,
+    sslport: 443, 
+    key: './server/key.pem',
+    cert: './server/cert.pem',
+    additionalMethods: []
+}
+
+allowHead = {
+	'Access-Control-Allow-Origin': '*', // Corrected typo
+	'Access-Control-Allow-Methods':
+	'OPTIONS, POST, GET, PUT, PATCH, DELETE',
+	'Access-Control-Max-Age': 2592000, //30 days
+	'Access-Control-Allow-Headers':
+	'Origin, X-Requested-With, Content-Type, Accept, Authorization' 
+}
+
+using node js, create a webserver from scratch.
+do not use express.
+use the _mimetype. Use serverOptions for both http and https. 
+Use only one webHandler function for both http and https requests.
+
+Use the allowHead for creating the 204 OPTIONS response.
+
+Also handel range requests if present.
+
+create a seperate function called handelFileRequest.
+create seperate functions for both plain text and json responses so itnis reuseable.
+

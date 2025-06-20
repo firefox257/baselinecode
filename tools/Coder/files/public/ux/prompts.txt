@@ -1,0 +1,40 @@
+
+This is a module text cod editor.
+do not use spaces for tabs. tabs need to have a width of 4 spaces, not actual spaces. fix this problem.
+second problem is on a new line tabs are not being added.
+
+
+=============
+This is a module text cod editor.
+change the beatifier button to be a symbole.
+change the font color to be blackc the background color to white.
+
+
+======================
+
+
+This is a module text cod editor.
+move the beatifir button to the bottom eight hand corner
+
+
+===================================
+html js create a module for for coding editing that can be imported.
+There doesent have to be anything exported.
+It will have a special tag <textcode> in html.
+on load all <textcode> will be replaced with the code editor ux. for any dom added will be detected to see if it is the <textcode> tag and create the code editor.
+the code editor will span out in what ever container.
+It will have a a div that is editable, do not use textarea for the text container, is a div with attribute editable. It should allows tabs. The tab space will be 4 spaces.
+use mono space font. the side will have line numbers that align with the main editor.
+There is no wrapping or word wrapping. both the line number section and editor section should use the same mono font,
+have the same size, padding size and margin size and any other measerable should be the same.
+tabs ar calculated. for every ({[ opening bracket the tabs is added. 
+	so when a new line is entered the number of tabs is inserted in the begining of the line.
+For all ]}) closing brackets the tabs count is subtracted. if the line ends with a closing bracket and a new line is entered then the line with the closing bracket needs to subtract one tab.
+Add a symbile button for beatifying the text. 
+this will go thru each line and trim the string, prepend the number of tabs as there are opening and closing brackets.
+absolute needed styles needs to be creates when importing, this can be done by dynamicly creating a <style> tag and add it to the html.
+Tabs need tonline up. if there is a space then a tab then the spaes for that tab would be 3. This should be done in css styling than coded.
+
+
+
+
