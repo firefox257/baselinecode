@@ -1,6 +1,23 @@
 
 
 
+
+This code is for a node js web server.
+file name is webserer.js
+Reerence this code no response required.
+===============
+
+This code is for a node js web server.
+file name is webserer.js
+
+Create option header functionality like MV for the following, COPY.
+COPY copies file/files or directory/directories in to another path. COPY will also have wildcards like LS and MV.
+
+
+
+
+===========
+
 This code is for a node js web server.
 Create a seperate modules export js for the header options called apiCalls.js that will work on browsers import.
 Make the export as one export for api object so to call LS it will call api.ls.

@@ -1,5 +1,173 @@
 
-This is a module text cod editor.
+This is testCodeEditor.html. 
+This tests textCode.js module.
+
+html add onclose event like the way onsave is implemented
+
+================
+This is a module text code editor.
+file location at ./ux/textCode.js
+
+add close button and onclose event. make sure it behaves the same as onsave.
+if tye onclose is undefined then hide the close button. if it is defined ahow the button
+
+
+
+=================
+This is testCodeEditor.html. 
+This tests textCode.js module.
+
+add more textode editors to test both 
+simple onsomething = function, addeventlstener, and defined on the textcode html tag.
+Do this for onchange, oninput, onsave
+
+
+
+=============
+
+This is a module text code editor.
+file location at ./ux/textCode.js
+
+Make sure all the events like oninput onchnge onsave work with js addeventlistener coding.
+
+
+
+
+=================
+
+This is testCodeEditor.html. 
+This tests textCode.js module.
+
+onsave event is implementd in textCodejs module.
+Update testCodeEditor.html by defining onsave event on attribute on a tag.
+from the dom object set the onsve event using js.
+leave one textCode with no onsave event defined to see the save button hidden
+
+
+
+
+====================
+
+
+This is a module text code editor.
+file location at ./ux/textCode.js
+
+reference this code, no response needed.
+
+
+
+
+=============
+This is a module text code editor.
+file location at ./ux/textCode.js
+
+
+add a save button. add onsave event that funtions like onchange nd on input.
+if the onsave is not defined hide the save button. i the onsave has one defined then showthe button.
+when the save button is clicked/pressed call the onsave defined events.
+
+
+
+===============
+
+
+This is a module text code editor.
+file location at ./ux/textCode.js
+
+change the select all icon to something else.
+
+
+
+============
+
+This is a module text code editor.
+file location at ./ux/textCode.js
+
+Change the top menu to he  table with clickabe TD. vertica nd horiontl align menu item center nd middle.
+do a 1px line to border. expnd the tet input.
+
+=========
+This is a module text code editor.
+file location at ./ux/textCode.js
+
+change the code to start finding at the current cursor location. 
+for the previous nd next find functionalty start finding at cursor position.
+
+
+
+===============
+
+This is a module text code editor.
+file location at ./ux/textCode.js
+
+With in the top menu add find icon button, next finduron icon, previous find icon button.
+the find buton prompts input what to find.
+the next find will find the next text from the current ursor position.
+the previous find will find the previous text from the current ursor position.
+
+
+
+
+======================
+This is a module text code editor.
+file location at ./ux/textCode.js
+
+With in the top menu add goto line number  icon button.
+Add in goto line number  functionality.
+
+
+
+
+=====================
+This is a module text code editor.
+file location at ./ux/textCode.js
+
+With in the top menu add select all icon button.
+Add in select all functionality.
+
+
+
+=============
+
+
+This is a module text code editor.
+file location at ./ux/textCode.js
+
+Add a menu on top. 
+With in tha top menu add undo redo icon buttons.
+Add in unlimited undo and redu functionality.
+
+
+==============
+
+This is a module text code editor.
+file location at ./ux/textCode.js
+Create seperate text documentation.
+Include that it can be a tag in html <textcode>,
+tag in innerHTML,  createTextCode for the dom.
+also note what is atteibutes on the tag lke events id class.
+Note from jvascript what events is accessed and propertie like value.
+
+
+
+==========
+this is the testCodeEditor.html that test the textcode.
+
+modify the html code to update to use the module.
+use the export function createTextCode to also create and append textcode.
+Aslo add onchane oninput events to get the value of the dom textcode.
+
+
+
+
+=========
+This is a module text code editor.
+file location at ./ux/textCode.js
+
+
+
+=======
+This is a module text code editor.
 do not use spaces for tabs. tabs need to have a width of 4 spaces, not actual spaces. fix this problem.
 second problem is on a new line tabs are not being added.
 
@@ -35,6 +203,6 @@ this will go thru each line and trim the string, prepend the number of tabs as t
 absolute needed styles needs to be creates when importing, this can be done by dynamicly creating a <style> tag and add it to the html.
 Tabs need tonline up. if there is a space then a tab then the spaes for that tab would be 3. This should be done in css styling than coded.
 
-
+`
 
 

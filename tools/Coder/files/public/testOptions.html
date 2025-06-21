@@ -1,5 +1,6 @@
 
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -59,7 +60,7 @@
 </head>
 <body>
     <h1>Server File Operations Test Page</h1>
-    <p>This page allows you to test the custom LS, READFILE, SAVEFILE, MKPATH, MV, and DEL headers on your Node.js server.</p>
+    <p>This page allows you to test the custom LS, READFILE, SAVEFILE, MKPATH, MV, COPY, and DEL headers on your Node.js server.</p>
     <p>All paths are relative to the server's `files` directory.</p>
 
     <div class="container">
@@ -118,6 +119,19 @@
         <div class="response">
             <h3>MV Response:</h3>
             <pre id="mvResponse"></pre>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>COPY (Copy File/Directory)</h2>
+        <p>Enter the source path (file or directory, wildcards supported like `/public/*.txt`) and the destination directory.</p>
+        <p>E.g., Source: `/test_files/my_test_file.txt`, Destination: `/test_dirs/copied_items`</p>
+        <input type="text" id="copySource" value="/test_files/my_test_file.txt" placeholder="Source path (e.g., /source_path/file.txt, /docs/*.pdf)">
+        <input type="text" id="copyDestination" value="/test_dirs/copied_items" placeholder="Destination directory (e.g., /backup_folder/)">
+        <button onclick="sendCopyRequest()">Send COPY Request (POST)</button>
+        <div class="response">
+            <h3>COPY Response:</h3>
+            <pre id="copyResponse"></pre>
         </div>
     </div>
 
@@ -204,6 +218,13 @@
             sendRequest('POST', { 'X-MV-Source': mvSource, 'X-MV-Destination': mvDestination }, 'mvResponse');
         }
 
+        // New function for COPY request
+        function sendCopyRequest() {
+            const copySource = document.getElementById('copySource').value;
+            const copyDestination = document.getElementById('copyDestination').value;
+            sendRequest('POST', { 'X-COPY-Source': copySource, 'X-COPY-Destination': copyDestination }, 'copyResponse');
+        }
+
         function sendDelRequest() {
             const delPath = document.getElementById('delPath').value;
             sendRequest('DELETE', { 'X-DEL-Path': delPath }, 'delResponse');
@@ -211,5 +232,6 @@
     </script>
 </body>
 </html>
+
 
 

@@ -1,15 +1,12 @@
 
 
-
 /*
-
 This is a module text code editor.
 file location at ./ux/textCode.js
 
-reference this code, no response needed.
+change the select all icon to something else.
 
 */
-
 
 // textCode.js
 
@@ -262,9 +259,9 @@ function getCaretPosition(editableDiv) {
         if (currentLineContent[i] === '\t') {
             column += TAB_SPACES;
         } else {
-            column += 1;
+                column += 1;
+            }
         }
-    }
     // Calculate character index from the beginning of the editable div
     let charIndex = 0;
     for (let i = 0; i < lines.length - 1; i++) {
@@ -418,7 +415,7 @@ function scrollCaretIntoView(editableDiv) {
     if (caretRect.right > editorRect.right) {
         editableDiv.scrollLeft += (caretRect.right - editorRect.right);
     } else if (caretRect.left < editorRect.left) {
-        editableDiv.scrollLeft -= (editorRect.left - caretRect.left); // Should be editorRect.left - caretRect.left
+        editableDiv.scrollLeft -= (editorRect.top - caretRect.left); // Should be editorRect.left - caretRect.left
     }
 }
 
@@ -452,16 +449,12 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
     let originalClass = null;
     let originalOnInputAttribute = null;
     let originalOnChangeAttribute = null;
-    let originalOnSaveAttribute = null; // For onsave attribute
-    let originalOnCloseAttribute = null; // NEW: For onclose attribute
 
     if (originalElement) {
         originalId = originalElement.id;
         originalClass = originalElement.className;
         originalOnInputAttribute = originalElement.getAttribute('oninput');
         originalOnChangeAttribute = originalElement.getAttribute('onchange');
-        originalOnSaveAttribute = originalElement.getAttribute('onsave');
-        originalOnCloseAttribute = originalElement.getAttribute('onclose'); // NEW: Get onclose attribute
 
         // Apply ID and Class attributes to the outermost container
         if (originalId) {
@@ -538,23 +531,6 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
     prevFindCell.appendChild(prevFindButton);
     menuBarRow.appendChild(prevFindCell);
 
-    // NEW: Save Button
-    const saveButton = document.createElement('button');
-    saveButton.innerHTML = '&#x1F4BE;'; // Floppy disk icon
-    saveButton.title = 'Save';
-    const saveCell = document.createElement('td');
-    saveCell.appendChild(saveButton);
-    menuBarRow.appendChild(saveCell);
-
-    // NEW: Close Button
-    const closeButton = document.createElement('button');
-    closeButton.innerHTML = '&#x2715;'; // Multiplication X (close) icon
-    closeButton.title = 'Close Editor';
-    const closeCell = document.createElement('td');
-    closeCell.appendChild(closeButton);
-    menuBarRow.appendChild(closeCell);
-
-
     menuBarBody.appendChild(menuBarRow);
     menuBar.appendChild(menuBarBody);
 
@@ -603,7 +579,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
     editorContainerWrapper.appendChild(beautifyButtonContainer);
     editorContainerWrapper.appendChild(goToLineDialog); // Add the dialog to the wrapper
 
-    // --- Emulate 'value', 'oninput', 'onchange', 'onsave', 'onclose' properties ---
+    // --- Emulate 'value', 'oninput', 'onchange' properties ---
 
     // Define 'value' property on the wrapper to expose contentDiv's text
     Object.defineProperty(editorContainerWrapper, 'value', {
@@ -630,8 +606,6 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
     // Internal references for programmatic event handlers (e.g., editor.oninput = fn)
     let _onInputHandler = null;
     let _onChangeHandler = null;
-    let _onSaveHandler = null;
-    let _onCloseHandler = null; // NEW: Internal onclose handler
 
     Object.defineProperty(editorContainerWrapper, 'oninput', {
         get() { return _onInputHandler; },
@@ -652,36 +626,6 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
                 _onChangeHandler = newValue;
             } else {
                 console.warn("Attempted to set onchange to a non-function value:", newValue);
-            }
-        },
-        configurable: true
-    });
-
-    // Define 'onsave' property
-    Object.defineProperty(editorContainerWrapper, 'onsave', {
-        get() { return _onSaveHandler; },
-        set(newValue) {
-            if (typeof newValue === 'function' || newValue === null) {
-                _onSaveHandler = newValue;
-                // Update save button visibility immediately
-                saveButton.style.display = _onSaveHandler ? 'flex' : 'none';
-            } else {
-                console.warn("Attempted to set onsave to a non-function value:", newValue);
-            }
-        },
-        configurable: true
-    });
-
-    // NEW: Define 'onclose' property
-    Object.defineProperty(editorContainerWrapper, 'onclose', {
-        get() { return _onCloseHandler; },
-        set(newValue) {
-            if (typeof newValue === 'function' || newValue === null) {
-                _onCloseHandler = newValue;
-                // Update close button visibility immediately
-                closeButton.style.display = _onCloseHandler ? 'flex' : 'none';
-            } else {
-                console.warn("Attempted to set onclose to a non-function value:", newValue);
             }
         },
         configurable: true
@@ -774,15 +718,14 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
         if (redoStack.length > 0) {
             const stateToApply = redoStack.pop();
             // Push current state to history before moving forward (for multi-level undo/redo)
-            history.push({ // Push current state to history
+            redoStack.unshift({ // Add back to redo stack to preserve order
                 content: contentDiv.textContent,
                 caret: getCaretPosition(contentDiv)
             });
-            historyPointer = history.length - 1; // Update pointer
+            historyPointer++; // Increment history pointer to point to the new state
             applyHistoryState(stateToApply);
         }
-    };
-
+    }
 
     /** Selects all text in the contentDiv. */
     const selectAll = () => {
@@ -898,9 +841,9 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
             const fn = new Function('event', 'value', handlerCode);
             fn.apply(scope, args);
         } catch (err) {
-            console.error("Error executing attribute handler:", handlerCode, err);
-        }
-    };
+                console.error("Error executing attribute handler:", handlerCode, err);
+            }
+        };
 
     // --- Event Listeners ---
 
@@ -908,10 +851,6 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
     pushToHistory(true);
     updateUndoRedoButtons(); // Ensure buttons are correct initially
     updateFindNavButtons(); // Ensure find buttons are correct initially
-    // Initial visibility of save and close buttons
-    saveButton.style.display = (_onSaveHandler || originalOnSaveAttribute) ? 'flex' : 'none';
-    closeButton.style.display = (_onCloseHandler || originalOnCloseAttribute) ? 'flex' : 'none';
-
 
     // Undo/Redo button click handlers
     undoButton.addEventListener('click', undo);
@@ -925,7 +864,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
     goToLineOkButton.addEventListener('click', goToLine);
     goToLineCancelButton.addEventListener('click', hideGoToLineDialog);
 
-    // Find input and button handlers
+    // NEW: Find input and button handlers
     findInput.addEventListener('input', updateFindNavButtons); // Enable/disable buttons based on input value
     findInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
@@ -936,49 +875,6 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
 
     nextFindButton.addEventListener('click', findNext);
     prevFindButton.addEventListener('click', findPrevious);
-
-    // Save button click handler
-    saveButton.addEventListener('click', (e) => {
-        // Call dynamically set onsave handler (e.g., editor.onsave = fn)
-        if (_onSaveHandler) {
-            try {
-                _onSaveHandler.call(editorContainerWrapper, e, editorContainerWrapper.value);
-            } catch (err) {
-                console.error("Error executing programmatic onsave handler:", err);
-            }
-        }
-        // Call original onsave handler from HTML attribute
-        executeAttributeHandler(originalOnSaveAttribute, editorContainerWrapper, e, editorContainerWrapper.value);
-
-        // Dispatch a custom 'save' event on the outermost container
-        editorContainerWrapper.dispatchEvent(new CustomEvent('save', {
-            detail: { value: editorContainerWrapper.value },
-            bubbles: true,
-            composed: true
-        }));
-    });
-
-    // NEW: Close button click handler
-    closeButton.addEventListener('click', (e) => {
-        // Call dynamically set onclose handler (e.g., editor.onclose = fn)
-        if (_onCloseHandler) {
-            try {
-                _onCloseHandler.call(editorContainerWrapper, e, editorContainerWrapper.value);
-            } catch (err) {
-                console.error("Error executing programmatic onclose handler:", err);
-            }
-        }
-        // Call original onclose handler from HTML attribute
-        executeAttributeHandler(originalOnCloseAttribute, editorContainerWrapper, e, editorContainerWrapper.value);
-
-        // Dispatch a custom 'close' event on the outermost container
-        editorContainerWrapper.dispatchEvent(new CustomEvent('close', {
-            detail: { value: editorContainerWrapper.value },
-            bubbles: true,
-            composed: true
-        }));
-    });
-
 
     // Allow Enter key to trigger "Go" in the dialog
     goToLineInput.addEventListener('keydown', (e) => {
@@ -1093,7 +989,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
                 // De-indent if bracket is the main content of the line OR
                 // if it's the last typed char and no opening counterpart *before* it on the same line
                 if (trimmedLine === lastTypedChar ||
-                    (!hasOpeningCounterpart && lineContentWhereBracketWasTyped.endsWith(lastTypedChar))
+                   (!hasOpeningCounterpart && lineContentWhereBracketWasTyped.endsWith(lastTypedChar))
                 ) {
                     shouldDeindentClosingBracket = true;
                 }
@@ -1307,9 +1203,6 @@ function observeTextcodeElements() {
 document.addEventListener('DOMContentLoaded', () => {
     observeTextcodeElements();
 });
-
-
-
 
 
 

@@ -1,0 +1,31 @@
+
+
+
+This is a module that runs on a rowser and makes api calls to the server.
+location is at ./js/apiCalls.js
+Reference this code no response required.
+
+=========
+This is a module that runs on a rowser and makes api calls to the server.
+location is at ./js/apiCalls.js
+webserver.js has added COPY option header.
+Add to tye apCalls.js to include COPY option header for the module export. 
+
+
+
+=============
+This is a module that runs on a rowser and makes api calls to the server.
+location is at ./js/apiCalls.js
+Make text documentation of all the api calls nd how to st it up.
+
+
+
+
+==========
+
+This is a module that runs on a rowser and makes api calls to the server.
+location is at ./js/apiCalls.js
+
+
+
+

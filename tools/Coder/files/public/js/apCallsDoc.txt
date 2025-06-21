@@ -1,0 +1,195 @@
+
+
+
+The provided JavaScript module apiCalls.js located at ./js/apiCalls.js exposes a set of functions for interacting with a server-side API. These functions facilitate common file system operations such as listing, reading, writing, creating directories, moving, copying, and deleting files and directories.
+API Call Setup and Usage
+The module exports an api object containing methods for each specific API call. All API calls are asynchronous and return Promises.
+Base makeApiCall Function
+The core of this module is the makeApiCall function, which handles the actual fetch requests.
+async function makeApiCall(method, endpoint, headers = {}, body = null) {
+    // ... implementation ...
+}
+
+ * method: The HTTP method (e.g., 'GET', 'POST', 'PUT', 'DELETE').
+ * endpoint: The URL path on the server (e.g., '/'). In this module, all API calls use the root path '/' and differentiate operations using custom HTTP headers.
+ * headers: An object containing custom HTTP headers to be sent with the request. The Content-Type is defaulted to 'text/plain' but can be overridden.
+ * body: The request body as a string, typically used for POST or PUT requests (e.g., when saving file content).
+Returns: A Promise that resolves to either the response text (for plain text responses) or a parsed JSON object (if the Content-Type is application/json). Rejects on network errors or API errors (non-2xx status codes).
+API Methods
+Here's a breakdown of each API method available in the api object:
+api.ls(path)
+Lists files and directories on the server.
+ * HTTP Method: GET
+ * Endpoint: /
+ * Request Header:
+   * X-LS-Path: The path on the server to list. This path is relative to the server's designated 'files' root. It supports wildcards (e.g., 'public/*.html').
+ * Request Body: None
+ * Response: A Promise that resolves to an array of FileInfo objects.
+FileInfo Type Definition:
+/** @typedef {Object} FileInfo
+ * @property {string} name - The name of the file or directory.
+ * @property {'file' | 'directory'} type - The type of the item.
+ * @property {number} size - The size of the file in bytes (0 for directories).
+ * @property {string} modifiedTime - The ISO 8601 formatted last modified timestamp.
+ * @property {number} modifiedTimeMs - The last modified timestamp in milliseconds.
+ */
+
+Example Usage:
+import { api } from './js/apiCalls.js';
+
+async function listFiles() {
+    try {
+        const files = await api.ls('my_directory/*');
+        console.log("Files in 'my_directory':", files);
+    } catch (error) {
+        console.error("Error listing files:", error);
+    }
+}
+
+listFiles();
+
+api.readFile(filePath)
+Reads the content of a specified file.
+ * HTTP Method: GET
+ * Endpoint: /
+ * Request Header:
+   * X-Read-File: The path to the file to read, relative to the server's 'files' root.
+ * Request Body: None
+ * Response: A Promise that resolves to the file's content as a string.
+Example Usage:
+import { api } from './js/apiCalls.js';
+
+async function readMyFile() {
+    try {
+        const content = await api.readFile('data/config.json');
+        console.log("Content of 'data/config.json':", content);
+        // If it's JSON, you might want to parse it:
+        // const jsonData = JSON.parse(content);
+    } catch (error) {
+        console.error("Error reading file:", error);
+    }
+}
+
+readMyFile();
+
+api.saveFile(filePath, content)
+Saves content to a file. If the file exists, it will be overwritten. Directories in the path will be created if they don't exist.
+ * HTTP Method: POST
+ * Endpoint: /
+ * Request Header:
+   * X-Save-File: The path where the file will be saved, relative to the server's 'files' root.
+ * Request Body: The content string to be written to the file.
+ * Response: A Promise that resolves to a success message string from the server.
+Example Usage:
+import { api } from './js/apiCalls.js';
+
+async function saveNewFile() {
+    const filePath = 'new_documents/report.txt';
+    const fileContent = 'This is the content of my new report.\nAnother line of text.';
+    try {
+        const message = await api.saveFile(filePath, fileContent);
+        console.log("File saved successfully:", message);
+    } catch (error) {
+        console.error("Error saving file:", error);
+    }
+}
+
+saveNewFile();
+
+api.mkPath(mkPath)
+Creates a directory path recursively on the server.
+ * HTTP Method: POST
+ * Endpoint: /
+ * Request Header:
+   * X-MKPATH: The directory path to create, relative to the server's 'files' root.
+ * Request Body: None
+ * Response: A Promise that resolves to a success message string from the server.
+Example Usage:
+import { api } from './js/apiCalls.js';
+
+async function createDirectories() {
+    try {
+        const message = await api.mkPath('project/src/components');
+        console.log("Directories created:", message);
+    } catch (error) {
+        console.error("Error creating directories:", error);
+    }
+}
+
+createDirectories();
+
+api.mv(sourcePath, destinationPath)
+Moves a file or directory (or multiple using wildcards) to a new destination.
+ * HTTP Method: POST
+ * Endpoint: /
+ * Request Headers:
+   * X-MV-Source: The source path(s) to move, relative to the server's 'files' root. Can include wildcards (e.g., 'public/*.txt').
+   * X-MV-Destination: The destination directory, relative to the server's 'files' root.
+ * Request Body: None
+ * Response: A Promise that resolves to a success message string detailing the move operation from the server.
+Example Usage:
+import { api } from './js/apiCalls.js';
+
+async function moveFile() {
+    try {
+        const message = await api.mv('old_files/document.pdf', 'archive/');
+        console.log("File moved:", message);
+    } catch (error) {
+        console.error("Error moving file:", error);
+    }
+}
+
+moveFile();
+
+api.copy(sourcePath, destinationPath)
+Copies a file or directory (or multiple using wildcards) to a new destination.
+ * HTTP Method: POST
+ * Endpoint: /
+ * Request Headers:
+   * X-COPY-Source: The source path(s) to copy, relative to the server's 'files' root. Can include wildcards (e.g., 'public/*.txt').
+   * X-COPY-Destination: The destination directory, relative to the server's 'files' root.
+ * Request Body: None
+ * Response: A Promise that resolves to a success message string detailing the copy operation from the server.
+Example Usage:
+import { api } from './js/apiCalls.js';
+
+async function copyFiles() {
+    try {
+        const message = await api.copy('templates/*.html', 'backup_templates/');
+        console.log("Files copied:", message);
+    } catch (error) {
+        console.error("Error copying files:", error);
+    }
+}
+
+copyFiles();
+
+api.del(delPath)
+Deletes files or directories. The typical server-side implementation first moves items to a trash/recycle bin if they are not already there, and then permanently deletes them from the trash.
+ * HTTP Method: DELETE
+ * Endpoint: /
+ * Request Header:
+   * X-DEL-Path: The path(s) to delete, relative to the server's 'files' root. Can include wildcards (e.g., 'temp/*.log').
+ * Request Body: None
+ * Response: A Promise that resolves to a success message string detailing the deletion operation from the server.
+Example Usage:
+import { api } from './js/apiCalls.js';
+
+async function deleteTemporaryFiles() {
+    try {
+        const message = await api.del('temp/*.tmp');
+        console.log("Files deleted:", message);
+    } catch (error) {
+        console.error("Error deleting files:", error);
+    }
+}
+
+deleteTemporaryFiles();
+
+Important Notes for Server-Side Implementation:
+ * Security: Since all operations are triggered via custom headers on the root endpoint (/), the server must carefully parse these headers and implement robust security checks (e.g., authentication, authorization, input validation, path traversal prevention) to prevent malicious operations.
+ * Path Resolution: The server-side component needs to correctly interpret the provided paths (e.g., X-LS-Path, X-Read-File, etc.) relative to its configured 'files' root directory.
+ * Error Handling: The server should return appropriate HTTP status codes (e.g., 400 for bad requests, 404 for not found, 403 for forbidden, 500 for internal errors) and informative error messages in the response body.
+ * Wildcard Implementation: For ls, mv, copy, and del operations, the server needs to implement the logic for resolving and acting upon wildcard patterns (e.g., using glob matching libraries).
+ * Trash System: The del operation implies a server-side trash system. The server should manage the movement to and permanent deletion from this trash.
+

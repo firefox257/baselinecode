@@ -1,5 +1,15 @@
-/**
- * @typedef {Object} FileInfo
+
+/*
+
+This is a module that runs on a rowser and makes api calls to the server.
+location is at ./js/apiCalls.js
+Reference this code no response required.
+
+
+*/
+
+
+/** @typedef {Object} FileInfo
  * @property {string} name - The name of the file or directory.
  * @property {'file' | 'directory'} type - The type of the item.
  * @property {number} size - The size of the file in bytes (0 for directories).
@@ -115,6 +125,22 @@ const api = {
     },
 
     /**
+     * Copies a file or directory (or multiple using wildcards) to a new destination.
+     * @param {string} sourcePath - The source path(s) to copy, relative to the server's 'files' root. Can include wildcards (e.g., 'public/*.txt').
+     * @param {string} destinationPath - The destination directory, relative to the server's 'files' root.
+     * @returns {Promise<string>} - A promise that resolves to a success message detailing the copy operation.
+     */
+    copy: async (sourcePath, destinationPath) => {
+        if (!sourcePath || !destinationPath) {
+            throw new Error("COPY: Source and destination paths are required.");
+        }
+        return makeApiCall('POST', '/', {
+            'X-COPY-Source': sourcePath,
+            'X-COPY-Destination': destinationPath
+        });
+    },
+
+    /**
      * Deletes files or directories. Moves to trash first if not already in trash, then permanently deletes from trash.
      * @param {string} delPath - The path(s) to delete, relative to the server's 'files' root. Can include wildcards (e.g., 'temp/*.log').
      * @returns {Promise<string>} - A promise that resolves to a success message detailing the deletion operation.
@@ -128,3 +154,5 @@ const api = {
 };
 
 export { api };
+
+

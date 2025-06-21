@@ -1,8 +1,6 @@
 
 
 
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -29,7 +27,7 @@
             height: 300px; /* Example height */
             display: flex;
             background-color: #fff;
-            box-shadow: 0 2px 5px rgba="0,0,0,0.1)";
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
             border-radius: 5px;
         }
         button {
@@ -68,16 +66,15 @@
     <p>
         The editors below are created from `&lt;textcode&gt;` tags in the HTML.
         The `textCode.js` module's `MutationObserver` automatically transforms them.
-        The `oninput`, `onchange`, `onsave`, and `onclose` attributes defined directly on the `&lt;textcode&gt;` tag
+        The `oninput` and `onchange` attributes defined directly on the `&lt;textcode&gt;` tag
         will call `window.logEvent` when triggered.
     </p>
 
     <div class="editor-container">
         <textcode id="editor1"
                   oninput="logEvent('Editor 1 Input (Attribute)', this.value.length + ' chars');"
-                  onchange="logEvent('Editor 1 Changed (Attribute)', this.value);"
-                  onsave="logEvent('Editor 1 Saved (Attribute)', this.value); alert('Editor 1 saved!');"
-                  onclose="logEvent('Editor 1 Closed (Attribute)', this.value); alert('Editor 1 is closing!');"> function hello() {
+                  onchange="logEvent('Editor 1 Changed (Attribute)', this.value);">
+function hello() {
     console.log("Hello, world!");
     if (true) {
         console.log("This is inside an if block.");
@@ -106,8 +103,6 @@ for (let i = 0; i < 5; i++) {
         which is then picked up and transformed by the module's `MutationObserver`.
     </p>
     <button id="addEditorViaTag">Add New Code Editor (via textcode tag)</button>
-    <button id="addEditorViaTagNoSave">Add New Code Editor (via textcode tag - No Save)</button>
-    <button id="addEditorViaTagNoClose">Add New Code Editor (via textcode tag - No Close)</button>
     <div id="dynamicEditorsViaTag" class="dynamic-editor-section"></div>
 
     <p>
@@ -122,8 +117,8 @@ for (let i = 0; i < 5; i++) {
     <p>
         This section demonstrates how to grab a reference to a *transformed* editor
         (one that started as a `&lt;textcode&gt;` tag) and then assign event handlers
-        to its `oninput`, `onchange`, `onsave`, and `onclose` properties directly in JavaScript.
-        Note that this handler will run in addition to any `oninput`/`onchange`/`onsave`/`onclose`
+        to its `oninput` and `onchange` properties directly in JavaScript.
+        Note that this handler will run in addition to any `oninput`/`onchange`
         attributes defined in the HTML for the same element.
     </p>
     <button id="assignEventsToEditor2">Assign JS Properties to Editor 2</button>
@@ -162,9 +157,8 @@ for (let i = 0; i < 5; i++) {
                     <textcode id="${editorId}"
                               class="my-dynamic-editor"
                               oninput="logEvent('Dynamic Tag Editor Input (Attr - ID: ${editorId})', this.value.length + ' chars');"
-                              onchange="logEvent('Dynamic Tag Editor Changed (Attr - ID: ${editorId})', this.value);"
-                              onsave="logEvent('Dynamic Tag Editor Saved (Attr - ID: ${editorId})', this.value); alert('Dynamic Editor ${editorId} saved!');"
-                              onclose="logEvent('Dynamic Tag Editor Closed (Attr - ID: ${editorId})', this.value); alert('Dynamic Editor ${editorId} is closing!');"> // New dynamic editor via textcode tag
+                              onchange="logEvent('Dynamic Tag Editor Changed (Attr - ID: ${editorId})', this.value);">
+// New dynamic editor via textcode tag
 function dynamicTagFunc() {
     console.log("This was added dynamically via textcode tag!");
     if (true) {
@@ -176,61 +170,6 @@ function dynamicTagFunc() {
                 dynamicEditorsDiv.appendChild(newEditorContainer);
             });
         }
-
-        // --- Dynamic Editor via <textcode> tag (NO ONSAVE) ---
-        const addEditorViaTagNoSaveBtn = document.getElementById('addEditorViaTagNoSave');
-        if (addEditorViaTagNoSaveBtn) {
-            addEditorViaTagNoSaveBtn.addEventListener('click', () => {
-                const dynamicEditorsDiv = document.getElementById('dynamicEditorsViaTag');
-                const newEditorContainer = document.createElement('div');
-                newEditorContainer.className = 'editor-container';
-                newEditorContainer.style.height = '200px';
-                newEditorContainer.style.marginBottom = '10px';
-
-                const editorId = `dynamicTagEditorNoSave${Date.now()}`;
-                newEditorContainer.innerHTML = `
-                    <textcode id="${editorId}"
-                              class="my-dynamic-editor-no-save"
-                              oninput="logEvent('Dynamic Tag Editor (No Save) Input (Attr - ID: ${editorId})', this.value.length + ' chars');"
-                              onchange="logEvent('Dynamic Tag Editor (No Save) Changed (Attr - ID: ${editorId})', this.value);"
-                              onclose="logEvent('Dynamic Tag Editor (No Save) Closed (Attr - ID: ${editorId})', this.value); alert('Dynamic Editor ${editorId} (No Save) is closing!');">
-// This editor has NO onsave attribute defined.
-// Its save button should be hidden.
-function noSaveFunc() {
-    console.log("No save button here!");
-}
-                    </textcode>`;
-                dynamicEditorsDiv.appendChild(newEditorContainer);
-            });
-        }
-
-        // --- Dynamic Editor via <textcode> tag (NO ONCLOSE) ---
-        const addEditorViaTagNoCloseBtn = document.getElementById('addEditorViaTagNoClose');
-        if (addEditorViaTagNoCloseBtn) {
-            addEditorViaTagNoCloseBtn.addEventListener('click', () => {
-                const dynamicEditorsDiv = document.getElementById('dynamicEditorsViaTag');
-                const newEditorContainer = document.createElement('div');
-                newEditorContainer.className = 'editor-container';
-                newEditorContainer.style.height = '200px';
-                newEditorContainer.style.marginBottom = '10px';
-
-                const editorId = `dynamicTagEditorNoClose${Date.now()}`;
-                newEditorContainer.innerHTML = `
-                    <textcode id="${editorId}"
-                              class="my-dynamic-editor-no-close"
-                              oninput="logEvent('Dynamic Tag Editor (No Close) Input (Attr - ID: ${editorId})', this.value.length + ' chars');"
-                              onchange="logEvent('Dynamic Tag Editor (No Close) Changed (Attr - ID: ${editorId})', this.value);"
-                              onsave="logEvent('Dynamic Tag Editor (No Close) Saved (Attr - ID: ${editorId})', this.value); alert('Dynamic Editor ${editorId} (No Close) saved!');">
-// This editor has NO onclose attribute defined.
-// Its close button should be hidden (if implemented this way in textCode.js).
-function noCloseFunc() {
-    console.log("No close button here!");
-}
-                    </textcode>`;
-                dynamicEditorsDiv.appendChild(newEditorContainer);
-            });
-        }
-
 
         // --- Dynamic Editor via createTexCode function (Explicit JS Property Assignment) ---
         const addEditorViaFunctionBtn = document.getElementById('addEditorViaFunction');
@@ -244,7 +183,7 @@ function noCloseFunc() {
 
                 const editorId = `dynamicFuncEditor${Date.now()}`;
                 const initialContent = `
-// New dynamic editor created programmatically with .oninput/.onchange/.onsave/.onclose properties
+// New dynamic editor created programmatically with .oninput/.onchange properties
 function programmaticFunc() {
     console.log("This editor was created directly via createTexCode!");
     let details = {
@@ -273,21 +212,6 @@ function programmaticFunc() {
                     logEvent(`Dynamic Func Editor (JS Prop - Changed - ID: ${editorId})`, value);
                     // 'value' is the current text content of the editor
                 };
-
-                newEditor.onsave = (value) => { // Added onsave via JS property
-                    // Simplified for testing, will show full value
-                    logEvent(`Dynamic Func Editor (JS Prop - Saved - ID: ${editorId})`, value);
-                    alert(`Dynamic Function Editor ${editorId} saved!`);
-                    // Add return true; or Promise.resolve() if textCode.js expects a return
-                    // return true;
-                };
-
-                newEditor.onclose = (value) => { // Added onclose via JS property
-                    logEvent(`Dynamic Func Editor (JS Prop - Closed - ID: ${editorId})`, value);
-                    alert(`Dynamic Function Editor ${editorId} is closing!`);
-                    // If textCode.js expects a return value to confirm/cancel close, return true/false
-                    // return true; // Example: Confirm close
-                };
                 // ======================================================
 
                 // You can still attach event listeners using addEventListener too
@@ -300,13 +224,6 @@ function programmaticFunc() {
                 newEditor.addEventListener('change', (event) => {
                     logEvent(`Dynamic Func Editor (AddListener - Changed - ID: ${editorId})`, event.detail.value);
                 });
-                newEditor.addEventListener('save', (event) => { // Added addEventListener for 'save'
-                    logEvent(`Dynamic Func Editor (AddListener - Saved - ID: ${editorId})`, event.detail.value);
-                });
-                newEditor.addEventListener('close', (event) => { // Added addEventListener for 'close'
-                    logEvent(`Dynamic Func Editor (AddListener - Closed - ID: ${editorId})`, event.detail.value);
-                });
-
 
                 newEditorContainer.appendChild(newEditor);
                 dynamicEditorsDiv.appendChild(newEditorContainer);
@@ -332,24 +249,9 @@ function programmaticFunc() {
                     logEvent('Editor 2 (JS Prop - Changed)', value);
                     // This will now fire in addition to the onchange attribute already on editor2
                 };
-
-                editor2.onsave = (value) => { // Added onsave via JS property, SIMPLIFIED FOR TESTING
-                    logEvent('Editor 2 (JS Prop - Saved)', value); // Log the full value directly
-                    alert('Editor 2 (JS Prop) saved!');
-                    // It's possible textCode.js expects a return value here.
-                    // Try uncommenting 'return true;' if the error persists.
-                    // return true;
-                };
-
-                editor2.onclose = (value) => { // Added onclose via JS property
-                    logEvent('Editor 2 (JS Prop - Closed)', value);
-                    alert('Editor 2 (JS Prop) is closing!');
-                    // Return true/false if textCode.js uses the return value to confirm/cancel close
-                    // return true;
-                };
                 // ===============================================================================
 
-                jsPropertyStatus.textContent = 'oninput, onchange, onsave, and onclose properties assigned to Editor 2!';
+                jsPropertyStatus.textContent = 'oninput and onchange properties assigned to Editor 2!';
                 jsPropertyStatus.style.color = 'green';
                 logEvent('Action', 'JS properties assigned to Editor 2.');
 

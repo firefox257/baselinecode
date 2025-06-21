@@ -1,0 +1,175 @@
+textCode Module Documentation
+This document provides comprehensive information about the textCode JavaScript module, designed to create an enhanced, interactive code editor experience within web applications.
+Overview
+The textCode module transforms a simple HTML <textcode> tag or dynamically created elements into a fully functional code editor. It provides features like line numbering, smart indentation (for tabs and brackets), a beautify button, and programmatic access to its content and events, mimicking standard HTML input elements.
+Usage
+HTML Tag: <textcode>
+You can use the textcode tag directly in your HTML. The content inside the tag will be the initial content of the editor. Upon DOMContentLoaded, the module will automatically detect and convert these tags into interactive code editors.
+Example:
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TextCode Editor Example</title>
+    <script type="module" src="./ux/textCode.js"></script>
+    <style>
+        body { font-family: sans-serif; }
+        .editor-container {
+            width: 80%;
+            height: 300px;
+            margin: 20px auto;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <h1>My Code Editor</h1>
+    <div class="editor-container">
+        <textcode id="myEditor" class="javascript-code" oninput="console.log('Input via attribute:', this.value)">
+            function greet(name) {
+                console.log("Hello, " + name + "!");
+            }
+
+            // Call the function
+            greet("World");
+        </textcode>
+    </div>
+
+    <button onclick="changeEditorContent()">Change Content Programmatically</button>
+
+    <script type="module">
+        // It's generally better to access elements after they are ready.
+        // The module handles the initial conversion automatically.
+        // For dynamically added elements or programmatic access,
+        // you might use setTimeout or ensure the element exists.
+
+        function changeEditorContent() {
+            const editor = document.getElementById('myEditor');
+            if (editor) {
+                editor.value = `
+                    // New content
+                    const x = 10;
+                    if (x > 5) {
+                        console.log("X is greater than 5");
+                    }
+                `;
+            }
+        }
+
+        // Example of adding an event listener via JavaScript
+        document.addEventListener('DOMContentLoaded', () => {
+            const myEditor = document.getElementById('myEditor');
+            if (myEditor) {
+                myEditor.addEventListener('input', (event) => {
+                    console.log('Input event:', event.detail.value);
+                });
+                myEditor.onchange = (value) => {
+                    console.log('Change event via JS property:', value);
+                };
+            }
+        });
+    </script>
+</body>
+</html>
+
+Dynamically Creating an Editor with createTexCode()
+You can also create a new textCode editor instance programmatically using the createTexCode function.
+Example:
+import { createTexCode } from './ux/textCode.js';
+
+document.addEventListener('DOMContentLoaded', () => {
+    const editorDiv = document.getElementById('programmaticEditor');
+    if (editorDiv) {
+        const myProgrammaticEditor = createTexCode('console.log("This was created programmatically!");');
+        myProgrammaticEditor.style.width = '100%';
+        myProgrammaticEditor.style.height = '200px';
+        myProgrammaticEditor.id = 'programmaticEditorInstance'; // Assign an ID if needed
+        myProgrammaticEditor.className = 'my-custom-editor'; // Assign classes
+        myProgrammaticEditor.oninput = (event, value) => {
+            console.log('Programmatic Editor Input:', value);
+        };
+        myProgrammaticEditor.onchange = (value) => {
+            console.log('Programmatic Editor Change:', value);
+        };
+        editorDiv.appendChild(myProgrammaticEditor);
+    }
+});
+
+HTML Tag Attributes
+When using the <textcode> HTML tag, the following attributes are recognized and emulated on the resulting editor element:
+ * id: (string) - Sets the ID of the outermost container div of the editor. This allows you to easily select the editor using document.getElementById().
+ * class: (string) - Adds CSS classes to the outermost container div of the editor.
+ * oninput: (string) - A JavaScript string to be executed when the editor's content changes (similar to the standard input event on form elements). The this context within the handler refers to the editor's root DOM element, and event (the native input event) and value (the editor's current text content) are passed as arguments.
+ * onchange: (string) - A JavaScript string to be executed when the editor loses focus and its content has potentially changed (similar to the standard change event on form elements). The this context refers to the editor's root DOM element, and value (the editor's current text content) is passed as an argument.
+Note: While oninput and onchange attributes are supported for convenience, it is generally recommended to use JavaScript event listeners (e.g., addEventListener) for better separation of concerns and maintainability.
+JavaScript Events and Properties
+The textCode editor instance (which is the outermost div element returned by createTexCode or replacing the <textcode> tag) exposes the following properties and events:
+Properties:
+ * value: (string)
+   * Getter: Returns the current text content of the editor.
+   * Setter: Sets the text content of the editor. When setting the value programmatically, the editor will update its line numbers and attempt to restore the caret to the end of the new content.
+     const editor = document.getElementById('myEditor');
+console.log(editor.value); // Get content
+editor.value = 'New text for the editor.'; // Set content
+
+ * oninput: (function or null)
+   * Getter: Returns the currently assigned oninput event handler function.
+   * Setter: Assigns a function to be called when the editor's content changes. The function will receive the native InputEvent as the first argument and the editor's value as the second argument. The this context within the handler refers to the editor's root DOM element.
+     const editor = document.getElementById('myEditor');
+editor.oninput = (event, currentValue) => {
+    console.log('Editor content changed:', currentValue);
+};
+
+ * onchange: (function or null)
+   * Getter: Returns the currently assigned onchange event handler function.
+   * Setter: Assigns a function to be called when the editor loses focus (blurs) and its content has potentially changed. The function will receive the editor's value as an argument. The this context within the handler refers to the editor's root DOM element.
+     const editor = document.getElementById('myEditor');
+editor.onchange = (currentValue) => {
+    console.log('Editor lost focus and content changed:', currentValue);
+};
+
+Custom Events (Dispatched):
+The editor dispatches standard-like events that can be listened to using addEventListener. These events bubble up the DOM tree.
+ * input: Dispatched on the outermost editor container whenever the editor's content changes (e.g., typing, pasting, beautifying).
+   * event.detail.value: Contains the current string content of the editor.
+   * event.bubbles: true
+   * event.composed: true (allows crossing shadow DOM boundaries if used in a web component context).
+     <!-- end list -->
+   const editor = document.getElementById('myEditor');
+editor.addEventListener('input', (e) => {
+    console.log('Custom input event received. Current value:', e.detail.value);
+});
+
+ * change: Dispatched on the outermost editor container when the editor loses focus (blurs).
+   * event.detail.value: Contains the current string content of the editor.
+   * event.bubbles: true
+   * event.composed: true
+     <!-- end list -->
+   const editor = document.getElementById('myEditor');
+editor.addEventListener('change', (e) => {
+    console.log('Custom change event received. Final value:', e.detail.value);
+});
+
+Internal Functionality and Features
+ * Line Numbering: Automatically updates and displays line numbers next to the code content.
+ * Synchronized Scrolling: The line number column scrolls in sync with the code content area.
+ * Tab Support: Handles the Tab key for inserting a configurable number of spaces (default: 4) or an actual tab character (\t).
+ * Smart Indentation on Enter:
+   * When you press Enter, the new line is automatically indented based on the indentation level of the previous line.
+   * It also attempts to increase indentation after opening brackets ({, [, () and decrease it before closing brackets if they appear on their own line.
+   * Includes a smart de-indentation logic for closing brackets (e.g., if you type } on a new line and the previous line was indented, it might de-indent the } to match the corresponding opening bracket).
+ * Beautify Button: A small button (✨) appears at the bottom-right of the editor. Clicking it reformats the code with consistent indentation based on bracket nesting.
+ * Caret Management: Automatically scrolls the caret into view as you type or navigate. It also attempts to restore caret position after programmatic content changes or beautification.
+ * CSS Injection: Injects necessary CSS styles into the document head the first time an editor is created, ensuring consistent styling.
+ * MutationObserver: Actively observes the DOM for newly added <textcode> elements, converting them into editors on the fly.
+Constants
+ * TAB_SPACES: (Number, default: 4) - Defines the visual width of a tab character in spaces.
+ * LINE_HEIGHT_EM: (Number, default: 1.5) - Ensures consistent line height for proper alignment between the content and line numbers.
+Limitations / Considerations
+ * Syntax Highlighting: This module does not include built-in syntax highlighting. For syntax highlighting, you would typically integrate with a separate library (e.g., CodeMirror, Monaco Editor, Prism.js).
+ * Complex Selection/Editing: While basic caret positioning is handled, advanced text selection and multi-caret editing features are not implemented.
+ * Performance on Very Large Files: For extremely large files (tens of thousands of lines or more), the contenteditable approach and direct DOM manipulation might become less performant compared to canvas-based or virtualized editors.
+ * Browser Compatibility: Relies on contenteditable and MutationObserver, which are widely supported but may have subtle differences across browsers.
+ * Undo/Redo: The browser's native undo/redo (Ctrl/Cmd+Z, Ctrl/Cmd+Y) works, but there's no custom undo/redo stack provided by the module.
+ * No Read-Only Mode: Currently, there's no explicit readonly property. You can achieve a similar effect by setting contenteditable="false" on the contentDiv after creation, but this is not exposed as a public API.

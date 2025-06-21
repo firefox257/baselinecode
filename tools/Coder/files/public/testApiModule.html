@@ -15,7 +15,7 @@
     <button id="saveFileButton">Save Test File</button>
     <button id="mkPathButton">Make New Directory</button>
     <button id="mvButton">Move Test File</button>
-    <button id="delButton">Delete Test File</button>
+    <button id="copyButton">Copy Test File</button> <button id="delButton">Delete Test File</button>
     <pre id="output"></pre>
 
     <script type="module">
@@ -90,6 +90,37 @@
             }
         });
 
+        // New Copy Button Event Listener
+        document.getElementById('copyButton').addEventListener('click', async () => {
+            outputElem.textContent = 'Copying test file...';
+            // First, ensure a file exists to copy
+            const sourceFileName = `copy_me_${Date.now()}.txt`;
+            const sourcePath = `public/${sourceFileName}`;
+            const destinationPath = `public/copied_files`; // Ensure this directory exists or create it first
+            const newCopiedFilePath = `${destinationPath}/copied_${sourceFileName}`;
+
+            try {
+                // Create a file to copy
+                await api.saveFile(sourcePath, "This file will be copied.");
+                outputElem.textContent = `File created for copying: ${sourcePath}. Now copying...`;
+
+                // Ensure destination directory exists
+                await api.mkPath(destinationPath);
+                outputElem.textContent += `\nDestination directory ensured: ${destinationPath}.`;
+
+                const response = await api.copy(sourcePath, destinationPath);
+                outputElem.textContent += '\nCopy File Response: ' + response;
+
+                // Optionally, verify the copied file exists (requires another API call like ls or readFile)
+                // For simplicity, we'll just show the success message.
+                // You could add logic here to `api.ls(destinationPath)` and check for the file.
+
+            } catch (error) {
+                outputElem.textContent = 'Error copying file: ' + error.message;
+            }
+        });
+
+
         document.getElementById('delButton').addEventListener('click', async () => {
             outputElem.textContent = 'Deleting test file...';
             // First, ensure a file exists to delete
@@ -110,6 +141,7 @@
     </script>
 </body>
 </html>
+
 
 
 

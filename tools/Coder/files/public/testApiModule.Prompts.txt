@@ -1,0 +1,17 @@
+
+
+
+This is the documentation for apiCalls.js
+
+update this dcumentation to in clude te COPY options.
+give the full text documentation with te changes.
+
+
+
+
+===========
+This is testApiModule.html. 
+This tests apiCalls.js module.
+COPY options was added in apiCalls.js.
+Add totestApiModule.html to teat the COPY options.
+

@@ -1,10 +1,9 @@
 
-/* 
-This code is for a node js web server.
-Create a seperate modules export js for the header options called apiCalls.js that will work on browsers import.
-Make the export as one export for api object so to call LS it will call api.ls.
-This needs to work on the browser and be part of the import.
+/*
 
+This code is for a node js web server.
+file name is webserer.js
+Reerence this code no response required.
 
 */
 
@@ -22,6 +21,9 @@ const mkdir = promisify(fs.mkdir); // Promisify fs.mkdir
 const rename = promisify(fs.rename); // Promisify fs.rename
 const unlink = promisify(fs.unlink); // Promisify fs.unlink
 const rm = promisify(fs.rm); // Promisify fs.rm (for recursive delete in Node.js 14+)
+
+// Promisify fs.copyFile for file copying
+const copyFile = promisify(fs.copyFile);
 
 const _mimetype = {
     '.txt': 'text/plain',
@@ -101,7 +103,7 @@ const allowHead = {
         'OPTIONS, POST, GET, PUT, PATCH, DELETE',
     'Access-Control-Max-Age': 2592000, //30 days
     'Access-Control-Allow-Headers':
-        'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-LS-Path, X-Read-File, X-Save-File, X-File-Path, X-File-Content, X-MKPATH, X-MV-Source, X-MV-Destination, X-DEL-Path' // Added custom headers for MKPATH, MV, DEL
+        'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-LS-Path, X-Read-File, X-Save-File, X-File-Path, X-File-Content, X-MKPATH, X-MV-Source, X-MV-Destination, X-DEL-Path, X-COPY-Source, X-COPY-Destination' // Added custom headers for MKPATH, MV, DEL, COPY
 }
 
 // Global response handlers
@@ -527,6 +529,135 @@ async function handleMv(res, mvSourceHeader, mvDestinationHeader) {
 }
 
 /**
+ * Recursively copies a directory.
+ * @param {string} src - The source directory path.
+ * @param {string} dest - The destination directory path.
+ */
+async function copyDirectoryRecursive(src, dest) {
+    await mkdir(dest, { recursive: true });
+    const entries = await readdir(src, { withFileTypes: true });
+
+    for (const entry of entries) {
+        const srcPath = path.join(src, entry.name);
+        const destPath = path.join(dest, entry.name);
+
+        if (entry.isDirectory()) {
+            await copyDirectoryRecursive(srcPath, destPath);
+        } else {
+            await copyFile(srcPath, destPath);
+        }
+    }
+}
+
+/**
+ * Copies file/files or directory/directories into another path. Supports wildcards.
+ * @param {http.ServerResponse} res - The HTTP response object.
+ * @param {string} copySourceHeader - The source path(s) (can include wildcards) relative to FILES_ROOT.
+ * @param {string} copyDestinationHeader - The destination directory relative to FILES_ROOT.
+ */
+async function handleCopy(res, copySourceHeader, copyDestinationHeader) {
+    const sourceFullPath = path.join(FILES_ROOT, copySourceHeader);
+    const destinationFullPath = path.join(FILES_ROOT, copyDestinationHeader);
+
+    // Basic path traversal prevention for both source and destination
+    if (!sourceFullPath.startsWith(FILES_ROOT) || !destinationFullPath.startsWith(FILES_ROOT)) {
+        return sendPlainTextResponse(res, 'Access Denied: Invalid COPY source or destination path.', 403);
+    }
+
+    try {
+        // Ensure the destinationFullPath is a directory or its parent exists if it's a file path
+        // For COPY, if destinationFullPath is meant to be a directory, it must exist.
+        // If it's a file, its parent must exist.
+        let actualDestinationDir = destinationFullPath;
+        try {
+            const destStats = await stat(destinationFullPath);
+            if (!destStats.isDirectory()) {
+                // If destinationFullPath exists but is a file, we can't copy into it as a directory.
+                // Or if it's a file that will be overwritten, its parent directory must exist.
+                // In a COPY operation into a specified "destination directory", this case should usually imply an error,
+                // or if the intent is to rename during copy, then the parent directory of the new name must exist.
+                // For simplicity and alignment with the MV operation, we assume copyDestinationHeader refers to a *directory*.
+                return sendPlainTextResponse(res, `COPY Error: Destination is not a directory: ${copyDestinationHeader}`, 400);
+            }
+        } catch (err) {
+            if (err.code === 'ENOENT') {
+                // If destinationFullPath doesn't exist, it means we need to create it recursively.
+                // This handles cases like `COPY source/file.txt to_new_dir/` where `to_new_dir` doesn't exist.
+                await mkdir(destinationFullPath, { recursive: true });
+                // Now that it's created, it's a directory.
+            } else {
+                throw err; // Re-throw other stat errors
+            }
+        }
+
+
+        const hasWildcard = copySourceHeader.includes('*');
+        let itemsToCopy = [];
+        let baseSourceDir = path.dirname(sourceFullPath);
+        let pattern = hasWildcard ? path.basename(sourceFullPath) : null;
+
+        if (hasWildcard) {
+            try {
+                const sourceEntries = await readdir(baseSourceDir);
+                const regex = new RegExp('^' + pattern.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$');
+                itemsToCopy = sourceEntries
+                    .filter(entry => regex.test(entry))
+                    .map(entry => path.join(baseSourceDir, entry));
+            } catch (err) {
+                if (err.code === 'ENOENT') {
+                    return sendPlainTextResponse(res, `COPY Error: Source directory for wildcard not found: ${path.dirname(copySourceHeader)}`, 404);
+                }
+                throw err;
+            }
+        } else {
+            // No wildcard, check if the specific source exists
+            try {
+                await stat(sourceFullPath);
+                itemsToCopy.push(sourceFullPath);
+            } catch (err) {
+                if (err.code === 'ENOENT') {
+                    return sendPlainTextResponse(res, `COPY Error: Source not found: ${copySourceHeader}`, 404);
+                }
+                throw err;
+            }
+        }
+
+        if (itemsToCopy.length === 0) {
+            return sendPlainTextResponse(res, `COPY Warning: No files or directories matched the source: ${copySourceHeader}`, 200);
+        }
+
+        const results = [];
+        for (const itemToCopy of itemsToCopy) {
+            const itemName = path.basename(itemToCopy);
+            const finalDestinationPath = path.join(destinationFullPath, itemName); // Destination is guaranteed to be a directory at this point
+
+            try {
+                const itemStats = await stat(itemToCopy);
+                if (itemStats.isDirectory()) {
+                    await copyDirectoryRecursive(itemToCopy, finalDestinationPath);
+                    results.push(`Copied directory: ${path.relative(FILES_ROOT, itemToCopy)} to ${path.relative(FILES_ROOT, finalDestinationPath)}`);
+                } else {
+                    // For files, ensure the parent directory of the finalDestinationPath exists
+                    const parentDirOfFile = path.dirname(finalDestinationPath);
+                    await mkdir(parentDirOfFile, { recursive: true }); // Ensure parent directory exists for the file
+                    await copyFile(itemToCopy, finalDestinationPath);
+                    results.push(`Copied file: ${path.relative(FILES_ROOT, itemToCopy)} to ${path.relative(FILES_ROOT, finalDestinationPath)}`);
+                }
+            } catch (copyError) {
+                console.error(`Error copying ${itemToCopy}: ${copyError.message}`);
+                results.push(`Failed to copy ${path.relative(FILES_ROOT, itemToCopy)}: ${copyError.message}`);
+            }
+        }
+        sendPlainTextResponse(res, `COPY Operation complete:\n${results.join('\n')}`, 200);
+
+    } catch (error) {
+        console.error(`COPY Internal Server Error: ${error.message}`);
+        sendPlainTextResponse(res, `COPY Internal Server Error: ${error.message}`, 500);
+    }
+}
+
+
+/**
  * Moves file/files directory/directories into files/trash directory.
  * If the DEL is in files/trash then permanently remove the files and directories.
  * DEL has wildcards like LS for filtering.
@@ -630,7 +761,7 @@ function webHandler(req, res) {
     const requestedUrl = new URL(req.url, `http://${req.headers.host}`); // Use http as base for URL parsing
     const pathname = requestedUrl.pathname;
 
-    // --- Check for custom headers for LS, READFILE, SAVEFILE, MKPATH, MV, DEL ---
+    // --- Check for custom headers for LS, READFILE, SAVEFILE, MKPATH, MV, DEL, COPY ---
     const lsPath = req.headers['x-ls-path'];
     const readFileHeader = req.headers['x-read-file'];
     const saveFileHeader = req.headers['x-save-file'];
@@ -638,6 +769,9 @@ function webHandler(req, res) {
     const mvSourceHeader = req.headers['x-mv-source'];
     const mvDestinationHeader = req.headers['x-mv-destination'];
     const delPathHeader = req.headers['x-del-path'];
+    const copySourceHeader = req.headers['x-copy-source']; // New COPY header
+    const copyDestinationHeader = req.headers['x-copy-destination']; // New COPY header
+
 
     if (lsPath) {
         handleLs(res, lsPath);
@@ -676,6 +810,19 @@ function webHandler(req, res) {
         return;
     } else if (mvSourceHeader || mvDestinationHeader) { // One is present, but not both
         sendPlainTextResponse(res, 'Both X-MV-Source and X-MV-Destination headers are required for MV operation.', 400);
+        return;
+    }
+
+    // New COPY handling
+    if (copySourceHeader && copyDestinationHeader) {
+        if (req.method === 'POST' || req.method === 'PUT') { // COPY can be seen as creating/modifying resources
+            handleCopy(res, copySourceHeader, copyDestinationHeader);
+        } else {
+            sendPlainTextResponse(res, 'COPY requires POST or PUT method.', 405);
+        }
+        return;
+    } else if (copySourceHeader || copyDestinationHeader) { // One is present, but not both
+        sendPlainTextResponse(res, 'Both X-COPY-Source and X-COPY-Destination headers are required for COPY operation.', 400);
         return;
     }
 
@@ -725,8 +872,6 @@ try {
     console.error('Error starting HTTPS server: Ensure key.pem and cert.pem exist in the server directory and are valid.', error.message);
     console.log('HTTPS server will not start.');
 }
-
-
 
 
 
