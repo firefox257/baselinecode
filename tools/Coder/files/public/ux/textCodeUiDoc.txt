@@ -1,0 +1,508 @@
+# Code Editor Module Documentation - `./ux/textCode.js`
+
+This document provides a comprehensive overview of the UI elements, styles, and core functionalities of the `textCode.js` module, which implements a rich text code editor.
+
+---
+
+## 1. Constants and Module-Level Variables
+
+These are global settings and state flags used across the module.
+
+-   **`TAB_SPACES` (Number)**:
+    -   **Value:** `4`
+    -   **Description:** Defines the number of spaces a tab character (`\t`) visually represents in the editor. This is crucial for consistent indentation and caret positioning.
+-   **`LINE_HEIGHT_EM` (Number)**:
+    -   **Value:** `1.5`
+    -   **Description:** Sets a consistent `line-height` for all text elements within the editor (line numbers and content). This ensures perfect vertical alignment between line numbers and corresponding code lines.
+-   **`HISTORY_DEBOUNCE_TIME` (Number)**:
+    -   **Value:** `300` (milliseconds)
+    -   **Description:** The delay in milliseconds before an editor state change is pushed to the history stack for undo/redo functionality. This debouncing prevents excessive history entries for rapid typing.
+-   **`lastTypedChar` (String)**:
+    -   **Initial Value:** `''` (empty string)
+    -   **Description:** A module-level variable that tracks the last character typed by the user. Used for implementing smart indentation logic (e.g., de-indenting closing brackets on new lines).
+-   **`stylesInjected` (Boolean)**:
+    -   **Initial Value:** `false`
+    -   **Description:** A flag to ensure that the CSS styles required by the editor are injected into the document's `<head>` only once, preventing redundant style additions.
+
+---
+
+## 2. Dynamic Style Injection (`injectStyles` function)
+
+The `injectStyles` function is responsible for programmatically adding all the necessary CSS rules for the code editor to the document's `<head>`. It uses a `style` element with the ID `code-editor-styles` to prevent re-injection.
+
+### CSS Classes and Their Descriptions:
+
+#### `code-editor-container-wrapper`
+
+-   **Description:** The main, outermost container for the entire code editor component. It acts as the root element for the editor's DOM structure.
+-   **Styles:**
+    -   `position: relative;`: Essential for correctly positioning absolutely positioned children (like the beautify button and Go to Line dialog).
+    -   `display: flex;`: Uses Flexbox for layout, allowing its children (menu, editor wrapper, footer) to stack vertically.
+    -   `flex-direction: column;`: Arranges child items in a column (top to bottom).
+    -   `width: 100%;`: Takes full available width of its parent.
+    -   `height: 100%;`: Takes full available height of its parent.
+    -   `overflow: hidden;`: Prevents content from spilling outside the wrapper's boundaries.
+    -   `border: 1px solid #ccc;`: A subtle border around the entire editor for visual separation.
+
+#### `code-editor-menu-bar`
+
+-   **Description:** The top menu bar containing action buttons (Undo, Redo, Save, Close, etc.). It's structured as an HTML `<table>` for precise alignment and border control of its cells.
+-   **Styles:**
+    -   `width: 100%;`: Ensures the table spans the full width of the editor.
+    -   `border-collapse: collapse;`: Collapses adjacent cell borders into a single border, providing a cleaner look.
+    -   `background-color: #f8f8f8;`: A light gray background for the menu bar.
+    -   `border-bottom: 1px solid #eee;`: A subtle line separating the menu bar from the editor content below.
+    -   `flex-shrink: 0;`: Prevents the menu bar from shrinking in a flex container, ensuring it retains its height.
+
+#### `code-editor-title-bar` (NEW)
+
+-   **Description:** A cell within the `code-editor-menu-bar` dedicated to displaying the editor's title, if provided via the `title` attribute of the original `<textcode>` tag.
+-   **Styles:**
+    -   `background-color: #e9e9e9;`: Slightly darker background than the menu bar.
+    -   `font-weight: bold;`: Makes the title text bold.
+    -   `color: #333;`: Dark gray text color.
+    -   `padding: 2px 10px;`: Reduced vertical padding, standard horizontal padding.
+    -   `text-align: center;`: Centers the text horizontally.
+    -   `vertical-align: middle;`: Centers the text vertically within the table cell.
+    -   `border-bottom: 1px solid #ddd;`: Separator below the title bar.
+    -   `box-sizing: border-box;`: Includes padding in the element's total height.
+    -   `height: 24px;`: Fixed height for the title bar row.
+    -   `display: table-cell;`: Ensures it behaves correctly as a table cell for alignment.
+    -   `> div`: Inner `div` uses flexbox to truly center content within the cell.
+        -   `display: flex;`
+        -   `align-items: center;`
+        -   `justify-content: center;`
+        -   `height: 100%;`
+
+#### `code-editor-menu-bar td`
+
+-   **Description:** Styles applied to individual table cells (`<td>`) within the menu bar.
+-   **Styles:**
+    -   `border: 1px solid #ddd;`: A 1px border for each cell, creating visual separation between buttons.
+    -   `text-align: center;`: Centers content horizontally.
+    -   `vertical-align: middle;`: Centers content vertically.
+    -   `padding: 0;`: Removes default `td` padding, allowing buttons to control their own padding.
+
+#### `code-editor-menu-bar button`
+
+-   **Description:** Styles for all buttons located within the menu bar.
+-   **Styles:**
+    -   `background-color: transparent;`: No background color by default.
+    -   `border: none;`: Removes individual button borders, as the `td` handles borders.
+    -   `color: #555;`: Dark gray text/icon color.
+    -   `padding: 0 6px;`: No vertical padding, minimal horizontal padding.
+    -   `margin: 0;`: No margin.
+    -   `cursor: pointer;`: Indicates interactivity.
+    -   `border-radius: 0;`: Sharp corners, consistent with table cell borders.
+    -   `font-size: 1em;`: Standard font size, suitable for icons.
+    -   `display: flex;`: Uses Flexbox for centering icons.
+    -   `align-items: center;`: Vertically aligns icon in the center.
+    -   `justify-content: center;`: Horizontally aligns icon in the center.
+    -   `transition: background-color 0.2s, border-color 0.2s;`: Smooth transition for hover effects.
+    -   `line-height: 1;`: Ensures icons are tightly contained without extra vertical space.
+    -   `height: 24px;`: Explicit height to control button size precisely, matching title bar.
+    -   `box-sizing: border-box;`: Includes padding and border in the element's total size.
+    -   `width: 100%;`: Makes the button fill its parent `td`.
+-   **`code-editor-menu-bar button:hover:not(:disabled)`:**
+    -   `background-color: #e0e0e0;`: Lighter gray background on hover for active buttons.
+    -   `border-color: #ccc;`: Slightly darker border on hover.
+-   **`code-editor-menu-bar button:disabled`:**
+    -   `opacity: 0.5;`: Reduces opacity for disabled buttons.
+    -   `cursor: not-allowed;`: Changes cursor to indicate non-interactivity.
+
+#### `code-editor-menu-bar .find-input` (NEW)
+
+-   **Description:** Styles for the text input field used for "Find" functionality within the menu bar.
+-   **Styles:**
+    -   `flex-grow: 1;`: Allows the input field to expand and take available space.
+    -   `width: 100%;`: Makes the input fill its parent `td`.
+    -   `padding: 4px 8px;`: Padding inside the input field.
+    -   `border: none;`: Removes default input border.
+    -   `border-radius: 0;`: Sharp corners.
+    -   `font-size: 0.9em;`: Slightly smaller font than other elements.
+    -   `margin: 0;`: No margin.
+    -   `box-sizing: border-box;`: Includes padding in the element's total size.
+    -   `outline: none;`: Removes the default browser outline on focus.
+    -   `background-color: transparent;`: Blends with the parent `td`'s background.
+
+#### `code-editor-wrapper`
+
+-   **Description:** The immediate wrapper for the line number column and the content editable area. This is a flex container that lays out these two main parts horizontally.
+-   **Styles:**
+    -   `display: flex;`: Uses Flexbox for horizontal layout.
+    -   `flex-grow: 1;`: Allows this wrapper to take up all remaining vertical space within `code-editor-container-wrapper`.
+    -   `font-family: 'Fira Code', 'Cascadia Code', 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;`: A preferred list of monospaced fonts suitable for code.
+    -   `font-size: 14px;`: Base font size for the editor content.
+    -   `line-height: ${LINE_HEIGHT_EM};`: Uses the `LINE_HEIGHT_EM` constant to ensure consistent line height for text and line number alignment.
+    -   `overflow: hidden;`: Prevents scrollbars on the wrapper itself; child elements will handle scrolling.
+
+#### `code-editor-line-numbers`
+
+-   **Description:** The column displaying line numbers alongside the code content.
+-   **Styles:**
+    -   `flex-shrink: 0;`: Prevents this column from shrinking, ensuring it always displays all line numbers.
+    -   `text-align: right;`: Aligns line numbers to the right.
+    -   `padding: 10px;`: Padding around the line numbers.
+    -   `background-color: #f0f0f0;`: A light gray background.
+    -   `color: #888;`: Darker gray text color for numbers.
+    -   `user-select: none;`: Prevents users from selecting the line numbers.
+    -   `overflow-y: hidden;`: Vertical scrolling is hidden; it's synced with the content area's scroll.
+    -   `box-sizing: border-box;`: Includes padding in the element's total size.
+    -   `> div`: Styles for individual line number `div` elements within the column.
+        -   `height: ${LINE_HEIGHT_EM}em;`: Matches the editor's line height for perfect alignment.
+        -   `line-height: ${LINE_HEIGHT_EM}em;`: Ensures text within the div also matches.
+
+#### `code-editor-content`
+
+-   **Description:** The main content editable `div` where the user types and views code.
+-   **Styles:**
+    -   `flex-grow: 1;`: Allows this element to take up all remaining horizontal space within `code-editor-wrapper`.
+    -   `padding: 10px;`: Padding around the code content.
+    -   `outline: none;`: Removes the default blue/orange focus outline browsers typically add.
+    -   `overflow: auto;`: Enables both horizontal and vertical scrollbars if content exceeds the visible area.
+    -   `background-color: #ffffff;`: White background for the coding area.
+    -   `color: #000000;`: Black font color for code.
+    -   `tab-size: ${TAB_SPACES};`: **Crucial CSS property** that defines the visual width of a tab character.
+    -   `-moz-tab-size: ${TAB_SPACES};`: Firefox-specific equivalent of `tab-size`.
+    -   `white-space: pre;`: Preserves whitespace (spaces, tabs, newlines) and prevents text from wrapping automatically. This is essential for code display.
+    -   `word-break: normal;`: Prevents breaking words, ensuring long lines are handled by horizontal scrolling.
+    -   `box-sizing: border-box;`: Includes padding in the element's total size.
+
+#### `code-editor-beautify-button-container`
+
+-   **Description:** A container for the "Beautify Code" button, positioned absolutely over the editor content.
+-   **Styles:**
+    -   `position: absolute;`: Positions the container relative to its closest positioned ancestor (`code-editor-container-wrapper`).
+    -   `bottom: 0px;`: Aligns the bottom edge with the bottom of the container.
+    -   `right: 0px;`: Aligns the right edge with the right of the container.
+    -   `z-index: 10;`: Ensures the button appears above the editor content.
+
+#### `code-editor-beautify-button-container button`
+
+-   **Description:** Styles for the "Beautify Code" button itself.
+-   **Styles:**
+    -   `background-color: #007bff;`: A standard blue color.
+    -   `color: white;`: White text/icon color.
+    -   `border: none;`: No border.
+    -   `padding: 5px 10px;`: Padding around the button content.
+    -   `cursor: pointer;`: Indicates interactivity.
+    -   `border-radius: 3px;`: Slightly rounded corners.
+    -   `box-shadow: 0 2px 5px rgba(0,0,0,0.2);`: A subtle shadow for depth (optional).
+    -   `font-size: 1.2em;`: Makes the sparkle symbol slightly larger.
+    -   `display: flex; align-items: center; justify-content: center;`: Uses Flexbox to perfectly center the icon.
+-   **`code-editor-beautify-button-container button:hover`:**
+    -   `background-color: #0056b3;`: A darker shade of blue on hover.
+
+#### `code-editor-goto-dialog`
+
+-   **Description:** A modal-like dialog for the "Go to Line" functionality.
+-   **Styles:**
+    -   `position: absolute;`: Positions the dialog relative to its closest positioned ancestor (`code-editor-container-wrapper`).
+    -   `top: 50%; left: 50%; transform: translate(-50%, -50%);`: Centers the dialog precisely in the middle of its parent.
+    -   `background-color: #fff;`: White background.
+    -   `border: 1px solid #ccc;`: Gray border.
+    -   `padding: 15px;`: Padding inside the dialog.
+    -   `border-radius: 5px;`: Rounded corners.
+    -   `box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);`: A prominent shadow.
+    -   `z-index: 20;`: Ensures it appears on top of all other editor elements.
+    -   `display: none;`: Hidden by default until activated.
+    -   `flex-direction: column;`: Arranges child elements vertically.
+    -   `gap: 10px;`: Spacing between child elements.
+    -   `min-width: 200px;`: Minimum width for the dialog.
+
+#### `code-editor-goto-dialog input[type="number"]`
+
+-   **Description:** Styles for the number input field within the "Go to Line" dialog.
+-   **Styles:**
+    -   `width: calc(100% - 12px);`: Takes full width minus padding.
+    -   `padding: 6px;`: Padding inside the input.
+    -   `border: 1px solid #ddd;`: Light gray border.
+    -   `border-radius: 3px;`: Slightly rounded corners.
+    -   `font-size: 1em;`: Standard font size.
+    -   `box-sizing: border-box;`: Includes padding and border in the element's total size.
+
+#### `code-editor-goto-dialog-buttons`
+
+-   **Description:** Container for the "Go" and "Cancel" buttons within the Go to Line dialog.
+-   **Styles:**
+    -   `display: flex;`: Uses Flexbox for horizontal layout.
+    -   `justify-content: flex-end;`: Aligns buttons to the right.
+    -   `gap: 5px;`: Small spacing between buttons.
+
+#### `code-editor-goto-dialog-buttons button`
+
+-   **Description:** Styles for the action buttons within the Go to Line dialog.
+-   **Styles:**
+    -   `background-color: #007bff;`: Standard blue for the "Go" button.
+    -   `color: white;`: White text.
+    -   `border: none;`: No border.
+    -   `padding: 6px 12px;`: Padding around the button content.
+    -   `border-radius: 3px;`: Rounded corners.
+    -   `cursor: pointer;`: Indicates interactivity.
+    -   `transition: background-color 0.2s;`: Smooth transition for hover effects.
+-   **`code-editor-goto-dialog-buttons button.cancel`:**
+    -   `background-color: #6c757d;`: Gray background for the "Cancel" button.
+-   **`code-editor-goto-dialog-buttons button:hover`:**
+    -   `background-color: #0056b3;`: Darker blue on hover for the "Go" button.
+-   **`code-editor-goto-dialog-buttons button.cancel:hover`:**
+    -   `background-color: #5a6268;`: Darker gray on hover for the "Cancel" button.
+
+---
+
+## 3. Caret and Scrolling Utility Functions
+
+These functions provide essential control over the caret's position and visibility within the content editable area.
+
+### `getCaretPosition(editableDiv)`
+
+-   **Description:** Determines the current line and visual column (considering `TAB_SPACES`) of the caret within a content editable `div`. It also provides the absolute character index from the beginning of the content.
+-   **Parameters:**
+    -   `editableDiv` (HTMLElement): The contenteditable `div` element.
+-   **Returns:**
+    -   `{ line: number, column: number, charIndex: number }`: An object containing:
+        -   `line`: The 1-indexed line number where the caret is located.
+        -   `column`: The 1-indexed visual column number (accounts for `TAB_SPACES` for tabs).
+        -   `charIndex`: The 0-indexed absolute character position of the caret from the beginning of the `editableDiv`'s text content.
+
+### `setCaretPosition(editableDiv, line, column, charIndex = null)`
+
+-   **Description:** Sets the caret's position within a content editable `div`. It can either use a specified line and visual column or an absolute character index.
+-   **Parameters:**
+    -   `editableDiv` (HTMLElement): The contenteditable `div` element.
+    -   `line` (Number): The target 1-indexed line number. Ignored if `charIndex` is provided.
+    -   `column` (Number): The target 1-indexed visual column number. Ignored if `charIndex` is provided.
+    -   `charIndex` (Number|null, optional): The 0-indexed absolute character index. If provided, `line` and `column` are ignored. Defaults to `null`.
+-   **Behavior:**
+    -   Calculates the precise character offset based on the provided `line` and `column` (accounting for tabs) or uses `charIndex` directly.
+    -   Iterates through text nodes to find the correct insertion point.
+    -   Handles edge cases like empty `div` or out-of-bounds target positions.
+    -   Removes any existing selections and sets a new collapsed range at the target position.
+
+### `scrollCaretIntoView(editableDiv)`
+
+-   **Description:** Ensures that the current caret position is visible within the scrollable content area of the editor. It adjusts the `scrollTop` and `scrollLeft` of the `editableDiv` as needed.
+-   **Parameters:**
+    -   `editableDiv` (HTMLElement): The contenteditable `div` element.
+-   **Behavior:**
+    -   Attempts to get the `getBoundingClientRect()` of the current caret's range.
+    -   Includes a fallback for scenarios where `getBoundingClientRect()` on a collapsed range might fail (e.g., in an empty element).
+    -   Compares the caret's bounding rectangle with the editor's visible area.
+    -   Adjusts `scrollTop` if the caret is vertically out of view (above or below).
+    -   Adjusts `scrollLeft` if the caret is horizontally out of view (left or right).
+
+---
+
+## 4. Core Editor Setup Function (`setupCodeEditorInstance`)
+
+This is the central function responsible for creating, initializing, and managing a single instance of the code editor. It handles DOM construction, event handling, history management, and property emulation.
+
+### `setupCodeEditorInstance(initialContent, originalElement = null)`
+
+-   **Description:** Initializes a new code editor instance. It creates all necessary DOM elements, sets up event listeners, and emulates standard HTML element properties and events for ease of integration.
+-   **Parameters:**
+    -   `initialContent` (String): The initial text content to be displayed in the editor.
+    -   `originalElement` (HTMLElement|null, optional): The original `<textcode>` HTML element that this editor instance is replacing. If provided, its attributes (`id`, `class`, `title`, `oninput`, `onchange`, `onsave`, `onclose`) are copied and emulated. Defaults to `null` for programmatic creation.
+-   **Returns:**
+    -   `HTMLElement`: The outermost `div.code-editor-container-wrapper` element representing the fully constructed code editor.
+
+### Internal Components and Logic:
+
+#### History Management (Per Instance)
+
+Each editor instance maintains its own history stack:
+
+-   `history` (Array): Stores previous editor states (content and caret position) for Undo.
+-   `historyPointer` (Number): Index of the current state in the `history` array.
+-   `redoStack` (Array): Stores undone states for Redo.
+-   `historyTimeout` (Number|null): Timer ID for debouncing history pushes.
+
+#### DOM Element Creation
+
+The function dynamically creates the following key DOM elements, assigning appropriate classes and attributes:
+
+-   `editorContainerWrapper` (`div.code-editor-container-wrapper`): The main container.
+    -   Copies `id`, `className`, and `title` from `originalElement`.
+-   `menuBar` (`table.code-editor-menu-bar`): The top menu for controls.
+    -   `titleBarRow` (`tr`): Contains the editor title.
+        -   `titleCell` (`td.code-editor-title-bar`): Displays the title if `originalTitle` is present. `colSpan=9`.
+    -   `menuBarRow` (`tr`): Contains all menu buttons.
+        -   `undoButton` (`button`): Undo functionality.
+        -   `redoButton` (`button`): Redo functionality.
+        -   `selectAllButton` (`button`): Selects all text.
+        -   `goToLineButton` (`button`): Opens the "Go to Line" dialog.
+        -   `findInput` (`input.find-input`): Text input for searching.
+        -   `nextFindButton` (`button`): Finds the next occurrence.
+        -   `prevFindButton` (`button`): Finds the previous occurrence.
+        -   `saveButton` (`button`): Triggers the `onsave` event. Hidden if no `onsave` handler.
+        -   `closeButton` (`button`): Triggers the `onclose` event. Hidden if no `onclose` handler.
+-   `wrapper` (`div.code-editor-wrapper`): Wraps line numbers and content for flex layout.
+-   `beautifyButtonContainer` (`div.code-editor-beautify-button-container`): Contains the beautify button.
+    -   `beautifyButton` (`button`): Triggers code formatting.
+-   `lineNumbersDiv` (`div.code-editor-line-numbers`): Displays line numbers.
+-   `contentDiv` (`div.code-editor-content`): The `contenteditable` area for code.
+    -   `contenteditable="true"`, `spellcheck="false"`, `autocorrect="off"`, `autocapitalize="off"`.
+-   `goToLineDialog` (`div.code-editor-goto-dialog`): Popup for "Go to Line" functionality.
+    -   `goToLineInput` (`input[type="number"]`): Input for the line number.
+    -   `goToLineOkButton` (`button.goto-ok`): Confirms line jump.
+    -   `goToLineCancelButton` (`button.cancel`): Cancels dialog.
+
+#### Emulating HTML Properties and Events (`value`, `oninput`, `onchange`, `onsave`, `onclose`)
+
+The `editorContainerWrapper` is extended to behave like a standard form element, allowing easy interaction from parent scripts.
+
+-   **`value` (Property)**:
+    -   **Getter:** Returns the current `textContent` of the `contentDiv`.
+    -   **Setter:** Sets the `textContent` of `contentDiv` to the new value. It also updates line numbers, attempts to set the caret to the end, scrolls the caret into view, and forces a history push.
+-   **`oninput` (Property/Event)**:
+    -   **Setter:** Allows programmatic assignment of a function (`editor.oninput = myHandler`). This function is called when the content of the editor changes.
+    -   **Triggering:** The internal `input` event listener dispatches a custom `input` event on the `editorContainerWrapper` and calls both the programmatic `_onInputHandler` and any original `oninput` attribute function (if from `<textcode>`).
+-   **`onchange` (Property/Event)**:
+    -   **Setter:** Allows programmatic assignment of a function (`editor.onchange = myHandler`). This function is called when the editor loses focus (`blur` event).
+    -   **Triggering:** The internal `blur` event listener dispatches a custom `change` event on the `editorContainerWrapper` and calls both the programmatic `_onChangeHandler` and any original `onchange` attribute function.
+-   **`onsave` (Property/Event) (NEW)**:
+    -   **Setter:** Allows programmatic assignment of a function (`editor.onsave = myHandler`). This function is called when the "Save" button is clicked. Also controls the save button's visibility.
+    -   **Triggering:** The internal click listener for `saveButton` dispatches a custom `save` event on the `editorContainerWrapper` and calls both the programmatic `_onSaveHandler` and any original `onsave` attribute function.
+-   **`onclose` (Property/Event) (NEW)**:
+    -   **Setter:** Allows programmatic assignment of a function (`editor.onclose = myHandler`). This function is called when the "Close" button is clicked. Also controls the close button's visibility.
+    -   **Triggering:** The internal click listener for `closeButton` dispatches a custom `close` event on the `editorContainerWrapper` and calls both the programmatic `_onCloseHandler` and any original `onclose` attribute function.
+
+#### Helper Functions (Internal to `setupCodeEditorInstance` scope)
+
+-   **`updateLineNumbers()`**:
+    -   Calculates the number of lines in `contentDiv.textContent`.
+    -   Dynamically generates `div` elements for each line number and updates `lineNumbersDiv.innerHTML`.
+    -   Ensures each line number `div` has height matching `LINE_HEIGHT_EM` for alignment.
+-   **`updateUndoRedoButtons()`**:
+    -   Enables/disables `undoButton` based on `historyPointer` (disabled if at the beginning of history).
+    -   Enables/disables `redoButton` based on `redoStack` length (disabled if `redoStack` is empty).
+-   **`pushToHistory(force = false)`**:
+    -   Captures the current `contentDiv.textContent` and caret position.
+    -   **Debounced:** By default, uses `HISTORY_DEBOUNCE_TIME` to prevent rapid history pushes for every keystroke.
+    -   **`force` parameter:** If `true`, pushes immediately (e.g., on `blur` or programmatic `value` set).
+    -   Clears `redoStack` whenever a new change is pushed (standard undo/redo behavior).
+    -   Truncates `history` to `historyPointer + 1` before pushing, ensuring new changes overwrite future undone states.
+-   **`applyHistoryState(state)`**:
+    -   Applies a given history state (`content` and `caret`) to the editor.
+    -   Updates `contentDiv.textContent`, `lineNumbersDiv`, and calls `setCaretPosition` and `scrollCaretIntoView`.
+    -   Updates undo/redo button states.
+-   **`undo()`**:
+    -   If `historyPointer` is greater than 0, pushes the current state to `redoStack`, decrements `historyPointer`, and applies the previous history state.
+-   **`redo()`**:
+    -   If `redoStack` has states, pops the top state, pushes the current state to `history`, increments `historyPointer`, and applies the popped state.
+-   **`selectAll()`**:
+    -   Uses `window.getSelection()` and `document.createRange()` to select all text within `contentDiv`.
+-   **`showGoToLineDialog()`**:
+    -   Displays the `goToLineDialog` (sets `display: flex`).
+    -   Pre-fills `goToLineInput` with the current caret line number.
+    -   Focuses and selects the text in `goToLineInput`.
+-   **`hideGoToLineDialog()`**:
+    -   Hides the `goToLineDialog` (sets `display: none`).
+-   **`goToLine()`**:
+    -   Parses the line number from `goToLineInput`.
+    -   If valid and within bounds, calls `setCaretPosition` to move the caret to the beginning of the target line.
+    -   Calls `scrollCaretIntoView` and re-focuses `contentDiv`.
+-   **`updateFindNavButtons()`**:
+    -   Enables/disables `nextFindButton` and `prevFindButton` based on whether `findInput.value` has content.
+-   **`findNext()`**:
+    -   Searches for the `findInput.value` in `contentDiv.textContent` starting from the current caret position.
+    -   Wraps around to the beginning of the content if no match is found from the current position.
+    -   Sets caret to the start of the found occurrence and scrolls it into view.
+    -   Handles skipping the current match if the cursor is exactly at its beginning.
+-   **`findPrevious()`**:
+    -   Searches backward for the `findInput.value` in `contentDiv.textContent` from the current caret position.
+    -   Wraps around to the end of the content if no match is found.
+    -   Sets caret to the start of the found occurrence and scrolls it into view.
+    -   Handles searching from *before* the current match if the cursor is exactly at its beginning.
+-   **`executeAttributeHandler(handlerCode, scope, ...args)`**:
+    -   A utility to safely execute a JavaScript string (like an `oninput` or `onsave` attribute value) as a function.
+    -   Uses `new Function()` for better scope isolation than `eval()`.
+
+#### Event Listeners
+
+Numerous event listeners are set up for various interactions:
+
+-   **Initial Setup**:
+    -   `pushToHistory(true)`: Saves the initial content state.
+    -   `updateUndoRedoButtons()`: Sets initial state of undo/redo buttons.
+    -   `updateFindNavButtons()`: Sets initial state of find buttons.
+    -   Visibility of Save/Close buttons is set based on presence of handlers.
+-   **Menu Button Clicks**:
+    -   `undoButton`: Calls `undo()`.
+    -   `redoButton`: Calls `redo()`.
+    -   `selectAllButton`: Calls `selectAll()`.
+    -   `goToLineButton`: Calls `showGoToLineDialog()`.
+    -   `goToLineOkButton`: Calls `goToLine()`.
+    -   `goToLineCancelButton`: Calls `hideGoToLineDialog()`.
+    -   `findInput` (`input` event): Calls `updateFindNavButtons()`.
+    -   `findInput` (`keydown` event, 'Enter'): Calls `findNext()`.
+    -   `nextFindButton`: Calls `findNext()`.
+    -   `prevFindButton`: Calls `findPrevious()`.
+    -   `saveButton`: Dispatches `save` custom event and calls `onsave` handlers.
+    -   `closeButton`: Dispatches `close` custom event and calls `onclose` handlers.
+-   **Go to Line Dialog Input**:
+    -   `goToLineInput` (`keydown` event, 'Enter'): Calls `goToLine()`.
+    -   `goToLineInput` (`keydown` event, 'Escape'): Calls `hideGoToLineDialog()` and re-focuses content.
+-   **`contentDiv` (Main Editor Area)**:
+    -   `scroll`: Syncs `lineNumbersDiv.scrollTop` with `contentDiv.scrollTop`.
+    -   `input`:
+        -   Calls `updateLineNumbers()`.
+        -   Calls `scrollCaretIntoView()`.
+        -   Calls `pushToHistory()` (debounced).
+        -   Updates `lastTypedChar` for smart indentation.
+        -   Dispatches custom `input` event and calls `oninput` handlers.
+    -   `blur`:
+        -   Forces `pushToHistory(true)`.
+        -   Dispatches custom `change` event and calls `onchange` handlers.
+    -   `keydown`: Handles special key presses:
+        -   `Tab`: Prevents default, inserts a `\t` character, updates caret, and pushes to history.
+        -   `Enter`: Prevents default. Implements smart indentation:
+            -   Calculates new line indentation based on previous line's tabs and bracket counts.
+            -   **Smart De-indentation**: If `lastTypedChar` was a closing bracket (`}`, `]`, `)`) and it's the last significant character on the line, the new line (or the line the bracket was typed on) is de-indented.
+            -   Splits the line at the caret, inserts a newline with calculated indentation, and repositions the caret.
+            -   Updates `lineNumbersDiv` and triggers a manual `input` event.
+            -   Forces a history push.
+        -   `{`, `[`, `(`: The code implicitly handles this for indentation logic on next enter.
+        -   `}`, `]`, `)`: Updates `lastTypedChar` for de-indentation logic.
+        -   `Ctrl/Cmd + F`: Prevents default, focuses and selects `findInput`.
+        -   `F3`: Calls `findNext()`.
+        -   `Shift + F3`: Calls `findPrevious()`.
+        -   Other keys: Resets `lastTypedChar`.
+-   **`beautifyButton`**:
+    -   `click`: Reads content, applies simple indentation logic (based on bracket matching), updates content, restores caret (best effort), updates line numbers, triggers input event, and forces history push.
+-   **`ResizeObserver`**:
+    -   Observes `editorContainerWrapper` and `contentDiv`.
+    -   On resize, calls `updateLineNumbers()` and `scrollCaretIntoView()` to maintain visual consistency.
+
+---
+
+## 5. Public API and DOM Observation
+
+### `createTexCode(initialContent = '')`
+
+-   **Description:** The public-facing function to programmatically create a new code editor instance.
+-   **Parameters:**
+    -   `initialContent` (String, optional): The initial text content for the editor. Defaults to an empty string.
+-   **Returns:**
+    -   `HTMLElement`: The root DOM element of the newly created editor (`div.code-editor-container-wrapper`).
+
+### `observeTextcodeElements()`
+
+-   **Description:** This function is called once when the DOM is fully loaded. It scans the initial HTML document for `<textcode>` custom elements and transforms them into interactive code editors. It also sets up a `MutationObserver` to detect and convert `<textcode>` elements that are dynamically added to the DOM later.
+-   **Behavior:**
+    1.  **Initial Scan:** Uses `document.querySelectorAll('textcode')` to find existing elements on `DOMContentLoaded`. For each found element:
+        -   Extracts `textContent` as `initialContent`.
+        -   Extracts `id`, `className`, `title`, and `oninput`/`onchange`/`onsave`/`onclose` attributes.
+        -   Calls `setupCodeEditorInstance` to create the editor DOM.
+        -   Replaces the original `<textcode>` element with the new editor DOM using `parentNode.replaceChild()`.
+    2.  **`MutationObserver`:**
+        -   Listens for `childList` and `subtree` changes on `document.body`.
+        -   When nodes are added:
+            -   Checks if the added node itself is a `<textcode>` element.
+            -   If not, it queries `querySelectorAll('textcode')` within the added subtree to find any nested `<textcode>` elements.
+            -   Processes any found `<textcode>` elements similarly to the initial scan.
+
+### Initialization
+
+-   `document.addEventListener('DOMContentLoaded', () => { observeTextcodeElements(); });`
+    -   Ensures that the `observeTextcodeElements` function is executed only after the entire HTML document has been completely loaded and parsed, allowing all `<textcode>` elements to be present in the DOM before conversion.
+

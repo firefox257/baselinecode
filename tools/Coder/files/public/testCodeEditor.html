@@ -1,15 +1,12 @@
 
 
 
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Code Editor Module</title>
-    <script type="module" src="./ux/textCode.js"></script>
+    <title>Code Editor Module Test Page</title> <script type="module" src="./ux/textCode.js"></script>
     <style>
         /* Basic styles for the demo */
         body {
@@ -29,7 +26,7 @@
             height: 300px; /* Example height */
             display: flex;
             background-color: #fff;
-            box-shadow: 0 2px 5px rgba="0,0,0,0.1)";
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1); /* Corrected syntax */
             border-radius: 5px;
         }
         button {
@@ -69,11 +66,12 @@
         The editors below are created from `&lt;textcode&gt;` tags in the HTML.
         The `textCode.js` module's `MutationObserver` automatically transforms them.
         The `oninput`, `onchange`, `onsave`, and `onclose` attributes defined directly on the `&lt;textcode&gt;` tag
-        will call `window.logEvent` when triggered.
+        will call `window.logEvent` when triggered. **Note the added `title` attribute.**
     </p>
 
     <div class="editor-container">
         <textcode id="editor1"
+                  title="My First Editor (HTML Defined)"
                   oninput="logEvent('Editor 1 Input (Attribute)', this.value.length + ' chars');"
                   onchange="logEvent('Editor 1 Changed (Attribute)', this.value);"
                   onsave="logEvent('Editor 1 Saved (Attribute)', this.value); alert('Editor 1 saved!');"
@@ -87,6 +85,7 @@
     </div>
     <div class="editor-container">
         <textcode id="editor2"
+                  title="Secondary Editor (HTML Defined)"
                   oninput="logEvent('Editor 2 Input (Attribute)', this.value.length + ' chars');"
                   onchange="logEvent('Editor 2 Changed (Attribute)', this.value);">
 // Another code block
@@ -104,6 +103,7 @@ for (let i = 0; i < 5; i++) {
     <p>
         The "Add New Code Editor (via textcode tag)" button adds a `&lt;textcode&gt;` tag
         which is then picked up and transformed by the module's `MutationObserver`.
+        **These also include a `title` attribute.**
     </p>
     <button id="addEditorViaTag">Add New Code Editor (via textcode tag)</button>
     <button id="addEditorViaTagNoSave">Add New Code Editor (via textcode tag - No Save)</button>
@@ -114,6 +114,7 @@ for (let i = 0; i < 5; i++) {
         The "Add New Code Editor (via createTexCode function)" button directly calls
         the `createTexCode` export function. This is the primary way to interact with
         the editor programmatically, allowing `dom.oninput = func` and `dom.onchange = func`.
+        **The title is set programmatically for these editors.**
     </p>
     <button id="addEditorViaFunction">Add New Code Editor (via createTexCode function)</button>
     <div id="dynamicEditorsViaFunction" class="dynamic-editor-section"></div>
@@ -124,7 +125,7 @@ for (let i = 0; i < 5; i++) {
         (one that started as a `&lt;textcode&gt;` tag) and then assign event handlers
         to its `oninput`, `onchange`, `onsave`, and `onclose` properties directly in JavaScript.
         Note that this handler will run in addition to any `oninput`/`onchange`/`onsave`/`onclose`
-        attributes defined in the HTML for the same element.
+        attributes defined in the HTML for the same element. **The `title` property is also demonstrated.**
     </p>
     <button id="assignEventsToEditor2">Assign JS Properties to Editor 2</button>
     <div id="jsPropertyAssignmentStatus"></div>
@@ -158,9 +159,11 @@ for (let i = 0; i < 5; i++) {
                 newEditorContainer.style.marginBottom = '10px';
 
                 const editorId = `dynamicTagEditor${Date.now()}`;
+                const editorTitle = `Dynamic HTML Editor (ID: ${editorId})`; // New title for dynamic tag
                 newEditorContainer.innerHTML = `
                     <textcode id="${editorId}"
                               class="my-dynamic-editor"
+                              title="${editorTitle}"
                               oninput="logEvent('Dynamic Tag Editor Input (Attr - ID: ${editorId})', this.value.length + ' chars');"
                               onchange="logEvent('Dynamic Tag Editor Changed (Attr - ID: ${editorId})', this.value);"
                               onsave="logEvent('Dynamic Tag Editor Saved (Attr - ID: ${editorId})', this.value); alert('Dynamic Editor ${editorId} saved!');"
@@ -188,9 +191,11 @@ function dynamicTagFunc() {
                 newEditorContainer.style.marginBottom = '10px';
 
                 const editorId = `dynamicTagEditorNoSave${Date.now()}`;
+                const editorTitle = `No Save Editor (ID: ${editorId})`; // New title
                 newEditorContainer.innerHTML = `
                     <textcode id="${editorId}"
                               class="my-dynamic-editor-no-save"
+                              title="${editorTitle}"
                               oninput="logEvent('Dynamic Tag Editor (No Save) Input (Attr - ID: ${editorId})', this.value.length + ' chars');"
                               onchange="logEvent('Dynamic Tag Editor (No Save) Changed (Attr - ID: ${editorId})', this.value);"
                               onclose="logEvent('Dynamic Tag Editor (No Save) Closed (Attr - ID: ${editorId})', this.value); alert('Dynamic Editor ${editorId} (No Save) is closing!');">
@@ -215,9 +220,11 @@ function noSaveFunc() {
                 newEditorContainer.style.marginBottom = '10px';
 
                 const editorId = `dynamicTagEditorNoClose${Date.now()}`;
+                const editorTitle = `No Close Editor (ID: ${editorId})`; // New title
                 newEditorContainer.innerHTML = `
                     <textcode id="${editorId}"
                               class="my-dynamic-editor-no-close"
+                              title="${editorTitle}"
                               oninput="logEvent('Dynamic Tag Editor (No Close) Input (Attr - ID: ${editorId})', this.value.length + ' chars');"
                               onchange="logEvent('Dynamic Tag Editor (No Close) Changed (Attr - ID: ${editorId})', this.value);"
                               onsave="logEvent('Dynamic Tag Editor (No Close) Saved (Attr - ID: ${editorId})', this.value); alert('Dynamic Editor ${editorId} (No Close) saved!');">
@@ -243,6 +250,7 @@ function noCloseFunc() {
                 newEditorContainer.style.marginBottom = '10px';
 
                 const editorId = `dynamicFuncEditor${Date.now()}`;
+                const editorTitle = `Programmatic Editor (ID: ${editorId})`; // New title for programmatic editor
                 const initialContent = `
 // New dynamic editor created programmatically with .oninput/.onchange/.onsave/.onclose properties
 function programmaticFunc() {
@@ -261,6 +269,7 @@ function programmaticFunc() {
                 const newEditor = createTexCode(initialContent);
                 newEditor.id = editorId; // Assign an ID for identification
                 newEditor.classList.add('my-programmatic-editor');
+                newEditor.setAttribute('title', editorTitle); // Set the title attribute programmatically
 
                 // === EXPLICIT EXAMPLE: SETTING EVENTS AS PROPERTIES ===
                 newEditor.oninput = (event, value) => {
@@ -347,11 +356,13 @@ function programmaticFunc() {
                     // Return true/false if textCode.js uses the return value to confirm/cancel close
                     // return true;
                 };
+
+                editor2.setAttribute('title', 'Editor 2 (JS Prop - Title Updated)'); // Update title via setAttribute
                 // ===============================================================================
 
-                jsPropertyStatus.textContent = 'oninput, onchange, onsave, and onclose properties assigned to Editor 2!';
+                jsPropertyStatus.textContent = 'oninput, onchange, onsave, onclose, and title properties assigned/updated for Editor 2!';
                 jsPropertyStatus.style.color = 'green';
-                logEvent('Action', 'JS properties assigned to Editor 2.');
+                logEvent('Action', 'JS properties assigned to Editor 2, including title.');
 
                 // Demonstrate setting value programmatically
                 editor2.value = "// Value set programmatically via .value property!\n" + editor2.value;

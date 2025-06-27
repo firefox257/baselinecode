@@ -1,4 +1,22 @@
 
+
+this is the testCodeEditor.html that test the textcode.
+update the testCodeEditor.html add in title. add title to te textcode tag nd by textxode dom.
+
+
+================
+
+This is a module text code editor.
+file location at ./ux/textCode.js
+
+add  title bar on top of the menu.
+center the titlw both virticaly nd horizontly.
+add title as n attibute on the tag nd dom.
+Hide the tile bar if title is undefined, show th title bar when tite is undefined
+mke the title bar as part of the table
+
+==================================
+
 This is testCodeEditor.html. 
 This tests textCode.js module.
 

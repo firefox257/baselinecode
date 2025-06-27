@@ -57,6 +57,28 @@ function injectStyles() {
             flex-shrink: 0; /* Prevent menu from shrinking */
         }
 
+        /* NEW: Title Bar Styles */
+        .code-editor-title-bar {
+            background-color: #e9e9e9; /* Slightly darker background for title */
+            font-weight: bold;
+            color: #333;
+            padding: 2px 10px; /* Reduced vertical padding */
+            text-align: center; /* Center horizontally */
+            vertical-align: middle; /* Center vertically in cell */
+            border-bottom: 1px solid #ddd; /* Separator below title */
+            box-sizing: border-box; /* Include padding in height */
+            height: 24px; /* Reduced fixed height for the title bar row */
+            display: table-cell; /* Ensure it behaves like a table cell for vertical alignment */
+        }
+
+        .code-editor-title-bar > div {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+        }
+
+
         .code-editor-menu-bar td {
             border: 1px solid #ddd; /* 1px border for each cell */
             text-align: center; /* Horizontal align center */
@@ -450,6 +472,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
     // Store original attributes from <textcode> for emulation
     let originalId = null;
     let originalClass = null;
+    let originalTitle = null; // NEW: For title attribute
     let originalOnInputAttribute = null;
     let originalOnChangeAttribute = null;
     let originalOnSaveAttribute = null; // For onsave attribute
@@ -458,6 +481,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
     if (originalElement) {
         originalId = originalElement.id;
         originalClass = originalElement.className;
+        originalTitle = originalElement.getAttribute('title'); // NEW: Get title attribute
         originalOnInputAttribute = originalElement.getAttribute('oninput');
         originalOnChangeAttribute = originalElement.getAttribute('onchange');
         originalOnSaveAttribute = originalElement.getAttribute('onsave');
@@ -470,12 +494,37 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
         if (originalClass) {
             editorContainerWrapper.className += ` ${originalClass}`; // Append existing classes
         }
+        // Set title attribute on the wrapper as well, for consistency
+        if (originalTitle) {
+            editorContainerWrapper.setAttribute('title', originalTitle);
+        }
     }
 
     // Menu Bar - Changed to Table
     const menuBar = document.createElement('table');
     menuBar.className = 'code-editor-menu-bar';
     const menuBarBody = document.createElement('tbody');
+
+    // NEW: Title Bar Row
+    const titleBarRow = document.createElement('tr');
+    const titleCell = document.createElement('td');
+    titleCell.className = 'code-editor-title-bar';
+    titleCell.colSpan = 9; // Span across all 9 columns of the menu row below (adjust if more buttons are added)
+    const titleTextDiv = document.createElement('div');
+    if (originalTitle) {
+        titleTextDiv.textContent = originalTitle;
+    }
+    titleCell.appendChild(titleTextDiv);
+    titleBarRow.appendChild(titleCell);
+
+    // Hide title bar if title is not defined
+    if (!originalTitle) {
+        titleBarRow.style.display = 'none';
+    }
+
+    menuBarBody.appendChild(titleBarRow);
+
+
     const menuBarRow = document.createElement('tr');
 
     const undoButton = document.createElement('button');
@@ -1307,7 +1356,6 @@ function observeTextcodeElements() {
 document.addEventListener('DOMContentLoaded', () => {
     observeTextcodeElements();
 });
-
 
 
 

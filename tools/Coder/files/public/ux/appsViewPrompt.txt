@@ -1,0 +1,82 @@
+
+<!--
+html js create a module for for apps view that can be imported.
+
+It will have a special tag <appsview> in html.
+on load all <appsview> will be replaced with the apps view ux. for any dom added will be detected to see if it is the <appsview> tag and create the apps view.
+the appsview will take up all of the  vertical and horizontal space.
+The apps view will function like the iphone screen when looking at all the running apps. the user will drag from the very top down to show the apps view horizontally scrollable.
+the screen views will be html divs or spans or other html dom children. 
+
+
+the code is in module js. styles are dynamicly created when imported.
+absolute needed styles needs to be creates when importing, this can be done by dynamicly creating a <style> tag and add it to the html.
+there needs to be an outer html element. this needs to also have an export creatAppsView, where this function well return a dom like element to be appeded on html.
+the <appsView> tag  needs to work on start up and also if it is defined innerHTMl. attributes will function like html such as <appsview id class> so it can be used in query selectors in js.
+
+implenting stratiges.
+when the app first loads need to show app 1 on full mode.
+drag from the very top down ward direction, this will go into stack view.
+the apps are aligned from left to right. the appsview will be scrollable. 
+scale the apps view to somthing smaller when displaying in stack mode.
+from full mode to stack mode all the child apps display:none to display:inline-block; or somthing to show the child.
+the selected app will be displayed and normal scaled to fill the screen. 
+full view app has position absolute , when in apps view the position absolute is taken out to allow the apps to be alighned properly.
+use display: none and display: something to show and hide the apps approperatly.
+-->
+
+
+
+=========
+
+<!--
+the app is not functional. 
+when draging down, instead of zoom out lets just snap to the stack view.
+in the stack view scrolling just worry about the scrilling feature. 
+take out all calculations avout off set. 
+instead put a transparent dive on each child to prevent clicking inside thise apps in stack view. do an on click event on the trasperent iverlay to get the index instead.
+in zoom in mode show the app absolute position to 0, 0. 
+when going back to zoom out stack view snap the app back to the 3d transition view.
+this should simplitlfy the logic and calculations.
+take out all devug console stuff for now.
+
+
+
+->
+
+
+
+===========
+/*
+do not remove
+this file is ./ux/appsView.js
+*/
+
+
+<!--
+do not remove
+this file is testAppsView.html
+-->
+
+
+
+
+
+=============
+
+html js create a module for for apps view that can be imported.
+
+It will have a special tag <appsview> in html.
+on load all <appsview> will be replaced with the apps view ux. for any dom added will be detected to see if it is the <appsview> tag and create the apps view.
+the appsview will take up all of the  vertical and horizontal space.
+The apps view will function like the iphone screen when looking at all the running apps. the user will drag from the very top down to show the apps view stack as a scrollable
+
+the othe screens eather left or right will slightly y 3d rotate around a circle.
+make sure to put a div on top of the child views to prevent click or touch events.
+the screen views will be html divs or spans or other html dom children. use 3d styles ro do a slider left to right slider effect to focus the other children.
+when a child view is clicked that view will zoom into full screen.
+the code is in module js. styles are dynamicly created when imported.
+absolute needed styles needs to be creates when importing, this can be done by dynamicly creating a <style> tag and add it to the html.
+there needs to be an outer html element. this needs to also have an export creatAppsView, where this function well return a dom like element to be appeded on html.
+the <appsView> tag  needs to work on start up and also if it is defined innerHTMl. attributes will function like html such as <appsview id class> so it can be used in query selectors in js.
+

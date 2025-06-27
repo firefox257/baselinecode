@@ -1,0 +1,179 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apps View Demo</title>
+    <style>
+        /* IMPORTANT: Ensure html and body take up full viewport */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        /* Styles for the app content itself (shared for all app divs) */
+        .app-content {
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            display: block;
+            justify-content: center;
+            align-items: center;
+            font-size: 2em;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+            background-color: white;
+            color: black;
+        }
+
+        /* Styles for the button table */
+        .button-table-container {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            right: 20px; /* Span across the width */
+            z-index: 9999;
+            /* Optional: Add background for visibility if desired */
+            /* background-color: rgba(255, 255, 255, 0.8); */
+            /* padding: 5px; */
+            /* border-radius: 5px; */
+        }
+
+        .button-table {
+            width: 100%; /* Make table take full width of its container */
+            border-collapse: collapse; /* Remove default table borders */
+        }
+
+        .button-table td {
+            padding: 0 5px; /* Add some horizontal padding to cells */
+            vertical-align: middle;
+        }
+
+        .button-table .left-align {
+            text-align: left;
+        }
+
+        .button-table .right-align {
+            text-align: right;
+        }
+
+        /* Ensure buttons within table cells are displayed correctly */
+        .button-table button {
+            margin: 0 5px; /* Add margin around buttons for spacing */
+            padding: 8px 12px;
+            font-size: 1em;
+        }
+    </style>
+</head>
+<body>
+    <appsview id="myAppsView" class="some-class">
+        <div class="app-content" style="background-color: #e0f7fa;">
+            App 1 - Initial
+            <span onclick="alert('Clicked App 1 initial content!');">
+             click here
+            </span>
+            <br/>
+            <br/>
+            <br/>
+            <span onclick="alert('Clicked App 1 initial content!');">
+             click here
+            </span>
+        </div>
+        <div class="app-content" style="background-color: #ffe0b2;">App 2 - Initial</div>
+        <div class="app-content" style="background-color: #c8e6c9;">App 3 - Initial</div>
+        <div class="app-content" style="background-color: #ffccbc;">App 4 - Initial</div>
+    </appsview>
+
+    <div class="button-table-container">
+        <table class="button-table">
+            <tr>
+                <td class="left-align">
+                    <button id="replaceMyAppsViewContent">Replace AppsView Content</button>
+                    <button id="appendMyApp">Append New App to myAppsView</button>
+                    <button id="removeLastApp">Remove Last App</button>
+                </td>
+                <td class="right-align">
+                    <button id="showMyAppsView">Show myAppsView</button>
+                    <button id="hideMyAppsView">Hide myAppsView</button>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <script type="module" src="./ux/appsView.js"></script>
+    <script type="module">
+        console.log("testAppsView.html loaded and scripts are running.");
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const myAppsView = document.getElementById('myAppsView');
+            const replaceContentButton = document.getElementById('replaceMyAppsViewContent');
+            const appendAppButton = document.getElementById('appendMyApp');
+            const removeLastAppButton = document.getElementById('removeLastApp');
+            const showMyAppsViewButton = document.getElementById('showMyAppsView');
+            const hideMyAppsViewButton = document.getElementById('hideMyAppsView');
+
+            // --- Handler for "Replace AppsView Content" button ---
+            replaceContentButton.addEventListener('click', () => {
+                const confirmReplace = confirm("Are you sure you want to replace the content of #myAppsView? This will reset its apps.");
+                if (confirmReplace) {
+                    myAppsView.innerHTML = `
+                        <div class="app-content" style="background-color: #fce4ec;">New Content App Alpha</div>
+                        <div class="app-content" style="background-color: #ede7f6;">New Content App Beta</div>
+                        <div class="app-content" style="background-color: #fffde7;">New Content App Gamma</div>
+                        <div class="app-content" style="background-color: #c5e1a5;">New Content App Delta</div>
+                    `;
+                    console.log("Replaced innerHTML of #myAppsView.");
+                }
+            });
+
+            // --- Handler for "Append New App to myAppsView" button ---
+            appendAppButton.addEventListener('click', () => {
+                const appendedApp = document.createElement('div');
+                appendedApp.className = 'app-content';
+                appendedApp.style.backgroundColor = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
+                const currentAppContents = Array.from(myAppsView.querySelectorAll('.app-content'));
+                const nextAppNumber = currentAppContents.length + 1;
+                appendedApp.textContent = `Appended App ${nextAppNumber}`;
+                myAppsView.appendChild(appendedApp);
+                console.log(`Appended "Appended App ${nextAppNumber}" to #myAppsView.`);
+            });
+
+            // --- Handler for "Remove Last App" button ---
+            removeLastAppButton.addEventListener('click', () => {
+                const appContents = myAppsView.querySelectorAll('.app-content');
+                if (appContents.length > 0) {
+                    const lastAppContent = appContents[appContents.length - 1];
+                    const appWrapperToRemove = lastAppContent.parentNode;
+                    if (appWrapperToRemove && appWrapperToRemove.classList.contains('appsview-app-wrapper')) {
+                         appWrapperToRemove.remove();
+                         console.log(`Removed app: "${lastAppContent.textContent}"`);
+                    } else {
+                        lastAppContent.remove();
+                        console.log(`Removed direct app content: "${lastAppContent.textContent}"`);
+                    }
+                } else {
+                    alert("No apps to remove!");
+                }
+            });
+
+            // --- Handler to show/hide the original appsview ---
+            showMyAppsViewButton.addEventListener('click', () => {
+                myAppsView.style.display = 'flex';
+                console.log("#myAppsView set to display: block;");
+            });
+
+            hideMyAppsViewButton.addEventListener('click', () => {
+                myAppsView.style.display = 'none';
+                console.log("#myAppsView set to display: none;");
+            });
+
+            alert("HTML loaded. You can now use the buttons to test dynamic content behavior within the single appsView.");
+        });
+    </script>
+</body>
+</html>
+
+

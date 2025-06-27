@@ -1,0 +1,19 @@
+
+
+
+
+html js create a module for for file manager that can be imported.
+
+It will have a special tag <filemanager> in html.
+on load all <filemanager> will be replaced with the file
+manager ux. for any dom added will be detected to see if it is the <filemanager> tag and create the file mnager.
+the file manager will span out in what ever container.
+use mono space font the same referenced tetCodeUiDoc.txt
+the file manager will use the apiCalls referenced in the apiCallsDo.txt.
+
+
+
+
+
+
+
