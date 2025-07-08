@@ -1,20 +1,16 @@
 /*
 for the apiCalls lets add some security.
-at 
+for every directory read #secure.json file.
+This json will say if the files in the directiry is readable, writable, delete, createDir, createFile with the following object description.
 {
-	"public/test/":
-	{
 	"read":true,
 	"write":true,
 	"delete":true,
 	"createDir": true,
 	"createFile":true
-	}
 }
-
-If the #secure.json does not exist then we assume that everything is allowed.
-
-
+cache the results. keep the cache for 10 mins.
+get the info on the file want to cache the modified time.
 
 
 */

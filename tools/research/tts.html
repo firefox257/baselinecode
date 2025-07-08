@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text to Speech</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
+        #status { margin-top: 20px; color: green; }
+        #error { margin-top: 20px; color: red; }
+        audio { margin-top: 20px; display: block; }
+    </style>
+</head>
+<body>
+    <h1>Text-to-Speech Generator</h1>
+
+    <p>
+        <label for="textInput">Enter Text:</label><br>
+        <textarea id="textInput" rows="4" cols="50">Generating audio using the GET method is simple for short texts.</textarea>
+    </p>
+
+    <p>
+        <label for="voiceSelect">Select Voice:</label>
+        <select id="voiceSelect">
+            <option value="echo">echo</option>
+            <option value="alloy">alloy</option>
+            <option value="fable">fable</option>
+            <option value="onyx">onyx</option>
+            <option value="nova">nova</option>
+            <option value="shimmer">shimmer</option>
+        </select>
+    </p>
+
+    <button onclick="generateAudio()">Generate Audio</button>
+
+    <div id="status"></div>
+    <div id="error"></div>
+
+    <audio id="audioPlayer" controls></audio>
+
+    <script>
+        async function generateAudio() {
+            const textInput = document.getElementById('textInput').value;
+            const voiceSelect = document.getElementById('voiceSelect').value;
+            const statusDiv = document.getElementById('status');
+            const errorDiv = document.getElementById('error');
+            const audioPlayer = document.getElementById('audioPlayer');
+
+            statusDiv.textContent = 'Generating audio...';
+            errorDiv.textContent = '';
+            audioPlayer.src = ''; // Clear previous audio
+
+            if (!textInput.trim()) {
+                errorDiv.textContent = 'Please enter some text.';
+                statusDiv.textContent = '';
+                return;
+            }
+
+            const encodedText = encodeURIComponent(textInput);
+            const url = `https://text.pollinations.ai/${encodedText}`;
+            const params = new URLSearchParams({
+                model: "openai-audio",
+                voice: voiceSelect
+            });
+
+            try {
+                const response = await fetch(`${url}?${params.toString()}`);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+                }
+
+                const contentType = response.headers.get('Content-Type');
+
+                if (contentType && contentType.includes('audio/mpeg')) {
+                    const audioBlob = await response.blob();
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    audioPlayer.src = audioUrl;
+                    audioPlayer.play();
+                    statusDiv.textContent = 'Audio generated and playing!';
+
+                    // Optional: Offer download
+                    const a = document.createElement('a');
+                    a.href = audioUrl;
+                    a.download = 'generated_audio.mp3';
+                    a.textContent = 'Download Audio';
+                    statusDiv.appendChild(a);
+
+                } else {
+                    const responseText = await response.text();
+                    errorDiv.textContent = `Error: Expected audio response, but received unexpected content type or data. Content-Type: ${contentType}. Response body preview (first 200 chars): ${responseText.substring(0, 200)}`;
+                    statusDiv.textContent = '';
+                }
+
+            } catch (e) {
+                errorDiv.textContent = `Error making TTS GET request: ${e.message}`;
+                statusDiv.textContent = '';
+                console.error("Fetch error:", e);
+            }
+        }
+    </script>
+</body>
+</html>

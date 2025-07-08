@@ -1,6 +1,6 @@
 
 /*
-
+do not remove!!!!
 This code is for a node js web server.
 file name is webserer.js
 Reerence this code no response required.
@@ -177,7 +177,7 @@ const apiCache = new Map(); // Stores loaded API modules and their last access t
  * @param {string} filePath - The absolute path to the file.
  */
 function handleFileRequest(req, res, filePath) {
-    console.log(filePath)
+    //console.log(filePath)
     fs.stat(filePath, (err, stats) => {
         if (err) {
             if (err.code === 'ENOENT') {

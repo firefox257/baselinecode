@@ -1,17 +1,6 @@
 
 
-
-/*
-
-This is a module text code editor.
-file location at ./ux/textCode.js
-
-reference this code, no response needed.
-
-*/
-
-
-// textCode.js
+// /ux/textCode.js
 
 // --- Constants ---
 const TAB_SPACES = 4;
@@ -21,10 +10,6 @@ const HISTORY_DEBOUNCE_TIME = 300; // Milliseconds to wait before saving history
 // --- Module-level Variables ---
 let lastTypedChar = ''; // Tracks the last typed character for smart indentation
 let stylesInjected = false; // Flag to ensure styles are injected only once
-
-// --- History Management (Per Instance) ---
-// These will be managed within each editor instance to allow multiple editors
-// to have their own undo/redo stacks.
 
 // --- Dynamic Style Injection (Self-executing function for immediate injection) ---
 /**
@@ -53,6 +38,7 @@ function injectStyles() {
             width: 100%; /* Ensure table takes full width */
             border-collapse: collapse; /* For clean borders between cells */
             background-color: #f8f8f8; /* Light background for the menu */
+            table-layout: fixed; /* NEW: Crucial for text-overflow and fixed column widths */
             border-bottom: 1px solid #eee; /* Separator from editor content */
             flex-shrink: 0; /* Prevent menu from shrinking */
         }
@@ -63,19 +49,22 @@ function injectStyles() {
             font-weight: bold;
             color: #333;
             padding: 2px 10px; /* Reduced vertical padding */
-            text-align: center; /* Center horizontally */
+            text-align: right; /* Align content to the right for truncation effect */
             vertical-align: middle; /* Center vertically in cell */
             border-bottom: 1px solid #ddd; /* Separator below title */
             box-sizing: border-box; /* Include padding in height */
             height: 24px; /* Reduced fixed height for the title bar row */
             display: table-cell; /* Ensure it behaves like a table cell for vertical alignment */
+            overflow: hidden; /* Hide overflowing text */
+            white-space: nowrap; /* Prevent text from wrapping */
+            text-overflow: ellipsis; /* Show ellipsis for truncated text */
+            direction: rtl; /* Truncate from the left */
         }
 
-        .code-editor-title-bar > div {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100%;
+        .code-editor-title-bar .title-text {
+            display: inline-block; /* Essential for direction: ltr to work */
+            direction: ltr; /* Ensure text itself reads left-to-right */
+            white-space: nowrap; /* Prevent wrapping within the title text */
         }
 
 
@@ -84,6 +73,7 @@ function injectStyles() {
             text-align: center; /* Horizontal align center */
             vertical-align: middle; /* Vertical align middle */
             padding: 0; /* Remove default padding from td */
+            width: 1%; /* NEW: Make button cells take minimal width when table-layout is fixed */
         }
 
         .code-editor-menu-bar button {
@@ -121,6 +111,7 @@ function injectStyles() {
             width: 100%; /* Make input fill its TD */
             padding: 4px 8px;
             border: none; /* Input inside TD doesn't need its own border */
+            min-width: 50px; /* NEW: Ensure find input has a minimum readable width */
             border-radius: 0; /* No border radius */
             font-size: 0.9em;
             margin: 0; /* No margin */
@@ -256,8 +247,7 @@ function injectStyles() {
     stylesInjected = true;
 }
 
-// --- Caret and Scrolling Utility Functions ---
-
+// --- Caret and Scrolling Utility Functions (No changes needed here) ---
 /**
  * Gets the current line and column (visual, considering tabs) of the caret within an editable div.
  * @param {HTMLElement} editableDiv The contenteditable div.
@@ -510,11 +500,14 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
     const titleCell = document.createElement('td');
     titleCell.className = 'code-editor-title-bar';
     titleCell.colSpan = 9; // Span across all 9 columns of the menu row below (adjust if more buttons are added)
-    const titleTextDiv = document.createElement('div');
+    
+    // Create an inner span for the title text to apply LTR direction
+    const titleTextSpan = document.createElement('span');
+    titleTextSpan.className = 'title-text';
     if (originalTitle) {
-        titleTextDiv.textContent = originalTitle;
+        titleTextSpan.textContent = originalTitle;
     }
-    titleCell.appendChild(titleTextDiv);
+    titleCell.appendChild(titleTextSpan);
     titleBarRow.appendChild(titleCell);
 
     // Hide title bar if title is not defined
@@ -564,6 +557,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
     findInput.type = 'text';
     findInput.className = 'find-input';
     findInput.placeholder = 'Find...';
+    findInput.setAttribute('aria-label', 'Find text'); // Accessibility improvement
     findInput.title = 'Enter text to find (Ctrl+F to focus)';
     const findInputCell = document.createElement('td');
     findInputCell.appendChild(findInput);
@@ -1356,8 +1350,6 @@ function observeTextcodeElements() {
 document.addEventListener('DOMContentLoaded', () => {
     observeTextcodeElements();
 });
-
-
 
 
 

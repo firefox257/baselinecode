@@ -1,0 +1,123 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Manager Test Page</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+            min-height: calc(100vh - 40px); /* Adjust for margin */
+        }
+
+        .file-manager-wrapper {
+            border: 1px solid #ddd;
+            padding: 10px;
+            height: 400px; /* Give it a fixed height for testing */
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            background-color: #f9f9f9;
+        }
+
+        h1, h2 {
+            color: #333;
+        }
+
+        /* Basic styling to show the programmatic file manager */
+        #programmaticFileManagerContainer,
+        #programmaticFileManagerContainerWithClose,
+        #programmaticFileManagerContainerNoTitle { /* Added for the new programmatic no title example */
+            border: 1px dashed #bbb;
+            padding: 10px;
+            margin-top: 20px;
+            height: 400px; /* Give it a fixed height for testing */
+        }
+    </style>
+</head>
+<body>
+
+    <h1>File Manager Test Page</h1>
+
+    <h2>Declarative File Manager (with `onclose` and **short title**)</h2>
+    <div class="file-manager-wrapper">
+        <filemanager id="myDeclarativeFileManagerWithClose"
+                     title="My Project Files"
+                     onopen="alert('File opened (attribute)!\\n' + JSON.stringify(fileInfo, null, 2))"
+                     onclose="alert('Declarative File Manager with onclose attribute closed!')">
+        </filemanager>
+    </div>
+
+    <h2>Declarative File Manager (with **VERY long title** and no `onclose` - close button hidden)</h2>
+    <div class="file-manager-wrapper">
+        <filemanager id="myDeclarativeFileManagerNoClose"
+                     title="This is a Super Duper Extremely Long Title for My File Manager That Should Definitely Overflow and Show an Ellipsis at the End to Indicate More Text [END]"
+                     onopen="alert('File opened (attribute)!\\n' + JSON.stringify(fileInfo, null, 2))">
+        </filemanager>
+    </div>
+
+    <h2>Declarative File Manager (**no title** - title bar hidden)</h2>
+    <div class="file-manager-wrapper">
+        <filemanager id="myDeclarativeFileManagerNoTitle"
+                     onopen="alert('File opened (attribute)!\\n' + JSON.stringify(fileInfo, null, 2))">
+        </filemanager>
+    </div>
+
+    <h2>Programmatic File Manager (with `onclose` property and **short title**)</h2>
+    <div class="file-manager-wrapper" id="programmaticFileManagerContainerWithClose">
+    </div>
+
+    <h2>Programmatic File Manager (with **long title** and no `onclose` property - close button hidden)</h2>
+    <div class="file-manager-wrapper" id="programmaticFileManagerContainer">
+    </div>
+
+    <h2>Programmatic File Manager (**no title** property - title bar hidden)</h2>
+    <div class="file-manager-wrapper" id="programmaticFileManagerContainerNoTitle">
+    </div>
+
+
+    <script type="module">
+        import { createFileManager } from './ux/fileManager.js';
+
+        // Programmatic File Manager with onclose property and short title
+        const fmWithClose = createFileManager();
+        fmWithClose.onclose = function(event) {
+            console.log('Programmatic File Manager closed event:', event);
+            alert('Programmatic File Manager with onclose property closed!');
+            // You could also remove the element from the DOM here if desired
+            // this.remove();
+        };
+        fmWithClose.title = "Application Downloads"; // Set a short title programmatically
+        document.getElementById('programmaticFileManagerContainerWithClose').appendChild(fmWithClose);
+
+        // Programmatic File Manager without onclose property and a long title
+        const fmNoClose = createFileManager();
+        fmNoClose.title = "Important Documents and Archive Files for Annual Review and Compliance Checks [END]"; // Set a long title programmatically
+        document.getElementById('programmaticFileManagerContainer').appendChild(fmNoClose);
+
+        // Programmatic File Manager with no title property (will hide title bar)
+        const fmNoTitle = createFileManager();
+        // Do not set fmNoTitle.title for this one
+        document.getElementById('programmaticFileManagerContainerNoTitle').appendChild(fmNoTitle);
+
+
+        // Optional: Listen for the custom 'close' event for any file manager
+        document.addEventListener('close', (event) => {
+            if (event.target.classList.contains('file-manager-container-wrapper')) {
+                console.log('Custom "close" event caught for File Manager:', event.target.id || 'Unnamed File Manager');
+            }
+        });
+        document.addEventListener('open', (event) => {
+            if (event.target.classList.contains('file-manager-container-wrapper')) {
+                console.log('Custom "open" event caught for File Manager:', event.target.id || 'Unnamed File Manager', event.detail.fileInfo);
+            }
+        });
+    </script>
+</body>
+</html>
+
+

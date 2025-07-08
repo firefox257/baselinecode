@@ -1,0 +1,204 @@
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Streaming AI Story</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            max-width: 800px;
+            margin: auto;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .input-group input[type="text"],
+        .input-group textarea,
+        .input-group input[type="number"] {
+            width: calc(100% - 22px); /* Account for padding and border */
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        .input-group textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+        #sendButton {
+            padding: 10px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+            box-sizing: border-box; /* Ensure padding and border are included in the width */
+        }
+        #sendButton:hover {
+            background-color: #0056b3;
+        }
+        #rawTextOutput {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #e9ecef;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Streaming AI Story Generator</h1>
+        <p>Enter your prompt and click **Send** to get a story from the AI.</p>
+
+        <div class="input-group">
+            <label for="systemInput">System Message:</label>
+            <textarea id="systemInput">You are a helpful assistant that generates creative stories.</textarea>
+        </div>
+
+        <div class="input-group">
+            <label for="temperatureInput">Temperature (0.0 - 1.0):</label>
+            <input type="number" id="temperatureInput" value="0.7" min="0" max="1" step="0.1">
+        </div>
+
+        <div class="input-group">
+            <label for="textInput">User Prompt:</label>
+            <textarea id="textInput" placeholder="Enter your prompt here..."></textarea>
+        </div>
+
+        <button id="sendButton">Send</button>
+
+        <div id="rawTextOutput">
+            Loading...
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const textInput = document.getElementById('textInput');
+            const systemInput = document.getElementById('systemInput');
+            const temperatureInput = document.getElementById('temperatureInput');
+            const sendButton = document.getElementById('sendButton');
+            const rawTextOutputDiv = document.getElementById('rawTextOutput');
+
+            sendButton.addEventListener('click', async () => {
+                const userPrompt = textInput.value.trim();
+                const systemMessage = systemInput.value.trim();
+                const temperature = parseFloat(temperatureInput.value);
+
+                if (!userPrompt) {
+                    rawTextOutputDiv.textContent = 'Please enter a user prompt.';
+                    return;
+                }
+
+                if (isNaN(temperature) || temperature < 0 || temperature > 1) {
+                    rawTextOutputDiv.textContent = 'Please enter a valid temperature between 0.0 and 1.0.';
+                    return;
+                }
+
+                rawTextOutputDiv.textContent = 'Generating response...';
+
+                const url = "https://text.pollinations.ai/openai";
+                const payload = {
+                    "model": "mistral",
+                    "messages": [
+                        {"role": "system", "content": systemMessage},
+                        {"role": "user", "content": userPrompt}
+                    ],
+                    "temperature": temperature,
+                    "stream": true,
+                    "private": false
+                };
+
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'text/event-stream'
+                        },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder('utf-8');
+                    let fullResponse = '';
+
+                    rawTextOutputDiv.textContent = '';
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) {
+                            console.log("Stream finished.");
+                            break;
+                        }
+
+                        const chunk = decoder.decode(value, { stream: true });
+                        const events = chunk.split('\n\n').filter(Boolean);
+
+                        for (const eventString of events) {
+                            if (eventString.startsWith('data:')) {
+                                const data = eventString.substring(5).trim();
+
+                                if (data === '[DONE]') {
+                                    console.log("Stream finished by [DONE] marker.");
+                                    reader.cancel();
+                                    break;
+                                }
+
+                                try {
+                                    const parsedChunk = JSON.parse(data);
+                                    const content = parsedChunk.choices && parsedChunk.choices[0] && parsedChunk.choices[0].delta && parsedChunk.choices[0].delta.content;
+
+                                    if (content) {
+                                        fullResponse += content;
+                                        rawTextOutputDiv.textContent = fullResponse;
+                                        rawTextOutputDiv.scrollTop = rawTextOutputDiv.scrollHeight;
+                                    }
+                                } catch (jsonError) {
+                                    console.warn("Received non-JSON data or marker:", data);
+                                }
+                            }
+                        }
+                    }
+                    console.log("--- End of Stream ---");
+
+                } catch (error) {
+                    console.error("Error:", error);
+                    rawTextOutputDiv.textContent = `Error: ${error.message}`;
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+
