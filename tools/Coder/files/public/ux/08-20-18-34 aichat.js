@@ -1,8 +1,6 @@
 
 
 
-
-
 // ./ux/aichat.js
 
 const API_BASE_URL = "https://text.pollinations.ai";
@@ -33,25 +31,11 @@ class AIChat extends HTMLElement {
         // New properties for conversation mode
         this.conversationEnabled = false;
         this.ttsVoices = [];
-        this.selectedTTSVoiceURI = null; // Stores the URI of the selected voice (SOURCE OF TRUTH)
+        this.selectedTTSVoiceURI = null; // Stores the URI of the selected voice
         this.speechRecognition = null;
         this.isListening = false; // Is SpeechRecognition active?
         this.currentSpeechRecognitionText = ''; // To accumulate STT results
         this.aiIsSpeaking = false; // Is SpeechSynthesis active? (NEW: Crucial for button state)
-
-        // NEW: For streaming TTS
-        this.currentUtterance = null; // To keep track of the current utterance
-        this.ttsQueue = []; // Queue for utterance chunks (FIFO)
-        this.isSpeakingFromQueue = false; // Flag to manage the speaking process of our queue
-        this.speechBuffer = ''; // Buffer for accumulating text from stream for TTS
-
-        // NEW: To hold the ReadableStreamDefaultReader for cancellation
-        this.currentStreamReader = null;
-
-        // NEW: State for permission flow
-        this.microphonePermissionRequested = false; // Has user been prompted for microphone?
-        this.voiceInitialized = false; // NEW: Has TTS voice been initialized and "Ready to listen" spoken?
-
 
         this.render();
     }
@@ -135,6 +119,9 @@ class AIChat extends HTMLElement {
         this.shadowRoot.getElementById('modelSelect').value = this.currentModel;
         console.log(`[AIChat] Model dropdown set to: ${this.currentModel}`);
 
+        // Display initial history in the chat output (which will be just the loading message initially)
+        this.renderHistory();
+
         // --- New: Conversation Mode Initialization ---
         const cachedConversationEnabled = localStorage.getItem(LOCAL_STORAGE_CONVERSATION_ENABLED_KEY);
         this.conversationEnabled = cachedConversationEnabled === 'true';
@@ -145,29 +132,32 @@ class AIChat extends HTMLElement {
         // Load TTS voices and set selected voice
         // This MUST happen after initial render where ttsVoiceSelect is created
         await this.loadTTSVoices(); // Ensure voices are loaded before setting cached selection
-        console.log('[AIChat] loadTTSVoices completed.'); // New log
 
-        // --- NEW/MODIFIED LOGIC FOR selectedTTSVoiceURI ---
+        const ttsVoiceSelect = this.shadowRoot.getElementById('ttsVoiceSelect');
         const cachedTTSVoiceURI = localStorage.getItem(LOCAL_STORAGE_SELECTED_TTS_VOICE_KEY);
         console.log(`[AIChat] Cached TTS Voice URI from localStorage: "${cachedTTSVoiceURI}"`);
 
-        // Attempt to find the cached voice in the loaded voices
-        if (cachedTTSVoiceURI && this.ttsVoices.some(voice => voice.voiceURI === cachedTTSVoiceURI)) {
-            this.selectedTTSVoiceURI = cachedTTSVoiceURI;
-            console.log(`[AIChat] Cached voice "${cachedTTSVoiceURI}" found and will be used.`);
-        } else if (this.ttsVoices.length > 0) {
-            // If no cached voice, or cached voice is no longer available, default to the first available voice
-            this.selectedTTSVoiceURI = this.ttsVoices[0].voiceURI;
-            localStorage.setItem(LOCAL_STORAGE_SELECTED_TTS_VOICE_KEY, this.selectedTTSVoiceURI);
-            console.log(`[AIChat] No valid cached voice, defaulting to first available: "${this.selectedTTSVoiceURI}". Local storage updated.`);
+        if (ttsVoiceSelect) { // Check if element exists before trying to access it
+            // Attempt to find the cached voice in the loaded voices
+            if (cachedTTSVoiceURI && this.ttsVoices.some(voice => voice.voiceURI === cachedTTSVoiceURI)) {
+                this.selectedTTSVoiceURI = cachedTTSVoiceURI;
+                console.log(`[AIChat] Cached voice "${cachedTTSVoiceURI}" found and will be selected.`);
+            } else if (this.ttsVoices.length > 0) {
+                // If no cached voice, or cached voice is no longer available, default to the first available voice
+                this.selectedTTSVoiceURI = this.ttsVoices[0].voiceURI;
+                localStorage.setItem(LOCAL_STORAGE_SELECTED_TTS_VOICE_KEY, this.selectedTTSVoiceURI);
+                console.log(`[AIChat] No valid cached voice, defaulting to first available: "${this.selectedTTSVoiceURI}". Local storage updated.`);
+            } else {
+                // No voices available at all
+                this.selectedTTSVoiceURI = null;
+                console.warn("[AIChat] No TTS voices available on the system.");
+            }
+            // Ensure the dropdown value is set after voices are loaded and selectedTTSVoiceURI is determined
+            ttsVoiceSelect.value = this.selectedTTSVoiceURI || ""; // Set to empty string if no voice selected
+            console.log(`[AIChat] TTS Voice dropdown value set to: "${ttsVoiceSelect.value}"`);
         } else {
-            // No voices available at all
-            this.selectedTTSVoiceURI = null;
-            console.warn("[AIChat] No TTS voices available on the system.");
+            console.error("[AIChat] TTS Voice Select element not found in connectedCallback.");
         }
-        // Update the display label and dropdown (the dropdown is now internal)
-        this.updateTTSVoiceDisplay();
-        console.log(`[AIChat] Final selected TTS Voice URI after init: "${this.selectedTTSVoiceURI}"`); // New log
 
         this.initializeSpeechRecognition(); // Initialize STT
         console.log("[AIChat] AIChat component fully connected and initialized.");
@@ -177,9 +167,16 @@ class AIChat extends HTMLElement {
         if (this.onCloseCallback) {
             this.onCloseCallback();
         }
-        // Stop all ongoing processes when component is removed
-        this.stopAIChatResponse();
-        console.log('[AIChat] Component disconnected, all active processes stopped.');
+        // Stop listening if active when component is removed
+        if (this.isListening && this.speechRecognition) {
+            this.stopListening();
+        }
+        // Cancel any ongoing speech synthesis when component is removed
+        if (window.speechSynthesis) {
+            window.speechSynthesis.cancel();
+            this.aiIsSpeaking = false; // Reset the flag
+            this.updateConversationButtonState(); // Update button state
+        }
     }
 
     static get observedAttributes() {
@@ -311,7 +308,7 @@ class AIChat extends HTMLElement {
 
     // New: Fetch system prompts from a JSON file
     async fetchSystemPrompts() {
-        const fileName = 'systemPrompts.json'; // CORRECTED TYPO: was 'systemPromp.json'
+        const fileName = 'systemPromp.json'; // Note: Typo in filename 'systemPromp.json' -> 'systemPrompts.json'?
         try {
             const response = await fetch(fileName); // Assumes file is in the same directory
             if (!response.ok) {
@@ -374,46 +371,16 @@ class AIChat extends HTMLElement {
         // Re-render the chat area to show it's empty
         this.renderHistory();
         console.log('[AIChat] Conversation history cleared.');
-
-        // Stop any ongoing speech synthesis or recognition if chat is cleared
-        this.stopAIChatResponse();
-    }
-
-    // NEW: Centralized method to stop all ongoing AI response processes
-    stopAIChatResponse() {
-        console.log('[AIChat] Stopping ongoing AI response process (stream, TTS, STT).');
-
-        // 1. Stop the response stream (if active)
-        if (this.currentStreamReader) {
-            try {
-                this.currentStreamReader.cancel();
-                console.log('[AIChat] Response stream cancelled.');
-            } catch (e) {
-                console.error('[AIChat] Error cancelling stream reader:', e);
-            } finally {
-                this.currentStreamReader = null; // Clear the reference
-            }
-        }
-
-        // 2. Clear the TTS FIFO queue and stop active speaking
+        // Cancel any ongoing speech synthesis if chat is cleared during a response
         if (window.speechSynthesis) {
-            window.speechSynthesis.cancel(); // Stop any currently active utterance
-            this.aiIsSpeaking = false; // Reset AI speaking flag
-            this.isSpeakingFromQueue = false; // Reset our queue processing flag
-            this.ttsQueue = []; // Clear the custom queue of pending utterances
-            this.currentUtterance = null; // Clear reference to current utterance
-            this.speechBuffer = ''; // Clear any buffered text for TTS
-            console.log('[AIChat] TTS cancelled and queue cleared.');
+            window.speechSynthesis.cancel();
+            this.aiIsSpeaking = false; // Reset the flag
+            this.updateConversationButtonState(); // Update button state
         }
-
-        // 3. Stop Speech Recognition (if active)
+        // Stop any ongoing speech recognition
         if (this.isListening) {
-            this.stopListening(); // This will handle its own state updates
-            console.log('[AIChat] Speech recognition stopped.');
+            this.stopListening();
         }
-
-        // 4. Update the conversation button state to neutral "TAP TO SPEAK"
-        this.updateConversationButtonState();
     }
 
     setupEventListeners() {
@@ -431,7 +398,6 @@ class AIChat extends HTMLElement {
         const conversationEnabledCheckbox = this.shadowRoot.getElementById('conversationEnabledCheckbox');
         const ttsVoiceSelect = this.shadowRoot.getElementById('ttsVoiceSelect');
         const testTTSButton = this.shadowRoot.getElementById('testTTSButton'); // Get the new button
-        const ttsVoiceSettingsButton = this.shadowRoot.getElementById('ttsVoiceSettingsButton'); // New button to expose dropdown
         const conversationModeButton = this.shadowRoot.getElementById('conversationModeButton');
         const conversationBigButton = this.shadowRoot.getElementById('conversationBigButton');
         const exitConversationButton = this.shadowRoot.getElementById('exitConversationButton');
@@ -542,30 +508,24 @@ class AIChat extends HTMLElement {
                 localStorage.setItem(LOCAL_STORAGE_CONVERSATION_ENABLED_KEY, this.conversationEnabled);
                 this.toggleConversationSettingsVisibility();
                 console.log(`[AIChat] Conversation mode enabled checkbox changed to: ${this.conversationEnabled}`);
-                // If conversation mode is disabled, stop any ongoing speech or listening
-                if (!this.conversationEnabled) {
-                    this.stopAIChatResponse();
-                    console.log('[AIChat] Conversation mode disabled, cancelling active processes.');
+                // If conversation mode is disabled, stop any ongoing speech
+                if (!this.conversationEnabled && window.speechSynthesis) {
+                    window.speechSynthesis.cancel();
+                    this.aiIsSpeaking = false; // Reset the flag
+                    this.updateConversationButtonState(); // Update button state
+                    console.log('[AIChat] Conversation mode disabled, cancelling TTS.');
                 }
-            });
-        }
-
-        // --- NEW: TTS Voice Settings Button Listener ---
-        const ttsVoiceSelectContainer = this.shadowRoot.getElementById('ttsVoiceSelectContainer');
-        if (ttsVoiceSettingsButton) {
-            ttsVoiceSettingsButton.addEventListener('click', () => {
-                // Toggle visibility of the actual dropdown
-                const isHidden = ttsVoiceSelect.style.display === 'none' || ttsVoiceSelect.style.display === '';
-                ttsVoiceSelect.style.display = isHidden ? 'block' : 'none';
-                console.log(`[AIChat] TTS Voice Select dropdown visibility toggled to: ${ttsVoiceSelect.style.display}`);
+                // If conversation mode is disabled, stop listening if active
+                if (!this.conversationEnabled && this.isListening) {
+                    this.stopListening();
+                }
             });
         }
 
         if (ttsVoiceSelect) {
             ttsVoiceSelect.addEventListener('change', (event) => {
-                this.selectedTTSVoiceURI = event.target.value; // Update the property
+                this.selectedTTSVoiceURI = event.target.value;
                 localStorage.setItem(LOCAL_STORAGE_SELECTED_TTS_VOICE_KEY, this.selectedTTSVoiceURI);
-                this.updateTTSVoiceDisplay(); // Update the label
                 console.log(`[AIChat] TTS voice changed, saving to localStorage: ${this.selectedTTSVoiceURI}`);
             });
         } else console.error('ttsVoiceSelect not found!');
@@ -574,8 +534,6 @@ class AIChat extends HTMLElement {
         if (testTTSButton) {
             testTTSButton.addEventListener('click', () => {
                 console.log('[AIChat] Test TTS button clicked.');
-                // Stop any current processes before testing a voice
-                this.stopAIChatResponse();
                 this.speak("This is a test of the selected voice.");
             });
         } else console.error('testTTSButton not found!');
@@ -589,7 +547,7 @@ class AIChat extends HTMLElement {
             });
         }
 
-        // NEW LOGIC FOR CONVERSATION BIG BUTTON - Handles permission and then listening
+        // NEW LOGIC FOR CONVERSATION BIG BUTTON
         if (conversationBigButton) {
             conversationBigButton.addEventListener('click', () => {
                 if (!this.conversationEnabled) {
@@ -597,21 +555,22 @@ class AIChat extends HTMLElement {
                     return;
                 }
 
-                if (!this.microphonePermissionRequested) {
-                    console.log('[AIChat] First click: Requesting microphone permission.');
-                    this.requestMicrophonePermission();
-                } else if (!this.voiceInitialized) { // NEW: Handle initializing voice separately
-                    console.log('[AIChat] Initializing voice and starting listening.');
-                    this.initializeTTSAndStartListening();
-                }
-                else if (this.aiIsSpeaking || this.isListening) {
-                    // If AI is speaking or listening, stop everything
-                    console.log('[AIChat] Big button clicked: Stopping AI speech/listening.');
-                    this.stopAIChatResponse();
+                if (this.aiIsSpeaking) {
+                    // If AI is speaking, pressing the button should stop AI speech
+                    console.log('[AIChat] Big button clicked: Stopping AI speech.');
+                    window.speechSynthesis.cancel();
+                    this.aiIsSpeaking = false; // Ensure flag is reset
+                    this.updateConversationButtonState(); // Update button to TAP TO SPEAK immediately
+                    // After stopping AI, should it automatically start listening for user input?
+                    // No, per new requirement. User has to tap again.
+                } else if (this.isListening) {
+                    // If currently listening, pressing the button stops listening
+                    console.log('[AIChat] Big button clicked: Stopping listening.');
+                    this.stopListening();
                 } else {
-                    // If not speaking and not listening (after permission), start listening
-                    console.log('[AIChat] Big button clicked: Starting continuous listening.');
-                    this.startContinuousListening(); // New method for continuous
+                    // If not listening and AI is not speaking, pressing the button starts listening
+                    console.log('[AIChat] Big button clicked: Starting listening.');
+                    this.startListening();
                 }
             });
         }
@@ -629,13 +588,7 @@ class AIChat extends HTMLElement {
         const bigButton = this.shadowRoot.getElementById('conversationBigButton');
         if (!bigButton) return;
 
-        if (!this.microphonePermissionRequested) {
-            bigButton.textContent = 'ALLOW MICROPHONE';
-            bigButton.classList.remove('listening', 'speaking');
-        } else if (!this.voiceInitialized) { // NEW: State for uninitialized voice
-            bigButton.textContent = 'INITIALIZE VOICE';
-            bigButton.classList.remove('listening', 'speaking');
-        } else if (this.aiIsSpeaking) {
+        if (this.aiIsSpeaking) {
             bigButton.textContent = 'AI SPEAKING...';
             bigButton.classList.add('speaking');
             bigButton.classList.remove('listening');
@@ -648,35 +601,17 @@ class AIChat extends HTMLElement {
             bigButton.classList.remove('listening');
             bigButton.classList.remove('speaking');
         }
-        console.log(`[AIChat] Conversation button state updated to: ${bigButton.textContent}`); // New log
-    }
-
-    // NEW: Update the display label for the selected TTS voice
-    updateTTSVoiceDisplay() {
-        const ttsVoiceDisplayLabel = this.shadowRoot.getElementById('ttsVoiceDisplayLabel');
-        const selectedVoice = this.ttsVoices.find(voice => voice.voiceURI === this.selectedTTSVoiceURI);
-
-        if (ttsVoiceDisplayLabel) {
-            ttsVoiceDisplayLabel.textContent = selectedVoice ? selectedVoice.name : 'No Voice Selected';
-            console.log(`[AIChat] TTS Voice Display Label updated to: "${ttsVoiceDisplayLabel.textContent}"`);
-
-            // Also update the hidden dropdown's value
-            const ttsVoiceSelect = this.shadowRoot.getElementById('ttsVoiceSelect');
-            if (ttsVoiceSelect) {
-                ttsVoiceSelect.value = this.selectedTTSVoiceURI || "";
-            }
-        }
     }
 
 
     // New: Toggle visibility of conversation settings and button
     toggleConversationSettingsVisibility() {
-        const ttsVoiceSettingsGroup = this.shadowRoot.getElementById('ttsVoiceSettingsGroup');
+        const ttsVoiceSelectContainer = this.shadowRoot.getElementById('ttsVoiceSelectContainer');
         const conversationModeButton = this.shadowRoot.getElementById('conversationModeButton');
 
-        if (ttsVoiceSettingsGroup) {
-            // Make sure the entire container is hidden/shown
-            ttsVoiceSettingsGroup.style.display = this.conversationEnabled ? 'flex' : 'none'; // Changed to flex for horizontal layout
+        if (ttsVoiceSelectContainer) {
+            // Make sure the entire container (including the new button) is hidden/shown
+            ttsVoiceSelectContainer.style.display = this.conversationEnabled ? 'flex' : 'none'; // Changed to flex for horizontal layout
         }
         if (conversationModeButton) {
             // The conversationModeButton should only appear if conversationEnabled is true
@@ -722,21 +657,12 @@ class AIChat extends HTMLElement {
                     console.warn("[AIChat] No TTS voices found on the system after loading.");
                 }
                 this.populateTTSVoiceDropdown(); // Populate dropdown immediately
-                // This is where selectedTTSVoiceURI should be set initially IF IT HASN'T BEEN FROM CACHE
-                // This ensures we have a default if localStorage was empty or invalid
-                if (!this.selectedTTSVoiceURI && this.ttsVoices.length > 0) {
-                    this.selectedTTSVoiceURI = this.ttsVoices[0].voiceURI;
-                    localStorage.setItem(LOCAL_STORAGE_SELECTED_TTS_VOICE_KEY, this.selectedTTSVoiceURI);
-                    console.log(`[AIChat] Defaulting selected TTS voice to first available: "${this.selectedTTSVoiceURI}"`);
-                }
-                this.updateTTSVoiceDisplay(); // Ensure display label is updated
-                console.log(`[AIChat] resolve() called from populateAndResolve. Selected TTS Voice URI: "${this.selectedTTSVoiceURI}"`); // New log
                 resolve();
             };
 
             // Check if voices are already loaded
             if (speechSynth.getVoices().length > 0) {
-                console.log("[AIChat] TTS voices already loaded, populating directly.");
+                console.log("[AIChat] TTS voices already loaded.");
                 populateAndResolve();
             } else {
                 // If not, wait for voices to be loaded
@@ -752,7 +678,7 @@ class AIChat extends HTMLElement {
                         console.warn("[AIChat] TTS voices not immediately loaded or onvoiceschanged missed, trying fallback populate.");
                         populateAndResolve();
                     }
-                }, 2000); // Increased delay slightly
+                }, 1500); // Increased delay slightly
             }
         });
     }
@@ -788,123 +714,96 @@ class AIChat extends HTMLElement {
             ttsVoiceSelect.appendChild(option);
         });
 
-        // Set the internal dropdown's value based on selectedTTSVoiceURI
-        // This is important so that when the user opens the dropdown, the correct voice is pre-selected.
+        // MODIFIED LOGIC: Ensure the cached voice is selected AFTER all options are added.
+        // If the cached voice is still available, select it.
         if (this.selectedTTSVoiceURI && ttsVoiceSelect.querySelector(`option[value="${this.selectedTTSVoiceURI}"]`)) {
             ttsVoiceSelect.value = this.selectedTTSVoiceURI;
-            console.log(`[populateTTSVoiceDropdown] Dropdown value explicitly set to current selected URI: "${this.selectedTTSVoiceURI}"`);
+            console.log(`[populateTTSVoiceDropdown] Dropdown value explicitly set to cached URI: "${this.selectedTTSVoiceURI}"`);
         } else {
-             // If selectedTTSVoiceURI is null or no longer valid, default dropdown to first voice if available
+            // If no cached voice or cached voice is no longer available,
+            // default to the first available voice and update localStorage.
             if (this.ttsVoices.length > 0) {
-                this.selectedTTSVoiceURI = this.ttsVoices[0].voiceURI; // Ensure the class property is also updated
-                ttsVoiceSelect.value = this.ttsVoices[0].voiceURI;
-                console.log(`[populateTTSVoiceDropdown] Current selectedTTSVoiceURI not valid or null, defaulting dropdown and class property to first available: "${this.ttsVoices[0].voiceURI}"`);
+                this.selectedTTSVoiceURI = this.ttsVoices[0].voiceURI;
+                ttsVoiceSelect.value = this.selectedTTSVoiceURI;
+                localStorage.setItem(LOCAL_STORAGE_SELECTED_TTS_VOICE_KEY, this.selectedTTSVoiceURI);
+                console.log(`[populateTTSVoiceDropdown] No valid cached voice, defaulting to first available: "${this.selectedTTSVoiceURI}". Local storage updated.`);
             } else {
-                ttsVoiceSelect.value = ""; // No voices at all
+                // No voices available at all
+                this.selectedTTSVoiceURI = null;
+                ttsVoiceSelect.value = "";
+                localStorage.removeItem(LOCAL_STORAGE_SELECTED_TTS_VOICE_KEY);
+                console.warn("[populateTTSVoiceDropdown] No voices available, selectedTTSVoiceURI cleared.");
             }
         }
         ttsVoiceSelect.disabled = false; // Ensure dropdown is enabled if voices are present
         console.log(`[populateTTSVoiceDropdown] Final dropdown selection: "${ttsVoiceSelect.value}"`);
-
-        // Important: Update the display label after dropdown is populated and its value is set
-        this.updateTTSVoiceDisplay();
     }
 
-    /**
-     * Queues text for speech synthesis. If speech is not ongoing, it starts immediately.
-     * Otherwise, it adds the text to a queue.
-     * @param {string} text The text to speak.
-     */
     speak(text) {
         if (!window.speechSynthesis) {
             console.warn("[AIChat] Speech Synthesis API not supported by this browser.");
             return;
         }
-        // Use this.selectedTTSVoiceURI as the source of truth
         if (!this.selectedTTSVoiceURI) {
             console.warn("[AIChat] No TTS voice selected or available, cannot speak.");
             // Even if no voice, still try to trigger AI speaking flag reset
             this.aiIsSpeaking = false;
             this.updateConversationButtonState(); // Update button state to TAP TO SPEAK
+            // REMOVED: Auto-restart listening if no voice selected
             return;
         }
 
+        // If currently speaking, stop it before starting a new one
+        window.speechSynthesis.cancel();
+        this.aiIsSpeaking = true; // NEW: Set flag when AI starts speaking
+        this.updateConversationButtonState(); // NEW: Update button state immediately
+        console.log(`[AIChat] Speaking: "${text.substring(0, 50)}..."`);
+
+        const utterance = new SpeechSynthesisUtterance(text);
         const selectedVoice = this.ttsVoices.find(voice => voice.voiceURI === this.selectedTTSVoiceURI);
-        if (!selectedVoice) {
-            console.warn("[AIChat] Selected TTS voice not found or not loaded, cannot speak.");
-            this.aiIsSpeaking = false;
-            this.updateConversationButtonState();
-            return;
+
+        if (selectedVoice) {
+            utterance.voice = selectedVoice;
+        } else {
+            console.warn("[AIChat] Selected TTS voice not found or not loaded, using default system voice.");
+            // Optionally, try to find a default voice or the first available if selected isn't found
+            utterance.voice = this.ttsVoices.find(voice => voice.default) || this.ttsVoices[0] || null;
+            if (!utterance.voice) {
+                console.error("[AIChat] No default or fallback TTS voice could be found.");
+                this.aiIsSpeaking = false; // Reset flag if speaking failed
+                this.updateConversationButtonState(); // Update button state to TAP TO SPEAK
+                // REMOVED: Auto-restart listening if voice lookup fails
+                return;
+            }
         }
 
-        // Add the text to the queue
-        this.ttsQueue.push(text);
-        console.log(`[AIChat] Text queued for TTS: "${text.substring(0, 50)}..." Current queue size: ${this.ttsQueue.length}`);
-
-        // If not already speaking from our queue, start processing
-        if (!this.isSpeakingFromQueue) {
-            this._processTTSQueue();
-        }
-    }
-
-    /**
-     * Internal method to process the TTS queue.
-     * This method ensures only one utterance from our queue is active at a time.
-     */
-    _processTTSQueue() {
-        if (this.ttsQueue.length === 0) {
-            console.log('[AIChat] TTS queue is empty. AI is no longer speaking.');
-            this.isSpeakingFromQueue = false;
-            this.aiIsSpeaking = false; // Reset flag when all speaking ends
-            this.currentUtterance = null; // Clear current utterance
-            this.updateConversationButtonState(); // Update button state to TAP TO SPEAK
-            return;
-        }
-
-        this.isSpeakingFromQueue = true;
-        const textToSpeak = this.ttsQueue.shift(); // Get the next item from the FIFO queue
-
-        const utterance = new SpeechSynthesisUtterance(textToSpeak);
-        const selectedVoice = this.ttsVoices.find(voice => voice.voiceURI === this.selectedTTSVoiceURI);
-        utterance.voice = selectedVoice;
         utterance.pitch = 1; // 0 to 2, default 1
         utterance.rate = 1;  // 0.1 to 10, default 1
 
+        // NEW: onstart listener for precise button state update
         utterance.onstart = () => {
-            console.log(`[AIChat] TTS speaking started for chunk: "${textToSpeak.substring(0, 50)}..."`);
+            console.log('[AIChat] TTS speaking actually started.');
             this.aiIsSpeaking = true;
-            this.updateConversationButtonState();
+            this.updateConversationButtonState(); // Update button state to "AI SPEAKING..."
         };
 
+        // MODIFIED: Add onend listener to the utterance to handle restart of STT
         utterance.onend = () => {
-            console.log(`[AIChat] TTS speaking ended for chunk: "${textToSpeak.substring(0, 50)}..."`);
-            this.currentUtterance = null; // Clear current utterance
-            this._processTTSQueue(); // Process the next item in the queue
+            console.log('[AIChat] TTS speaking ended. AI is no longer speaking.');
+            this.aiIsSpeaking = false; // Reset flag when speaking ends
+            this.updateConversationButtonState(); // Update button state to TAP TO SPEAK
+            // REMOVED: Auto-restart listening for user input
         };
 
         utterance.onerror = (event) => {
             console.error('[AIChat] TTS error:', event);
-            // On error, the whole queue should be cleared and state reset
-            this.stopAIChatResponse(); // Use the centralized stop
-            console.warn('[AIChat] Clearing TTS queue due to error via stopAIChatResponse().');
+            this.aiIsSpeaking = false; // Reset flag on error
+            this.updateConversationButtonState(); // Update button state to TAP TO SPEAK
+            // REMOVED: Auto-restart listening on error
         };
 
-        this.currentUtterance = utterance; // Keep track of the current utterance
         window.speechSynthesis.speak(utterance);
     }
-
-    // NEW: Play a very short, silent audio file to activate the audio context.
-    // This helps with browser autoplay policies for SpeechSynthesis.
-    playSilentSound() {
-        // You might need to adjust the path to your silent audio file
-        // Ensure 'silent.mp3' or 'silent.wav' exists in your project.
-        // For example, if it's in an 'audio' folder: new Audio('audio/silent.mp3');
-        const audio = new Audio('silent.mp3');
-        audio.volume = 0; // Keep it silent
-        audio.play().catch(e => console.warn("[AIChat] Failed to play silent sound:", e));
-        console.log('[AIChat] Attempting to play silent sound to activate audio context.');
-    }
-
 
     // New: STT Functionality
     initializeSpeechRecognition() {
@@ -915,36 +814,18 @@ class AIChat extends HTMLElement {
         }
 
         this.speechRecognition = new SpeechRecognition();
-        // IMPORTANT: continuous is set to false initially for the permission phase,
-        // and only set to true when we start actual continuous listening.
-        this.speechRecognition.continuous = false;
+        this.speechRecognition.continuous = true; // IMPORTANT: Set to true for continuous listening
         this.speechRecognition.interimResults = false; // Only final results
         this.speechRecognition.lang = 'en-US'; // Set a default language (consider making this configurable)
-
-        // NEW: Flag to differentiate initial permission start from continuous listening start
-        let isInitialPermissionRequest = false;
 
         this.speechRecognition.onstart = () => {
             console.log('[AIChat] Speech recognition started');
             this.isListening = true;
+            this.updateConversationButtonState(); // Update button to 'LISTENING...'
             this.currentSpeechRecognitionText = ''; // Clear previous STT text
-
-            // Determine if this 'onstart' is from the initial permission request
-            if (!this.microphonePermissionRequested) {
-                isInitialPermissionRequest = true;
-                // Microphone permission has been granted
-                this.microphonePermissionRequested = true; // Set this flag
-                this.voiceInitialized = false; // NEW: Mark voice as not yet initialized
-                console.log('[AIChat] Microphone permission granted during initial request.');
-                // Immediately stop the initial recognition session after permission is granted
-                this.speechRecognition.stop(); // This will trigger onend
-            } else {
-                // This is a start for actual continuous listening
-                console.log('[AIChat] Continuous speech recognition started.');
-                this.updateConversationButtonState(); // Update button to 'LISTENING...'
-                const textInputDiv = this.shadowRoot.getElementById('textInput');
-                if (textInputDiv) textInputDiv.textContent = ''; // Clear input field
-            }
+            // Clear the text input div when listening starts
+            const textInputDiv = this.shadowRoot.getElementById('textInput');
+            if (textInputDiv) textInputDiv.textContent = '';
         };
 
         this.speechRecognition.onresult = (event) => {
@@ -955,6 +836,10 @@ class AIChat extends HTMLElement {
                 }
             }
             if (finalTranscript) {
+                // Append or replace, depending on how you want to accumulate.
+                // For continuous, often you only care about the latest final result for the current segment.
+                // Let's replace for simplicity, or concatenate if you expect user to speak multiple sentences.
+                // If the user taps the button, `this.currentSpeechRecognitionText` will be sent.
                 this.currentSpeechRecognitionText = finalTranscript.trim();
                 // Update the text input area with the recognized speech for visual feedback
                 const textInputDiv = this.shadowRoot.getElementById('textInput');
@@ -968,24 +853,16 @@ class AIChat extends HTMLElement {
         this.speechRecognition.onerror = (event) => {
             console.error('[AIChat] Speech recognition error:', event.error);
             this.isListening = false;
-            // If the error happens during the initial permission request
-            if (event.error === 'not-allowed' || event.error === 'permission-denied') {
-                this.microphonePermissionRequested = true; // Still mark as requested, to avoid re-prompting immediately
-                this.voiceInitialized = false; // NEW: Ensure voice is marked as uninitialized
-                // However, permission was denied, so revert button to allow microphone
-                this.updateConversationButtonState(); // Will show "ALLOW MICROPHONE" or "TAP TO SPEAK" based on specific logic
-                if (this.conversationEnabled) {
-                    this.speak("Microphone permission denied. Please enable it in your browser settings.");
-                }
-                console.warn('[AIChat] Microphone permission permanently denied or error during initial request.');
-            } else {
-                // This is an error during actual continuous listening
-                this.updateConversationButtonState(); // Update button to TAP TO SPEAK
+            this.updateConversationButtonState(); // Update button to TAP TO SPEAK
 
+            if (this.conversationEnabled) {
                 let errorMessage = `Speech recognition error: ${event.error}`;
-                if (event.error === 'no-speech') {
+                if (event.error === 'not-allowed') {
+                    errorMessage = "Microphone permission denied. Please enable it in your browser settings.";
+                } else if (event.error === 'no-speech') {
                     errorMessage = "No speech detected. Please try again.";
                 } else if (event.error === 'aborted') {
+                    // This often happens when stop() is called explicitly, not necessarily an error to speak
                     console.log("[AIChat] Speech recognition aborted (e.g., by stop()).");
                     // If aborted, and there's text, we want to send it.
                     if (this.currentSpeechRecognitionText.trim() !== '') {
@@ -993,202 +870,74 @@ class AIChat extends HTMLElement {
                         this.sendMessage(this.currentSpeechRecognitionText.trim());
                         this.currentSpeechRecognitionText = ''; // Clear for next turn
                     } else {
+                        // If aborted and no text, it means user stopped without speaking.
+                        // We still want to allow them to speak again without immediate auto-restart.
                         console.log('[AIChat] Aborted with no speech. Awaiting user input.');
                     }
                     return; // Don't speak for 'aborted'
                 }
-                // Speak the error message (this will queue and speak as usual)
-                this.speak(errorMessage);
+                this.speak(errorMessage); // Speak the error message
             }
         };
 
-        // MODIFIED: onend now handles the state transitions carefully
+        // NEW LOGIC FOR onend with continuous = true
         this.speechRecognition.onend = () => {
-            console.log('[AIChat] Speech recognition ended. isInitialPermissionRequest:', isInitialPermissionRequest); // New log
-            this.isListening = false; // Always set to false when it ends
-
-            // If this was the initial permission request session that just ended
-            if (isInitialPermissionRequest) {
-                isInitialPermissionRequest = false; // Reset flag for next potential permission request
-                console.log('[AIChat] Initial permission session onend: setting state for TTS initialization click.');
-                this.updateConversationButtonState(); // This will now show "INITIALIZE VOICE"
-            } else {
-                // This is an end for actual continuous listening
-                this.updateConversationButtonState(); // Update button to TAP TO SPEAK
-
-                // If text was recognized (meaning user spoke and then hit stop, or recognition stopped naturally with final text)
-                if (this.currentSpeechRecognitionText.trim() !== '') {
-                    console.log(`[AIChat] Sending message from STT: "${this.currentSpeechRecognitionText.trim().substring(0, 50)}..."`);
-                    this.sendMessage(this.currentSpeechRecognitionText.trim());
-                    this.currentSpeechRecognitionText = ''; // Clear for next turn
-                } else {
-                    console.log('[AIChat] Speech recognition ended with no recognized text (or explicitly stopped with no final text).');
-                }
-            }
-        };
-    }
-
-    // NEW: Method to initialize TTS and then potentially start continuous listening
-    initializeTTSAndStartListening() {
-        if (!this.microphonePermissionRequested) {
-            console.warn('[AIChat] Cannot initialize voice: Microphone permission not granted.');
-            this.updateConversationButtonState();
-            return;
-        }
-        if (this.voiceInitialized) {
-            console.warn('[AIChat] Voice already initialized. Skipping.');
-            this.updateConversationButtonState(); // Ensure button is correct
-            return;
-        }
-        if (!this.conversationEnabled) {
-            console.warn('[AIChat] Conversation mode not enabled, skipping voice initialization.');
-            this.updateConversationButtonState(); // Ensure button is correct
-            return;
-        }
-
-        this.voiceInitialized = true; // Mark voice as initialized
-
-        // Play silent sound to wake up audio context
-        this.playSilentSound();
-        console.log('[AIChat] Voice initialized. Speaking "Ready to listen."');
-
-        // Speak "Ready to listen."
-        this.speak("Ready to listen.");
-
-        // Wait for TTS to finish, then start continuous listening
-        // We'll leverage the onend of the last queued utterance
-        // This is a bit tricky, as 'speak' queues. We need to know when the specific "Ready to listen" ends.
-        // A simpler approach for this specific scenario:
-        // After 'Ready to listen' is spoken, we can then initiate the continuous listening.
-        // The `onend` for the `SpeechSynthesisUtterance` for "Ready to listen." is the key.
-        const originalOnEnd = this.currentUtterance ? this.currentUtterance.onend : null;
-
-        // Find the specific utterance for "Ready to listen" in the queue
-        // This assumes 'Ready to listen' is the first/only thing in the queue when this is called.
-        // If 'speak' is always called immediately before this, it should be the `currentUtterance`.
-        // However, a more robust way is to add a callback to the `speak` function if we needed to guarantee it.
-        // The `_processTTSQueue` actually sets `currentUtterance`.
-        // So, we need to check when the `_processTTSQueue` finishes this specific phrase.
-
-        // A better approach: call startContinuousListening after the *first* utterance in the queue (which is "Ready to listen.") finishes.
-        const originalProcessQueue = this._processTTSQueue.bind(this);
-        this._processTTSQueue = () => {
-            // First call to process queue will pick up "Ready to listen."
-            if (this.ttsQueue.length > 0 && this.ttsQueue[0] === "Ready to listen.") { // Check if it's the specific phrase
-                const utterance = new SpeechSynthesisUtterance(this.ttsQueue[0]); // Peek at the next utterance
-                utterance.onend = () => {
-                    console.log('[AIChat] "Ready to listen." TTS finished. Starting continuous listening.');
-                    this.startContinuousListening(); // Start continuous listening after this specific phrase
-                    // Restore original _processTTSQueue after this special behavior
-                    this._processTTSQueue = originalProcessQueue;
-                    originalProcessQueue(); // Continue processing the rest of the queue (if any, though should be empty)
-                };
-                utterance.voice = this.ttsVoices.find(v => v.voiceURI === this.selectedTTSVoiceURI);
-                utterance.pitch = 1; utterance.rate = 1;
-                utterance.onstart = () => {
-                    console.log(`[AIChat] TTS speaking started for chunk: "${this.ttsQueue[0].substring(0, 50)}..."`);
-                    this.aiIsSpeaking = true;
-                    this.updateConversationButtonState();
-                };
-                utterance.onerror = (event) => {
-                    console.error('[AIChat] TTS error during "Ready to listen":', event);
-                    this.stopAIChatResponse();
-                };
-                window.speechSynthesis.speak(utterance);
-                this.ttsQueue.shift(); // Remove it from the queue now that we're speaking it
-            } else {
-                // If it's not the specific "Ready to listen." or queue is empty, behave normally
-                originalProcessQueue();
-            }
-        };
-
-        // Trigger processing the queue for "Ready to listen."
-        this._processTTSQueue();
-
-        // Update button state immediately to reflect "AI SPEAKING"
-        this.updateConversationButtonState();
-    }
-
-
-    // NEW: Method to request microphone permission (called on first button click)
-    requestMicrophonePermission() {
-        if (!this.speechRecognition) {
-            console.error("[AIChat] Speech Recognition not initialized.");
-            return;
-        }
-
-        console.log('[AIChat] Attempting to trigger microphone permission prompt.');
-        // Set button state to indicate action
-        const bigButton = this.shadowRoot.getElementById('conversationBigButton');
-        if (bigButton) {
-            bigButton.textContent = 'CONNECTING MICROPHONE...';
-            bigButton.classList.remove('listening', 'speaking'); // Remove active states
-        }
-
-        try {
-            // Start a temporary recognition session to trigger the permission prompt
-            // onstart will fire if permission is granted, onerror if denied.
-            this.speechRecognition.start();
-        } catch (e) {
-            console.error("[AIChat] Error initiating speech recognition for permission:", e);
-            // Fallback for immediate errors, e.g., if already in an active session (shouldn't happen with our logic)
-            // If an immediate error occurs before onstart/onerror, we must manually set the flag.
-            this.microphonePermissionRequested = true; // Mark as attempted to prevent re-triggering this flow
-            this.voiceInitialized = false; // NEW: Ensure voice is marked uninitialized on error
-            this.updateConversationButtonState(); // Revert to "ALLOW MICROPHONE" or "INITIALIZE VOICE"
-            if (this.conversationEnabled) {
-                this.speak("Could not access microphone. Please check your browser settings.");
-            }
-        }
-    }
-
-    // NEW: Method to start continuous listening (called after permission is handled)
-    async startContinuousListening() {
-        if (!this.speechRecognition) {
-            console.error("[AIChat] Speech Recognition not initialized for continuous listening.");
-            return;
-        }
-        if (!this.microphonePermissionRequested) {
-            console.warn("[AIChat] Cannot start continuous listening: Microphone permission not yet handled.");
-            this.updateConversationButtonState(); // Ensure button reflects permission state
-            return;
-        }
-        if (!this.voiceInitialized) { // NEW: Must have voice initialized before continuous listening
-            console.warn("[AIChat] Cannot start continuous listening: Voice not initialized. Click 'INITIALIZE VOICE' first.");
-            this.updateConversationButtonState();
-            return;
-        }
-        if (this.isListening) {
-            console.warn("[AIChat] Speech Recognition already listening continuously.");
-            this.updateConversationButtonState();
-            return;
-        }
-
-        // Cancel any ongoing TTS or stream before starting STT by calling the central stop
-        if (this.aiIsSpeaking || this.currentStreamReader) {
-            console.log('[AIChat] Cancelling ongoing TTS/Stream before starting listening via stopAIChatResponse().');
-            this.stopAIChatResponse();
-            // Wait briefly for stop to propagate, might not be necessary, but safer.
-            await new Promise(r => setTimeout(r, 100));
-        }
-
-        console.log('[AIChat] Attempting to start continuous speech recognition.');
-        try {
-            this.speechRecognition.continuous = true; // Set to true for continuous mode
-            this.speechRecognition.start();
-            // onstart handler will now handle setting isListening = true and updating button
-        } catch (e) {
-            console.error("[AIChat] Error starting continuous speech recognition:", e);
+            console.log('[AIChat] Speech recognition ended.');
             this.isListening = false;
-            this.updateConversationButtonState(); // Revert button state
-            if (e.message.includes("not allowed")) {
-                if (this.conversationEnabled) {
-                    this.speak("Microphone access issue. Please enable it in your browser settings.");
-                }
+            this.updateConversationButtonState(); // Update button to TAP TO SPEAK
+
+            // If text was recognized (meaning user spoke and then hit stop, or recognition stopped naturally with final text)
+            if (this.currentSpeechRecognitionText.trim() !== '') {
+                console.log(`[AIChat] Sending message from STT: "${this.currentSpeechRecognitionText.trim().substring(0, 50)}..."`);
+                this.sendMessage(this.currentSpeechRecognitionText.trim());
+                this.currentSpeechRecognitionText = ''; // Clear for next turn
+            } else {
+                console.log('[AIChat] Speech recognition ended with no recognized text (or explicitly stopped with no final text).');
+                // If it ended without text and conversation mode is enabled, and AI is not speaking,
+                // this means the user pressed stop without speaking, or the mic timed out.
+                // We do NOT want to auto-restart listening here if user explicitly stopped and said nothing.
+                // They should manually tap "TAP TO SPEAK" again.
+                // Unless the goal is to *always* listen after an AI response, in which case the restart happens in speak()'s onend.
+                // For a manual stop, we leave it in 'TAP TO SPEAK' state.
             }
-        }
+        };
     }
 
+    startListening() {
+        if (this.speechRecognition) {
+            // NEW: Cancel any ongoing TTS before starting STT
+            if (window.speechSynthesis && window.speechSynthesis.speaking) {
+                console.log('[AIChat] Cancelling ongoing TTS before starting listening.');
+                window.speechSynthesis.cancel();
+                this.aiIsSpeaking = false; // Reset AI speaking flag
+                this.updateConversationButtonState(); // Update button to neutral state before listening
+            }
+
+            if (!this.isListening) {
+                try {
+                    this.speechRecognition.start();
+                } catch (e) {
+                    console.error("[AIChat] Error starting speech recognition:", e);
+                    if (e.message.includes("recognition has already started")) {
+                        console.warn("[AIChat] Speech recognition already active.");
+                        this.isListening = true; // Ensure state is correct
+                        this.updateConversationButtonState(); // Update button state
+                    } else if (e.message.includes("not allowed")) {
+                        if (this.conversationEnabled) {
+                            this.speak("Microphone permission denied. Please enable it in your browser settings.");
+                        }
+                        this.isListening = false; // It failed to start
+                        this.updateConversationButtonState(); // Update button state
+                    }
+                }
+            } else {
+                console.warn("[AIChat] Speech Recognition already listening.");
+                this.updateConversationButtonState(); // Just ensure button state is correct
+            }
+        } else {
+            console.error("[AIChat] Speech Recognition not initialized.");
+        }
+    }
 
     stopListening() {
         if (this.speechRecognition && this.isListening) {
@@ -1212,11 +961,14 @@ class AIChat extends HTMLElement {
             console.log('[AIChat] Entered conversation mode overlay.');
         }
 
-        // Also, cancel any speech Synthesis and stream if it was playing, before showing overlay.
-        this.stopAIChatResponse(); // Use the centralized stop
-        console.log('[AIChat] Cancelling TTS/Stream upon entering conversation mode via stopAIChatResponse().');
+        // Also, cancel any speech Synthesis if it was playing, before showing overlay.
+        if (window.speechSynthesis) {
+            window.speechSynthesis.cancel();
+            this.aiIsSpeaking = false; // Reset the flag
+            console.log('[AIChat] Cancelling TTS upon entering conversation mode.');
+        }
 
-        // Update the big button to its default state ("ALLOW MICROPHONE" or "INITIALIZE VOICE" or "TAP TO SPEAK")
+        // Update the big button to its default state ("TAP TO SPEAK")
         this.isListening = false; // Ensure STT is off when entering
         this.updateConversationButtonState();
     }
@@ -1231,9 +983,16 @@ class AIChat extends HTMLElement {
             console.log('[AIChat] Exited conversation mode overlay.');
         }
 
-        // Stop any ongoing speech synthesis, stream, or recognition when exiting conversation mode
-        this.stopAIChatResponse(); // Use the centralized stop
-        console.log('[AIChat] Cancelling TTS/Stream/STT upon exiting conversation mode via stopAIChatResponse().');
+        if (this.isListening) {
+            this.stopListening();
+        }
+        // Cancel any ongoing speech synthesis when exiting conversation mode
+        if (window.speechSynthesis) {
+            window.speechSynthesis.cancel();
+            this.aiIsSpeaking = false; // Reset the flag
+            this.updateConversationButtonState(); // Update button state
+            console.log('[AIChat] Cancelling TTS upon exiting conversation mode.');
+        }
     }
 
     async sendMessage(userPromptFromSTT = null) {
@@ -1242,12 +1001,6 @@ class AIChat extends HTMLElement {
         const temperature = parseFloat(this.shadowRoot.getElementById('temperatureInput').value);
         const rawTextOutputDiv = this.shadowRoot.getElementById('rawTextOutput');
         const textInputDiv = this.shadowRoot.getElementById('textInput');
-
-        // NEW: Stop any existing AI speech or stream before sending a new message
-        if (this.aiIsSpeaking || this.currentStreamReader) {
-            console.log('[AIChat] New message, stopping previous AI response.');
-            this.stopAIChatResponse();
-        }
 
         if (!userPrompt) {
             rawTextOutputDiv.textContent = 'Please enter a user prompt.';
@@ -1300,9 +1053,6 @@ class AIChat extends HTMLElement {
         };
 
         let fullResponse = ''; // Accumulate the streamed response here
-        this.speechBuffer = ''; // Reset speech buffer for new response
-        this.ttsQueue = []; // Clear any previous TTS queue for a new response
-        this.isSpeakingFromQueue = false; // Reset the queue processing flag
         console.log(`[AIChat] Sending API request to ${OPENAI_COMPLETION_URL} with payload:`, payload);
 
         try {
@@ -1320,7 +1070,6 @@ class AIChat extends HTMLElement {
             }
 
             const reader = response.body.getReader();
-            this.currentStreamReader = reader; // Store the reader for potential cancellation
             const decoder = new TextDecoder('utf-8');
 
             // Remove the "Generating response..." message
@@ -1335,95 +1084,33 @@ class AIChat extends HTMLElement {
             rawTextOutputDiv.scrollTop = rawTextOutputDiv.scrollHeight;
 
             console.log('[AIChat] Starting to stream AI response...');
-
-            // NEW: Buffer for accumulating raw stream data for robust SSE parsing
-            let streamBuffer = '';
-
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) {
                     break;
                 }
 
-                streamBuffer += decoder.decode(value, { stream: true }); // Append new data to buffer
+                const chunk = decoder.decode(value, { stream: true });
+                const events = chunk.split('\n\n').filter(Boolean);
 
-                // Process all complete events in the buffer
-                while (true) {
-                    const eventDelimiter = '\n\n';
-                    const eventEndIndex = streamBuffer.indexOf(eventDelimiter);
-
-                    if (eventEndIndex === -1) {
-                        // No complete event found, wait for more data
-                        break;
-                    }
-
-                    const eventString = streamBuffer.substring(0, eventEndIndex);
-                    streamBuffer = streamBuffer.substring(eventEndIndex + eventDelimiter.length); // Remove processed event from buffer
-
-                    // Process the eventString
+                for (const eventString of events) {
                     if (eventString.startsWith('data:')) {
                         const data = eventString.substring(5).trim();
 
                         if (data === '[DONE]') {
-                            // If [DONE] is received, stop processing further events in this loop
-                            break; // Break from inner while(true) for processing events
+                            reader.cancel();
+                            break;
                         }
 
                         try {
-                            // Use optional chaining for safer property access
                             const parsedChunk = JSON.parse(data);
-                            const content = parsedChunk.choices?.[0]?.delta?.content;
+                            const content = parsedChunk.choices && parsedChunk.choices[0] && parsedChunk.choices[0].delta && parsedChunk.choices[0].delta.content;
 
                             if (content) {
                                 fullResponse += content;
-                                this.speechBuffer += content; // Add to TTS buffer
-
-                                // Update the display with the full streamed content
+                                // Set textContent to ensure raw text output without HTML interpretation
                                 aiResponseParagraph.textContent = 'AI: ' + fullResponse;
                                 rawTextOutputDiv.scrollTop = rawTextOutputDiv.scrollHeight;
-
-                                // If conversation mode is enabled, attempt to speak chunks
-                                if (this.conversationEnabled && this.shadowRoot.getElementById('conversationOverlay').style.display === 'flex') {
-                                    // Strategy: Speak by sentence or a buffered word count
-                                    // Matches sentence ending punctuation followed by space or end of string
-                                    const sentenceEndings = /[.!?](\s|$)/;
-                                    const MIN_SPEECH_BUFFER_SIZE = 50;
-                                    const MAX_BUFFER_WITHOUT_PUNCTUATION = 200; // Force speak if buffer hits this without a sentence ending
-
-                                    while (true) {
-                                        let match = this.speechBuffer.match(sentenceEndings);
-                                        let speakableChunk = '';
-
-                                        if (match) {
-                                            // Found a sentence ending
-                                            const endIndex = match.index + match[0].length;
-                                            speakableChunk = this.speechBuffer.substring(0, endIndex);
-                                            this.speechBuffer = this.speechBuffer.substring(endIndex);
-                                        } else if (this.speechBuffer.length >= MAX_BUFFER_WITHOUT_PUNCTUATION) {
-                                            // Buffer is large but no sentence ending, so find the last word break
-                                            const lastSpaceIndex = this.speechBuffer.substring(0, MAX_BUFFER_WITHOUT_PUNCTUATION).lastIndexOf(' ');
-                                            if (lastSpaceIndex !== -1 && lastSpaceIndex > 0) {
-                                                speakableChunk = this.speechBuffer.substring(0, lastSpaceIndex + 1); // Include the space
-                                                this.speechBuffer = this.speechBuffer.substring(lastSpaceIndex + 1);
-                                            } else {
-                                                speakableChunk = this.speechBuffer;
-                                                this.speechBuffer = '';
-                                            }
-                                        } else {
-                                            // Not enough content to form a sentence and buffer isn't big enough to force a chunk
-                                            break; // Wait for more content
-                                        }
-
-                                        if (speakableChunk.trim().length > 0) {
-                                            this.speak(speakableChunk.trim());
-                                        }
-                                        // The original loop condition was quite intricate, simplified to ensure it breaks when no more
-                                        // speechable content can be extracted under current rules.
-                                        if (this.speechBuffer.length < MIN_SPEECH_BUFFER_SIZE && !match && this.speechBuffer.length < MAX_BUFFER_WITHOUT_PUNCTUATION) {
-                                            break;
-                                        }
-                                    }
-                                }
                             }
                         } catch (jsonError) {
                             // This catch block is common for [DONE] or other non-JSON stream messages.
@@ -1431,16 +1118,6 @@ class AIChat extends HTMLElement {
                         }
                     }
                 }
-                // If the inner loop broke because of [DONE], we need to break the outer loop too.
-                if (streamBuffer.includes('[DONE]')) {
-                    break;
-                }
-            }
-
-            // After streaming is complete, speak any remaining text in the buffer
-            if (this.speechBuffer.trim().length > 0 && this.conversationEnabled && this.shadowRoot.getElementById('conversationOverlay').style.display === 'flex') {
-                this.speak(this.speechBuffer.trim());
-                this.speechBuffer = ''; // Clear buffer
             }
 
             // After streaming is complete, add the full AI response to history
@@ -1450,10 +1127,26 @@ class AIChat extends HTMLElement {
             this.renderHistory(); // Final render to ensure proper formatting and update scroll
             console.log(`[AIChat] Full AI response received and added to history: "${fullResponse.substring(0, 50)}..."`);
 
+            // Speak the AI response if conversation mode is enabled AND the overlay is active
+            if (this.conversationEnabled && this.shadowRoot.getElementById('conversationOverlay').style.display === 'flex') {
+                // Ensure any previous speech is cancelled before speaking new response
+                window.speechSynthesis.cancel();
+                // Check if a voice is selected before attempting to speak
+                if (this.selectedTTSVoiceURI) {
+                    this.speak(fullResponse);
+                    // The restart of STT will happen in the utterance's onend handler
+                    // (But we removed it, so now it will just go to TAP TO SPEAK)
+                } else {
+                    console.warn('[AIChat] Conversation mode active, but no TTS voice selected. AI response will not be spoken aloud.');
+                    // If no voice, but in conversation mode, do not auto-restart listening
+                    // It will stay in "TAP TO SPEAK" mode
+                }
+            }
+
 
         } catch (error) {
             console.error("[AIChat] Error sending message:", error);
-            // Remove the "Generating response..." message if an error occurred during stream
+            // Remove the "Generating response..." message if an.error occurred during stream
             if (rawTextOutputDiv.contains(generatingMessageP)) {
                 rawTextOutputDiv.removeChild(generatingMessageP);
             }
@@ -1468,16 +1161,17 @@ class AIChat extends HTMLElement {
             // If an error occurs, remove the last user message from history as no valid AI response was received
             this.messages.pop();
             localStorage.setItem(LOCAL_STORAGE_MESSAGES_KEY, JSON.stringify(this.messages));
-            // Speak the error message and stop all processes via the centralized method
+            // Speak the error message
             if (this.conversationEnabled && this.shadowRoot.getElementById('conversationOverlay').style.display === 'flex') {
+                window.speechSynthesis.cancel();
                 this.speak(`Error: ${error.message}`);
+                // If TTS speaks the error, it will just go to TAP TO SPEAK after.
+                // No auto-restart here.
             }
-            // Ensure all active processes are stopped
-            this.stopAIChatResponse();
-
-        } finally {
-            // Ensure the stream reader is nullified whether successful or failed
-            this.currentStreamReader = null;
+            // In case of error, regardless of TTS, the conversation button should be "TAP TO SPEAK"
+            this.aiIsSpeaking = false;
+            this.isListening = false;
+            this.updateConversationButtonState();
         }
     }
 
@@ -1563,7 +1257,7 @@ class AIChat extends HTMLElement {
                     flex-shrink: 0; /* Prevent icon button from shrinking */
                 }
 
-                #modelSelect, #systemPromptSelect { /* Apply same style to both selects */
+                #modelSelect, #systemPromptSelect, #ttsVoiceSelect { /* Apply same style to both selects */
                     flex-grow: 1; /* Allow the select to take up available space */
                     min-width: 0; /* Allow the select to shrink below its intrinsic width */
                     overflow: hidden; /* Hide overflowing text in select itself */
@@ -1587,17 +1281,7 @@ class AIChat extends HTMLElement {
                     font-size: 0.85em;
                     color: #555;
                 }
-                .input-group input[type="number"] {
-                    width: calc(100% - 2px); /* Full width minus border */
-                    padding: 8px;
-                    border: 1px solid #ddd;
-                    border-radius: 4px;
-                    font-size: 0.9em;
-                    box-sizing: border-box;
-                    font-family: inherit;
-                    color: #333;
-                }
-                /* Select element inside input-group to handle its width specifically */
+                .input-group input[type="number"],
                 .input-group select {
                     width: calc(100% - 2px); /* Full width minus border */
                     padding: 8px;
@@ -1608,7 +1292,6 @@ class AIChat extends HTMLElement {
                     font-family: inherit;
                     color: #333;
                 }
-
 
                 /* New: Checkbox and label styling */
                 .checkbox-group {
@@ -1626,22 +1309,10 @@ class AIChat extends HTMLElement {
                     font-weight: normal; /* Less bold for a checkbox label */
                 }
                 /* Flex container for the TTS voice select and test button */
-                .tts-settings-group { /* Changed name for clarity */
+                .tts-select-group {
                     display: flex;
                     align-items: center; /* Vertically align items */
-                    gap: 8px; /* Space between label/button and dropdown */
-                    flex-wrap: wrap; /* Allow wrapping if space is tight */
-                }
-                .tts-settings-group > div { /* Container for label and test button */
-                    display: flex;
-                    align-items: center;
-                    gap: 5px; /* Space between label and test button */
-                    flex-shrink: 0;
-                }
-                #ttsVoiceSelect {
-                    flex-grow: 1; /* Allow dropdown to take space */
-                    min-width: 150px; /* Ensure a minimum width */
-                    display: none; /* Hidden by default, exposed by button */
+                    gap: 8px; /* Space between select and button */
                 }
 
 
@@ -1859,13 +1530,10 @@ class AIChat extends HTMLElement {
                         <input type="checkbox" id="conversationEnabledCheckbox">
                         <label for="conversationEnabledCheckbox">Enable Conversation Mode</label>
                     </div>
-                    <div class="input-group" id="ttsVoiceSettingsGroup" style="display: none;">
-                        <label>TTS Voice:</label>
-                        <div class="tts-settings-group">
-                            <span id="ttsVoiceDisplayLabel">No Voice Selected</span>
+                    <div class="input-group" id="ttsVoiceSelectContainer" style="display: none;">
+                        <label for="ttsVoiceSelect">TTS Voice:</label>
+                        <div class="tts-select-group"> <select id="ttsVoiceSelect"></select>
                             <button id="testTTSButton" class="icon-button" title="Test Voice">▶️</button>
-                            <button id="ttsVoiceSettingsButton" class="icon-button" title="Select TTS Voice">🔊</button>
-                            <select id="ttsVoiceSelect" style="display: none;"></select>
                         </div>
                     </div>
                     <div class="input-group">
@@ -1892,7 +1560,7 @@ class AIChat extends HTMLElement {
             </div>
 
             <div id="conversationOverlay">
-                <button id="conversationBigButton">ALLOW MICROPHONE</button>
+                <button id="conversationBigButton">TAP TO SPEAK</button>
                 <button id="exitConversationButton">Exit Conversation</button>
             </div>
         `;
@@ -1931,7 +1599,5 @@ document.addEventListener('DOMContentLoaded', () => {
         // connectedCallback will be called automatically by the browser for existing elements
     });
 });
-
-
 
 

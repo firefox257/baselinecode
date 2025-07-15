@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Full Screen WebGL Background with Tuned 3D Perlin Noise Fog (Revised)</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <canvas id="glCanvas"></canvas>
+
+    <script>
+        // --- Utility for Matrix Operations (Simplified) ---
+        const mat4 = {
+            create: () => new Float32Array(16),
+            identity: (out) => {
+                out[0] = 1; out[1] = 0; out[2] = 0; out[3] = 0;
+                out[4] = 0; out[5] = 1; out[6] = 0; out[7] = 0;
+                out[8] = 0; out[9] = 0; out[10] = 1; out[11] = 0;
+                out[12] = 0; out[13] = 0; out[14] = 0; out[15] = 1;
+                return out;
+            },
+            perspective: (out, fovy, aspect, near, far) => {
+                const f = 1.0 / Math.tan(fovy / 2);
+                out[0] = f / aspect;
+                out[1] = 0;
+                out[2] = 0;
+                out[3] = 0;
+                out[4] = 0;
+                out[5] = f;
+                out[6] = 0;
+                out[7] = 0;
+                out[8] = 0;
+                out[9] = 0;
+                out[10] = (near + far) / (near - far);
+                out[11] = -1;
+                out[12] = 0;
+                out[13] = 0;
+                out[14] = (2 * far * near) / (near - far);
+                out[15] = 0;
+                return out;
+            },
+            multiply: (out, a, b) => {
+                const a00 = a[0], a01 = a[1], a02 = a[2], a03 = a[3];
+                const a10 = a[4], a11 = a[5], a12 = a[6], a13 = a[7];
+                const a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11];
+                const a30 = a[12], a31 = a[13], a32 = a[14], a33 = a[15];
+
+                let b0 = b[0], b1 = b[1], b2 = b[2], b3 = b[3];
+                out[0] = b0 * a00 + b1 * a10 + b2 * a20 + b3 * a30;
+                out[1] = b0 * a01 + b1 * a11 + b2 * a21 + b3 * a31;
+                out[2] = b0 * a02 + b1 * a12 + b2 * a22 + b3 * a32;
+                out[3] = b0 * a03 + b1 * a13 + b2 * a23 + b3 * a33;
+
+                b0 = b[4]; b1 = b[5]; b2 = b[6]; b3 = b[7];
+                out[4] = b0 * a00 + b1 * a10 + b2 * a20 + b3 * a30;
+                out[5] = b0 * a01 + b1 * a11 + b2 * a21 + b3 * a31;
+                out[6] = b0 * a02 + b1 * a12 + b2 * a22 + b3 * a32;
+                out[7] = b0 * a03 + b1 * a13 + b2 * a23 + b3 * a33;
+
+                b0 = b[8]; b1 = b[9]; b2 = b[10]; b3 = b[11];
+                out[8] = b0 * a00 + b1 * a10 + b2 * a20 + b3 * a30;
+                out[9] = b0 * a01 + b1 * a11 + b2 * a21 + b3 * a31;
+                out[10] = b0 * a02 + b1 * a12 + b2 * a22 + b3 * a32;
+                out[11] = b0 * a03 + b1 * a13 + b2 * a23 + b3 * a33;
+
+                b0 = b[12]; b1 = b[13]; b2 = b[14]; b3 = b[15];
+                out[12] = b0 * a00 + b1 * a10 + b2 * a20 + b3 * a30;
+                out[13] = b0 * a01 + b1 * a11 + b2 * a21 + b3 * a31;
+                out[14] = b0 * a02 + b1 * a12 + b2 * a22 + b3 * a32;
+                out[15] = b0 * a03 + b1 * a13 + b2 * a23 + b3 * a33;
+                return out;
+            },
+            translate: (out, a, v) => {
+                let x = v[0], y = v[1], z = v[2];
+                out[12] = a[0] * x + a[4] * y + a[8] * z + a[12];
+                out[13] = a[1] * x + a[5] * y + a[9] * z + a[13];
+                out[14] = a[2] * x + a[6] * y + a[10] * z + a[14];
+                out[15] = a[3] * x + a[7] * y + a[11] * z + a[15];
+                return out;
+            },
+            scale: (out, a, v) => {
+                let x = v[0], y = v[1], z = v[2];
+                out[0] = a[0] * x; out[1] = a[1] * x; out[2] = a[2] * x; out[3] = a[3] * x;
+                out[4] = a[4] * y; out[5] = a[5] * y; out[6] = a[6] * y; out[7] = a[7] * y;
+                out[8] = a[8] * z; out[9] = a[9] * z; out[10] = a[10] * z; out[11] = a[11] * z;
+                out[12] = a[12]; out[13] = a[13]; out[14] = a[14]; out[15] = a[15];
+                return out;
+            }
+        };
+
+
+        window.onload = function() {
+            const canvas = document.getElementById('glCanvas');
+            const gl = canvas.getContext('webgl');
+
+            if (!gl) {
+                alert('Unable to initialize WebGL. Your browser or machine may not support it.');
+                return;
+            }
+
+            // Set canvas to full screen
+            function resizeCanvas() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                gl.viewport(0, 0, canvas.width, canvas.height);
+            }
+            window.addEventListener('resize', resizeCanvas);
+            resizeCanvas();
+
+            // --- Background Shaders ---
+            const backgroundVsSource = `
+                attribute vec4 aVertexPosition;
+                attribute vec2 aTexCoord;
+
+                uniform mat4 uModelMatrix;
+                uniform mat4 uProjectionMatrix;
+                uniform mat4 uViewMatrix;
+
+                varying highp vec2 vTexCoord;
+                varying highp vec4 vClipSpacePosition;
+                varying highp vec3 vWorldPosition;
+
+                void main(void) {
+                    vec4 worldSpacePos = uModelMatrix * aVertexPosition;
+                    vWorldPosition = worldSpacePos.xyz;
+                    vec4 viewSpacePos = uViewMatrix * worldSpacePos;
+                    vClipSpacePosition = uProjectionMatrix * viewSpacePos;
+                    gl_Position = vClipSpacePosition;
+                    vTexCoord = aTexCoord;
+                }
+            `;
+
+            const backgroundFsSource = `
+                precision mediump float;
+
+                varying highp vec2 vTexCoord;
+                varying highp vec4 vClipSpacePosition;
+                varying highp vec3 vWorldPosition;
+                uniform sampler2D uSampler;
+                uniform highp vec3 uOverlayColor;
+                uniform highp float uTime;
+                uniform highp float uNoiseScale;
+                uniform highp float uNoiseStrength;
+
+                // New uniforms for fBm tuning
+                uniform highp int uOctaves;
+                uniform highp float uPersistence;
+                uniform highp float uLacunarity;
+
+
+                uniform highp vec2 uBezierP1;
+                uniform highp vec2 uBezierP2;
+                uniform highp float uFogTopRatio;
+
+                // Max octaves for loop unrolling in GLSL ES 1.0
+                #define MAX_OCTAVES 6
+
+                // --- Base hash function that previously worked and showed patterns ---
+                float hash_float(vec3 p) {
+                    p  = fract(p * 0.3183099 + .1);
+                    p *= 17.0;
+                    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+                }
+
+                // --- NEW: Hashing function for Perlin gradients (uses hash_float) ---
+                // This generates a vec3 of pseudo-random values between 0.0 and 1.0
+                vec3 hash3_perlin(vec3 p) {
+                    // Use the confirmed working float hash for each component,
+                    // with constant offsets to ensure different random sequences.
+                    return vec3(
+                        hash_float(p),
+                        hash_float(p + vec3(1.0, 2.0, 3.0)), // Offset for Y component
+                        hash_float(p + vec3(4.0, 5.0, 6.0))  // Offset for Z component
+                    );
+                }
+
+
+                // --- Perlin "fade" (smootherstep) function ---
+                float fade(float t) {
+                    return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
+                }
+
+                // --- 3D Perlin Noise function ---
+                // Output is typically in the range [-1, 1]
+                float perlin(vec3 p) {
+                    vec3 P = floor(p); // Integer part (grid cell coordinates)
+                    vec3 F = fract(p); // Fractional part (position within cell, 0.0 to 1.0)
+
+                    vec3 u = fade(F); // Smoothed fractional part for interpolation
+
+                    // Calculate gradients for the 8 corners of the cube
+                    // We use hash3_perlin to derive a pseudo-random gradient for each corner.
+                    // The result of hash3_perlin is [0,1], so we scale it to [-1,1] with * 2.0 - 1.0.
+                    float n000 = dot(hash3_perlin(P + vec3(0.0, 0.0, 0.0)) * 2.0 - 1.0, F - vec3(0.0, 0.0, 0.0));
+                    float n100 = dot(hash3_perlin(P + vec3(1.0, 0.0, 0.0)) * 2.0 - 1.0, F - vec3(1.0, 0.0, 0.0));
+                    float n010 = dot(hash3_perlin(P + vec3(0.0, 1.0, 0.0)) * 2.0 - 1.0, F - vec3(0.0, 1.0, 0.0));
+                    float n110 = dot(hash3_perlin(P + vec3(1.0, 1.0, 0.0)) * 2.0 - 1.0, F - vec3(1.0, 1.0, 0.0));
+                    float n001 = dot(hash3_perlin(P + vec3(0.0, 0.0, 1.0)) * 2.0 - 1.0, F - vec3(0.0, 0.0, 1.0));
+                    float n101 = dot(hash3_perlin(P + vec3(1.0, 0.0, 1.0)) * 2.0 - 1.0, F - vec3(1.0, 0.0, 1.0));
+                    float n011 = dot(hash3_perlin(P + vec3(0.0, 1.0, 1.0)) * 2.0 - 1.0, F - vec3(0.0, 1.0, 1.0));
+                    float n111 = dot(hash3_perlin(P + vec3(1.0, 1.0, 1.0)) * 2.0 - 1.0, F - vec3(1.0, 1.0, 1.0));
+
+                    // Interpolate contributions in X, then Y, then Z directions
+                    float ix0 = mix(n000, n100, u.x);
+                    float ix1 = mix(n010, n110, u.x);
+                    float ix2 = mix(n001, n101, u.x);
+                    float ix3 = mix(n011, n111, u.x);
+
+                    float iy0 = mix(ix0, ix1, u.y);
+                    float iy1 = mix(ix2, ix3, u.y);
+
+                    return mix(iy0, iy1, u.z);
+                }
+
+                // Cubic Bezier function to control vertical falloff
+                float cubicBezier(float t, vec2 p1, vec2 p2) {
+                    float t2 = t * t;
+                    float t3 = t2 * t;
+                    float mt = 1.0 - t;
+                    float mt2 = mt * mt;
+                    float mt3 = mt2 * mt;
+
+                    return mt3 * 0.0 + 3.0 * mt2 * t * p1.y + 3.0 * mt * t2 * p2.y + t3 * 1.0;
+                }
+
+                void main(void) {
+                    highp vec4 textureColor = texture2D(uSampler, vTexCoord);
+                    highp float screenY = (vClipSpacePosition.y / vClipSpacePosition.w + 1.0) * 0.5;
+
+                    float totalNoise = 0.0;
+                    float amplitude = 1.0;
+                    float frequency = 1.0;
+                    float maxAmplitude = 0.0;
+
+                    // Keep uTime modded to prevent large numbers, used for animating noise
+                    float timeMod = mod(uTime, 100.0); // Loops noise animation every 100 seconds
+
+                    vec3 baseNoiseCoords = vWorldPosition * uNoiseScale;
+
+                    for (int i = 0; i < MAX_OCTAVES; i++) {
+                        if (i >= uOctaves) break;
+
+                        // Apply time offset using the modded time
+                        // Vary the axis speeds slightly for more complex motion
+                        vec3 noiseCoords = baseNoiseCoords * frequency + vec3(timeMod * 0.05, timeMod * 0.02, timeMod * 0.1);
+
+                        // Use the new Perlin function for noise generation
+                        totalNoise += perlin(noiseCoords) * amplitude;
+                        maxAmplitude += amplitude; // Sum amplitudes to normalize later
+
+                        amplitude *= uPersistence;
+                        frequency *= uLacunarity;
+                    }
+
+                    // Normalize totalNoise from its potential range (approx [-maxAmplitude, maxAmplitude]) to [0, 1]
+                    float normalizedNoise = (totalNoise / maxAmplitude + 1.0) / 2.0;
+
+                    // Apply a power curve for more contrast (makes fog thicker/thinner)
+                    normalizedNoise = pow(normalizedNoise, 2.0);
+
+                    // Calculate vertical fade
+                    float fadeT = clamp(screenY / uFogTopRatio, 0.0, 1.0);
+                    float yBlendFactor = 1.0 - cubicBezier(fadeT, uBezierP1, uBezierP2);
+
+                    // Combine noise strength with vertical fade
+                    float effectiveNoiseStrength = uNoiseStrength * yBlendFactor;
+                    float overlayAlpha = clamp(normalizedNoise * effectiveNoiseStrength, 0.0, 1.0);
+
+                    // Blend original texture color with overlay color based on noise
+                    gl_FragColor = mix(textureColor, vec4(uOverlayColor, 1.0), overlayAlpha);
+                }
+            `;
+
+            // --- Shader Program Utilities ---
+            function initShaderProgram(gl, vsSource, fsSource, programName) {
+                const vertexShader = loadShader(gl, gl.VERTEX_SHADER, vsSource, programName + ' Vertex');
+                const fragmentShader = loadShader(gl, gl.FRAGMENT_SHADER, fsSource, programName + ' Fragment');
+
+                if (!vertexShader || !fragmentShader) return null;
+
+                const shaderProgram = gl.createProgram();
+                gl.attachShader(shaderProgram, vertexShader);
+                gl.attachShader(shaderProgram, fragmentShader);
+                gl.linkProgram(shaderProgram);
+
+                if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+                    // *** THIS IS WHERE THE ERROR MESSAGE IS LOGGED ***
+                    console.error(`Unable to initialize ${programName} shader program:`, gl.getProgramInfoLog(shaderProgram));
+                    alert(`Unable to initialize ${programName} shader program. Check console for details.`);
+                    return null;
+                }
+                return shaderProgram;
+            }
+
+            function loadShader(gl, type, source, shaderName) {
+                const shader = gl.createShader(type);
+                gl.shaderSource(shader, source);
+                gl.compileShader(shader);
+
+                if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                    // *** THIS IS WHERE THE ERROR MESSAGE IS LOGGED ***
+                    console.error(`An error occurred compiling ${shaderName} shader:`, gl.getShaderInfoLog(shader));
+                    alert(`An error occurred compiling ${shaderName} shader. Check console for details.`);
+                    gl.deleteShader(shader);
+                    return null;
+                }
+                return shader;
+            }
+
+            // --- Background Setup ---
+            const backgroundShaderProgram = initShaderProgram(gl, backgroundVsSource, backgroundFsSource, 'Background');
+            if (!backgroundShaderProgram) return;
+            const backgroundProgramInfo = {
+                program: backgroundShaderProgram,
+                attribLocations: {
+                    vertexPosition: gl.getAttribLocation(backgroundShaderProgram, 'aVertexPosition'),
+                    texCoord: gl.getAttribLocation(backgroundShaderProgram, 'aTexCoord'),
+                },
+                uniformLocations: {
+                    uModelMatrix: gl.getUniformLocation(backgroundShaderProgram, 'uModelMatrix'),
+                    uSampler: gl.getUniformLocation(backgroundShaderProgram, 'uSampler'),
+                    uProjectionMatrix: gl.getUniformLocation(backgroundShaderProgram, 'uProjectionMatrix'),
+                    uViewMatrix: gl.getUniformLocation(backgroundShaderProgram, 'uViewMatrix'),
+                    uOverlayColor: gl.getUniformLocation(backgroundShaderProgram, 'uOverlayColor'),
+                    uTime: gl.getUniformLocation(backgroundShaderProgram, 'uTime'),
+                    uNoiseScale: gl.getUniformLocation(backgroundShaderProgram, 'uNoiseScale'),
+                    uNoiseStrength: gl.getUniformLocation(backgroundShaderProgram, 'uNoiseStrength'),
+                    uBezierP1: gl.getUniformLocation(backgroundShaderProgram, 'uBezierP1'),
+                    uBezierP2: gl.getUniformLocation(backgroundShaderProgram, 'uBezierP2'),
+                    uFogTopRatio: gl.getUniformLocation(backgroundShaderProgram, 'uFogTopRatio'),
+                    uOctaves: gl.getUniformLocation(backgroundShaderProgram, 'uOctaves'),
+                    uPersistence: gl.getUniformLocation(backgroundShaderProgram, 'uPersistence'),
+                    uLacunarity: gl.getUniformLocation(backgroundProgramInfo.uniformLocations.uLacunarity),
+                },
+            };
+
+            function initBackgroundBuffers(gl, imageAspect) {
+                const positions = new Float32Array([
+                    -1.0,  1.0, 0.0,
+                     1.0,  1.0, 0.0,
+                    -1.0, -1.0, 0.0,
+                     1.0, -1.0, 0.0,
+                ]);
+
+                const positionBuffer = gl.createBuffer();
+                gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+                gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+
+                const textureCoordinates = new Float32Array([
+                    0.0,  0.0,
+                    1.0,  0.0,
+                    0.0,  1.0,
+                    1.0,  1.0,
+                ]);
+
+                const textureCoordBuffer = gl.createBuffer();
+                gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBuffer);
+                gl.bufferData(gl.ARRAY_BUFFER, textureCoordinates, gl.STATIC_DRAW);
+
+                const indices = new Uint16Array([
+                    0, 1, 2,
+                    1, 3, 2,
+                ]);
+
+                const indexBuffer = gl.createBuffer();
+                gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+                gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+
+                return {
+                    position: positionBuffer,
+                    texCoord: textureCoordBuffer,
+                    indices: indexBuffer,
+                };
+            }
+            let backgroundBuffers = null;
+
+            function loadTexture(gl, url) {
+                const texture = gl.createTexture();
+                gl.bindTexture(gl.TEXTURE_2D, texture);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 255, 255]));
+
+                const image = new Image();
+                image.onload = function() {
+                    gl.bindTexture(gl.TEXTURE_2D, texture);
+                    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+                    if (isPowerOf2(image.width) && isPowerOf2(image.height)) {
+                       gl.generateMipmap(gl.TEXTURE_2D);
+                    } else {
+                       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+                       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+                       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+                    }
+                    console.log(`Texture '${url}' loaded: ${image.width}x${image.height}`);
+                    texture.imageWidth = image.width;
+                    texture.imageHeight = image.height;
+                    const imageAspect = image.width / image.height;
+                    backgroundBuffers = initBackgroundBuffers(gl, imageAspect);
+                };
+                image.onerror = function() {
+                    console.error(`Failed to load texture: ${url}`);
+                };
+                image.src = 'background.png';
+                return texture;
+            }
+
+            function isPowerOf2(value) {
+                return (value & (value - 1)) == 0;
+            }
+            const backgroundTexture = loadTexture(gl, 'background.png');
+
+
+            let lastTime = 0;
+            const fieldOfView = 45 * Math.PI / 180;
+            const zNear = 0.1;
+            const zFar = 100.0;
+
+            const overlayColor = [1.0, 1.0, 1.0]; // White overlay for fog
+
+            // --- TUNED FOG PARAMETERS ---
+            const noiseScale = 0.8;
+            const noiseStrength = 0.6; // How strong the fog effect is (0-1)
+
+            const octaves = 5;         // Number of noise layers
+            const persistence = 0.5;   // How much each successive octave contributes (amplitude decay)
+            const lacunarity = 2.0;    // How much each successive octave's frequency increases
+
+            const bezierP1 = [0.25, 0.1]; // Control point 1 for vertical fade
+            const bezierP2 = [0.75, 0.9]; // Control point 2 for vertical fade
+            const fogTopRatio = 0.7;      // Y-screen coordinate ratio (0-1) where fog starts to fade out
+
+            const projectionMatrix = mat4.create();
+            const viewMatrix = mat4.create();
+            const modelMatrix = mat4.create();
+
+            // --- Drawing Function ---
+            function drawScene(now) {
+                now *= 0.001; // Convert to seconds
+                const deltaTime = now - lastTime;
+                lastTime = now;
+
+                gl.clearColor(0.0, 0.0, 0.0, 1.0);
+                gl.clearDepth(1.0);
+                gl.enable(gl.DEPTH_TEST);
+                gl.depthFunc(gl.LEQUAL);
+                gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+                const canvasAspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
+                mat4.perspective(projectionMatrix, fieldOfView, canvasAspect, zNear, zFar);
+
+                mat4.identity(viewMatrix);
+
+                // --- Set up Model Matrix for Background ---
+                mat4.identity(modelMatrix);
+                const quadZ = -5.0; // Z-depth of the quad
+                mat4.translate(modelMatrix, modelMatrix, [0.0, 0.0, quadZ]);
+
+                // Calculate the visible width/height at quadZ to scale the quad correctly
+                const visibleHeightAtZ = 2 * Math.tan(fieldOfView / 2) * Math.abs(quadZ);
+                const visibleWidthAtZ = visibleHeightAtZ * canvasAspect;
+
+                if (backgroundTexture && backgroundTexture.imageWidth && backgroundTexture.imageHeight) {
+                    const screenRatio = canvas.width / canvas.height;
+                    const imageRatio = backgroundTexture.imageWidth / backgroundTexture.imageHeight;
+
+                    let scaleX, scaleY;
+
+                    // This logic makes the background "cover" the screen, similar to background-size: cover
+                    if (screenRatio > imageRatio) {
+                        scaleX = visibleWidthAtZ / 2;
+                        scaleY = (visibleWidthAtZ / imageRatio) / 2;
+                    } else {
+                        scaleY = visibleHeightAtZ / 2;
+                        scaleX = (visibleHeightAtZ * imageRatio) / 2;
+                    }
+
+                    mat4.scale(modelMatrix, modelMatrix, [scaleX, scaleY, 1.0]);
+                } else {
+                    // Fallback scaling if texture hasn't loaded or has no dimensions
+                    mat4.scale(modelMatrix, modelMatrix, [visibleWidthAtZ / 2, visibleHeightAtZ / 2, 1.0]);
+                }
+
+                gl.enable(gl.BLEND);
+                gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+
+                // --- Draw Background with Fog Overlay ---
+                gl.useProgram(backgroundProgramInfo.program);
+
+                gl.uniformMatrix4fv(backgroundProgramInfo.uniformLocations.uModelMatrix, false, modelMatrix);
+                gl.uniformMatrix4fv(backgroundProgramInfo.uniformLocations.uProjectionMatrix, false, projectionMatrix);
+                gl.uniformMatrix4fv(backgroundProgramInfo.uniformLocations.uViewMatrix, false, viewMatrix);
+                gl.uniform3fv(backgroundProgramInfo.uniformLocations.uOverlayColor, overlayColor);
+                gl.uniform1f(backgroundProgramInfo.uniformLocations.uTime, now); // Pass current time in seconds
+
+                // Pass noise/fBm parameters
+                gl.uniform1f(backgroundProgramInfo.uniformLocations.uNoiseScale, noiseScale);
+                gl.uniform1f(backgroundProgramInfo.uniformLocations.uNoiseStrength, noiseStrength);
+                gl.uniform1i(backgroundProgramInfo.uniformLocations.uOctaves, octaves);
+                gl.uniform1f(backgroundProgramInfo.uniformLocations.uPersistence, persistence);
+                gl.uniform1f(backgroundProgramInfo.uniformLocations.uLacunarity, lacunarity);
+
+                // Pass Bezier and fog ratio parameters
+                gl.uniform2fv(backgroundProgramInfo.uniformLocations.uBezierP1, bezierP1);
+                gl.uniform2fv(backgroundProgramInfo.uniformLocations.uBezierP2, bezierP2);
+                gl.uniform1f(backgroundProgramInfo.uniformLocations.uFogTopRatio, fogTopRatio);
+
+
+                if (backgroundBuffers) {
+                    gl.bindBuffer(gl.ARRAY_BUFFER, backgroundBuffers.position);
+                    gl.vertexAttribPointer(
+                        backgroundProgramInfo.attribLocations.vertexPosition,
+                        3, gl.FLOAT, false, 0, 0
+                    );
+                    gl.enableVertexAttribArray(backgroundProgramInfo.attribLocations.vertexPosition);
+
+                    gl.bindBuffer(gl.ARRAY_BUFFER, backgroundBuffers.texCoord);
+                    gl.vertexAttribPointer(
+                        backgroundProgramInfo.attribLocations.texCoord,
+                        2, gl.FLOAT, false, 0, 0
+                    );
+                    gl.enableVertexAttribArray(backgroundProgramInfo.attribLocations.texCoord);
+
+                    gl.activeTexture(gl.TEXTURE0);
+                    gl.bindTexture(gl.TEXTURE_2D, backgroundTexture);
+                    gl.uniform1i(backgroundProgramInfo.uniformLocations.uSampler, 0);
+
+                    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, backgroundBuffers.indices);
+                    gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+                }
+
+                requestAnimationFrame(drawScene);
+            }
+
+            requestAnimationFrame(drawScene);
+        };
+    </script>
+</body>
+</html>

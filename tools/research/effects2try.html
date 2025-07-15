@@ -1,0 +1,767 @@
+
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Animated Canvas Effects</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: sans-serif;
+            color: white;
+        }
+        canvas {
+            display: block;
+            background-size: cover;
+            background-position: center;
+        }
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px 15px;
+            border-radius: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 15px;
+        }
+        .controls label {
+            margin-right: 5px;
+            white-space: nowrap;
+        }
+        .controls select,
+        .controls input[type="range"] {
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid #555;
+            background-color: #333;
+            color: white;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 8px;
+            outline: none;
+        }
+        .controls input[type="range"]::-webkit-slider-runnable-track {
+            background: #555;
+            border-radius: 5px;
+            height: 8px;
+        }
+        .controls input[type="range"]::-moz-range-track {
+            background: #555;
+            border-radius: 5px;
+            height: 8px;
+        }
+        .controls input[type="range"]::-ms-track {
+            background: #555;
+            border-radius: 5px;
+            height: 8px;
+            color: transparent;
+        }
+        .controls input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #007bff;
+            cursor: pointer;
+            margin-top: -5px;
+            border: 1px solid #007bff;
+        }
+        .controls input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #007bff;
+            cursor: pointer;
+            border: none;
+        }
+        .controls input[type="range"]::-ms-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #007bff;
+            cursor: pointer;
+            margin-top: 0px;
+            border: none;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/simplex-noise/2.4.0/simplex-noise.min.js"></script>
+</head>
+<body>
+    <canvas id="myCanvas"></canvas>
+    <div class="controls">
+        <label for="effectSelect">Select Effect:</label>
+        <select id="effectSelect">
+            <option value="none">None</option>
+            <option value="rain">Rain</option>
+            <option value="snow">Snow</option>
+            <option value="fireflies">Fireflies</option>
+            <option value="fog">Fog</option>
+            <option value="swirls">Magical Swirls</option>
+            <option value="fireworks">Fireworks</option>
+        </select>
+        <span id="particleSizeControl" style="display: none;">
+            <label for="particleSize">Particle Size:</label>
+            <input type="range" id="particleSize" min="0.1" max="5.0" step="0.1" value="1.0">
+        </span>
+        <span id="fogSpeedControl" style="display: none;">
+            <label for="fogSpeed">Fog Speed:</label>
+            <input type="range" id="fogSpeed" min="0.0" max="10.0" step="0.05" value="1.0">
+        </span>
+    </div>
+    <script>
+        const canvas = document.getElementById('myCanvas');
+        const ctx = canvas.getContext('2d');
+        const effectSelect = document.getElementById('effectSelect');
+        const particleSizeControl = document.getElementById('particleSizeControl');
+        const particleSizeSlider = document.getElementById('particleSize');
+        const fogSpeedControl = document.getElementById('fogSpeedControl');
+        const fogSpeedSlider = document.getElementById('fogSpeed');
+        let currentEffect = 'none';
+        let animationFrameId = null;
+        let globalParticleSizeMultiplier = 1.0;
+        let globalFogSpeedMultiplier = 1.0;
+        let fireworks = [];
+
+        // Global variables for existing effects
+        let rainLayers = [];
+        let snowLayers = [];
+        let fireflyLayers = [];
+        let fogLayers = [];
+        let swarmParticles = [];
+        let dustParticles = [];
+
+        // Set canvas to full screen
+        function setCanvasSize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        // Load background image
+        const backgroundImage = new Image();
+        backgroundImage.src = 'background.png'; // Ensure this image exists or comment it out
+        backgroundImage.onload = () => {
+            drawBackground();
+        };
+
+        // Initialize canvas size and start animation loop immediately
+        setCanvasSize();
+        startAnimationLoop();
+        window.addEventListener('resize', setCanvasSize);
+
+        function drawBackground() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (backgroundImage.complete && backgroundImage.naturalWidth > 0) {
+                const aspectRatio = backgroundImage.width / backgroundImage.height;
+                let drawWidth = canvas.width;
+                let drawHeight = canvas.width / aspectRatio;
+                if (drawHeight < canvas.height) {
+                    drawHeight = canvas.height;
+                    drawWidth = canvas.height * aspectRatio;
+                }
+                const xOffset = (canvas.width - drawWidth) / 2;
+                const yOffset = (canvas.height - drawHeight) / 2;
+                ctx.drawImage(backgroundImage, xOffset, yOffset, drawWidth, drawHeight);
+            }
+        }
+
+        // --- Layered Rain Effect ---
+        const rainLayerConfigs = [
+            { count: 50, minLength: 5, maxLength: 15, minSpeed: 2, maxSpeed: 4, opacity: 0.3, lineWidth: 1 },
+            { count: 100, minLength: 10, maxLength: 25, minSpeed: 4, maxSpeed: 7, opacity: 0.5, lineWidth: 1.5 },
+            { count: 150, minLength: 15, maxLength: 35, minSpeed: 6, maxSpeed: 10, opacity: 0.7, lineWidth: 2 }
+        ];
+        function initRain() {
+            rainLayers.length = 0;
+            rainLayerConfigs.forEach(config => {
+                const layer = [];
+                for (let i = 0; i < config.count; i++) {
+                    layer.push({
+                        x: Math.random() * (canvas.width + 100), // Start further right to ensure full coverage
+                        y: Math.random() * canvas.height,
+                        length: Math.random() * (config.maxLength - config.minLength) + config.minLength,
+                        speed: Math.random() * (config.maxSpeed - config.minSpeed) + config.minSpeed,
+                        opacity: config.opacity,
+                        lineWidth: config.lineWidth
+                    });
+                }
+                rainLayers.push(layer);
+            });
+        }
+        function drawRain() {
+            rainLayers.forEach(layer => {
+                layer.forEach(drop => {
+                    ctx.strokeStyle = `rgba(174,194,224,${drop.opacity})`;
+                    ctx.lineWidth = drop.lineWidth;
+                    ctx.beginPath();
+                    ctx.moveTo(drop.x, drop.y);
+                    ctx.lineTo(drop.x - drop.length / 4, drop.y + drop.length);
+                    ctx.stroke();
+                    drop.x -= drop.speed / 4;
+                    drop.y += drop.speed;
+                    // Reset rain drop if it goes off screen
+                    if (drop.y > canvas.height || drop.x < -drop.length) {
+                        drop.x = Math.random() * (canvas.width + 100); // Reset across full width + some buffer
+                        drop.y = -drop.length; // Reset above the canvas
+                    }
+                });
+            });
+        }
+
+        // --- Layered Snow Effect ---
+        const snowLayerConfigs = [
+            { count: 40, minRadius: 2.5, maxRadius: 4.5, minSpeed: 2, maxSpeed: 4, opacity: 0.9, swingFactor: 10, swingSpeed: 0.05 },
+            { count: 100, minRadius: 1.5, maxRadius: 3, minSpeed: 1, maxSpeed: 2.5, opacity: 0.7, swingFactor: 7, swingSpeed: 0.03 },
+            { count: 250, minRadius: 0.5, maxRadius: 1.5, minSpeed: 0.5, maxSpeed: 1.5, opacity: 0.5, swingFactor: 5, swingSpeed: 0.01 }
+        ];
+        function initSnow() {
+            snowLayers.length = 0;
+            snowLayerConfigs.forEach(config => {
+                const layer = [];
+                for (let i = 0; i < config.count; i++) {
+                    layer.push({
+                        x: Math.random() * canvas.width,
+                        y: Math.random() * canvas.height,
+                        radius: Math.random() * (config.maxRadius - config.minRadius) + config.minRadius,
+                        speed: Math.random() * (config.maxSpeed - config.minSpeed) + config.minSpeed,
+                        opacity: config.opacity,
+                        swing: Math.random() * Math.PI * 2,
+                        swingSpeed: Math.random() * config.swingSpeed + (config.swingSpeed / 2),
+                        swingFactor: config.swingFactor
+                    });
+                }
+                snowLayers.push(layer);
+            });
+        }
+        function drawSnow() {
+            snowLayers.forEach(layer => {
+                layer.forEach(flake => {
+                    ctx.fillStyle = `rgba(255,255,255,${flake.opacity})`;
+                    ctx.beginPath();
+                    ctx.arc(flake.x + Math.sin(flake.swing) * flake.swingFactor, flake.y, flake.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    flake.y += flake.speed;
+                    flake.swing += flake.swingSpeed;
+                    if (flake.y > canvas.height) {
+                        flake.y = -flake.radius;
+                        flake.x = Math.random() * canvas.width;
+                    }
+                });
+            });
+        }
+
+        // --- Layered Fireflies Effect ---
+        const fireflyLayerConfigs = [
+            { count: 15, minRadius: 2.5, maxRadius: 4, minSpeedX: -1.5, maxSpeedX: 1.5, minSpeedY: -1.5, maxSpeedY: 1.5, minBrightness: 0.7, maxBrightness: 1.0, minBlinkSpeed: 0.05, maxBlinkSpeed: 0.15, glowBlur: 15, color: 'rgba(255, 255, 150, ' },
+            { count: 30, minRadius: 1.5, maxRadius: 2.5, minSpeedX: -1, maxSpeedX: 1, minSpeedY: -1, maxSpeedY: 1, minBrightness: 0.5, maxBrightness: 0.8, minBlinkSpeed: 0.03, maxBlinkSpeed: 0.1, glowBlur: 10, color: 'rgba(255, 255, 100, ' },
+            { count: 50, minRadius: 0.5, maxRadius: 1.5, minSpeedX: -0.5, maxSpeedX: 0.5, minSpeedY: -0.5, maxSpeedY: 0.5, minBrightness: 0.3, maxBrightness: 0.6, minBlinkSpeed: 0.01, maxBlinkSpeed: 0.05, glowBlur: 5, color: 'rgba(200, 200, 80, ' }
+        ];
+        function initFireflies() {
+            fireflyLayers.length = 0;
+            fireflyLayerConfigs.forEach(config => {
+                const layer = [];
+                for (let i = 0; i < config.count; i++) {
+                    layer.push({
+                        x: Math.random() * canvas.width,
+                        y: Math.random() * canvas.height,
+                        radius: Math.random() * (config.maxRadius - config.minRadius) + config.minRadius,
+                        speedX: Math.random() * (config.maxSpeedX - config.minSpeedX) + config.minSpeedX,
+                        speedY: Math.random() * (config.maxSpeedY - config.minSpeedY) + config.minSpeedY,
+                        brightness: Math.random() * (config.maxBrightness - config.minBrightness) + config.minBrightness,
+                        blinkSpeed: Math.random() * (config.maxBlinkSpeed - config.minBlinkSpeed) + config.minBlinkSpeed,
+                        angle: Math.random() * Math.PI * 2,
+                        glowBlur: config.glowBlur,
+                        colorPrefix: config.color
+                    });
+                }
+                fireflyLayers.push(layer);
+            });
+        }
+        function drawFireflies() {
+            fireflyLayers.forEach(layer => {
+                layer.forEach(fly => {
+                    const glow = Math.sin(fly.angle) * 0.5 + 0.5;
+                    ctx.beginPath();
+                    ctx.arc(fly.x, fly.y, fly.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = `${fly.colorPrefix}${fly.brightness * glow})`;
+                    ctx.shadowBlur = fly.glowBlur;
+                    ctx.shadowColor = `${fly.colorPrefix}${fly.brightness * glow})`;
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                    ctx.shadowColor = 'transparent';
+                    fly.x += fly.speedX;
+                    fly.y += fly.speedY;
+                    fly.angle += fly.blinkSpeed;
+                    if (fly.x < 0 || fly.x > canvas.width) fly.speedX *= -1;
+                    if (fly.y < 0 || fly.y > canvas.height) fly.speedY *= -1;
+                });
+            });
+        }
+
+        // --- Multi-Layer Fog Effect (Perlin Noise with Cubic Bézier for vertical blending) ---
+        const fogLayerConfigs = [
+            {
+                speedZ: 0.001,
+                speedX: 0.0005,
+                density: 0.004,
+                maxOpacity: 0.3,
+                cellSize: 4,
+                octaves: 3,
+                persistance: 0.5,
+                lacunarity: 2.0,
+                startYRatio: 0.5,
+                endYRatio: 1.0,
+                bezierP0: 0.0, bezierP1: 0.5, bezierP2: 0.8, bezierP3: 1.0
+            },
+            {
+                speedZ: 0.002,
+                speedX: 0.001,
+                density: 0.006,
+                maxOpacity: 0.5,
+                cellSize: 3,
+                octaves: 4,
+                persistance: 0.6,
+                lacunarity: 2.2,
+                startYRatio: 0.4,
+                endYRatio: 1.0,
+                bezierP0: 0.0, bezierP1: 0.8, bezierP2: 0.95, bezierP3: 1.0
+            },
+            {
+                speedZ: 0.003,
+                speedX: 0.0015,
+                density: 0.008,
+                maxOpacity: 0.8,
+                cellSize: 2,
+                octaves: 5,
+                persistance: 0.7,
+                lacunarity: 2.5,
+                startYRatio: 0.3,
+                endYRatio: 1.0,
+                bezierP0: 0.0, bezierP1: 0.9, bezierP2: 0.98, bezierP3: 1.0
+            }
+        ];
+        function getCubicBezierValue(t, p0, p1, p2, p3) {
+            const omt = 1 - t;
+            const omt2 = omt * omt;
+            const omt3 = omt2 * omt;
+            const t2 = t * t;
+            const t3 = t2 * t;
+            return omt3 * p0 +
+                   3 * omt2 * t * p1 +
+                   3 * omt * t2 * p2 +
+                   t3 * p3;
+        }
+        function initFog() {
+            fogLayers.length = 0;
+            fogLayerConfigs.forEach(config => {
+                fogLayers.push({
+                    simplex: new SimplexNoise(),
+                    noiseOffsetZ: Math.random() * 1000,
+                    noiseOffsetX: Math.random() * 1000,
+                    config: config
+                });
+            });
+        }
+        function drawFog() {
+            if (fogLayers.length === 0) {
+                initFog();
+            }
+            const startPixelY = Math.floor(canvas.height * Math.min(...fogLayerConfigs.map(c => c.startYRatio)));
+            fogLayers.forEach(layer => {
+                const { simplex, noiseOffsetZ, noiseOffsetX, config } = layer;
+                for (let y = startPixelY; y < canvas.height; y += config.cellSize) {
+                    for (let x = 0; x < canvas.width; x += config.cellSize) {
+                        let totalNoise = 0;
+                        let amplitude = 1;
+                        let frequency = config.density;
+                        let maxAmplitude = 0;
+                        for (let i = 0; i < config.octaves; i++) {
+                            const noiseValue = simplex.noise3D(
+                                x * frequency + noiseOffsetX,
+                                y * frequency,
+                                noiseOffsetZ
+                            );
+                            totalNoise += noiseValue * amplitude;
+                            maxAmplitude += amplitude;
+                            amplitude *= config.persistance;
+                            frequency *= config.lacunarity;
+                        }
+                        let normalizedNoise = (totalNoise / maxAmplitude + 1) / 2;
+                        normalizedNoise = Math.pow(normalizedNoise, 1.8);
+                        const normalizedY = y / canvas.height;
+                        let t_bezier = (normalizedY - config.startYRatio) / (config.endYRatio - config.startYRatio);
+                        t_bezier = Math.max(0, Math.min(1, t_bezier));
+                        let heightOpacityRatio = getCubicBezierValue(
+                            t_bezier,
+                            config.bezierP0,
+                            config.bezierP1,
+                            config.bezierP2,
+                            config.bezierP3
+                        );
+                        let finalOpacity = normalizedNoise * config.maxOpacity * heightOpacityRatio;
+                        finalOpacity = Math.max(0, Math.min(config.maxOpacity, finalOpacity));
+                        if (finalOpacity > 0.005) {
+                            ctx.fillStyle = `rgba(200, 200, 200, ${finalOpacity})`;
+                            ctx.fillRect(x, y, config.cellSize, config.cellSize);
+                        }
+                    }
+                }
+                layer.noiseOffsetZ += config.speedZ * globalFogSpeedMultiplier;
+                layer.noiseOffsetX += config.speedX * globalFogSpeedMultiplier;
+            });
+        }
+
+        // --- Magical Swirls: Dazzling Sparkle Effect ---
+        const maxSwarmParticles = 80;
+        const maxDustParticles = 800;
+        const lightColors = [
+            { h: 45, s: 100, l: 90 },
+            { h: 60, s: 100, l: 80 },
+            { h: 30, s: 100, l: 85 },
+            { h: 0, s: 100, l: 95 },
+            { h: 200, s: 100, l: 85 },
+            { h: 270, s: 100, l: 90 }
+        ];
+        function initSwirls() {
+            swarmParticles.length = 0;
+            dustParticles.length = 0;
+            for (let i = 0; i < maxSwarmParticles; i++) {
+                swarmParticles.push({
+                    x: canvas.width / 2 + (Math.random() - 0.5) * 250,
+                    y: canvas.height / 2 + (Math.random() - 0.5) * 250,
+                    baseRadius: (Math.random() * 0.7 + 0.5) * globalParticleSizeMultiplier,
+                    sparklePeakRadius: (Math.random() * 2 + 1.5) * globalParticleSizeMultiplier,
+                    speed: Math.random() * 0.7 + 0.2,
+                    angle: Math.random() * Math.PI * 2,
+                    orbitRadius: Math.random() * 180 + 70,
+                    orbitSpeed: Math.random() * 0.02 + 0.005,
+                    currentOrbitAngle: Math.random() * Math.PI * 2,
+                    color: lightColors.sort(() => Math.random() - 0.5)[0],
+                    sparkleTimer: 0,
+                    sparkleDuration: Math.floor(Math.random() * 15) + 10,
+                    sparkleChance: Math.random() * 0.02 + 0.005,
+                    baseOpacity: Math.random() * 0.2 + 0.1,
+                    sparklePeakOpacity: Math.random() * 0.4 + 0.6,
+                    baseGlow: Math.random() * 2 + 1,
+                    sparklePeakGlow: Math.random() * 20 + 10
+                });
+            }
+        }
+        function createDustParticle(x, y, color, currentOpacity) {
+            dustParticles.push({
+                x: x,
+                y: y,
+                radius: (Math.random() * 0.4 + 0.2) * globalParticleSizeMultiplier,
+                color: { ...color, l: Math.min(98, color.l + 5) },
+                life: 1,
+                decay: Math.random() * 0.05 + 0.02,
+                speedX: (Math.random() - 0.5) * 0.1,
+                speedY: (Math.random() - 0.5) * 0.1,
+                opacityModifier: currentOpacity
+            });
+            if (dustParticles.length > maxDustParticles) {
+                dustParticles.shift();
+            }
+        }
+        function drawSwirls() {
+            swarmParticles.forEach(p => {
+                const centerX = canvas.width / 2;
+                const centerY = canvas.height / 2;
+                p.x = centerX + Math.cos(p.currentOrbitAngle) * p.orbitRadius;
+                p.y = centerY + Math.sin(p.currentOrbitAngle) * p.orbitRadius;
+                p.currentOrbitAngle += p.orbitSpeed;
+                p.x += (Math.random() - 0.5) * 1;
+                p.y += (Math.random() - 0.5) * 1;
+                let currentRadius = p.baseRadius;
+                let currentOpacity = p.baseOpacity;
+                let currentGlow = p.baseGlow;
+                let isSparkling = false;
+                if (p.sparkleTimer > 0) {
+                    p.sparkleTimer--;
+                    isSparkling = true;
+                    const sparkleProgress = p.sparkleTimer / p.sparkleDuration;
+                    const fadeFactor = Math.pow(sparkleProgress, 2);
+                    currentRadius = p.baseRadius + (p.sparklePeakRadius - p.baseRadius) * fadeFactor;
+                    currentOpacity = p.baseOpacity + (p.sparklePeakOpacity - p.baseOpacity) * fadeFactor;
+                    currentGlow = p.baseGlow + (p.sparklePeakGlow - p.baseGlow) * fadeFactor;
+                } else {
+                    if (Math.random() < p.sparkleChance) {
+                        p.sparkleTimer = p.sparkleDuration;
+                        isSparkling = true;
+                    }
+                }
+                ctx.fillStyle = `hsla(${p.color.h}, ${p.color.s}%, ${p.color.l}%, ${Math.max(0, currentOpacity)})`;
+                ctx.shadowBlur = Math.max(0, currentGlow);
+                ctx.shadowColor = `hsla(${p.color.h}, ${p.color.s}%, ${p.color.l}%, 0.9)`;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, currentRadius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                if (isSparkling || Math.random() < 0.05) {
+                    createDustParticle(p.x, p.y, p.color, currentOpacity);
+                }
+            });
+            dustParticles.forEach((d, index) => {
+                const dustOpacity = d.life * d.opacityModifier;
+                ctx.fillStyle = `hsla(${d.color.h}, ${d.color.s}%, ${d.color.l}%, ${Math.max(0, dustOpacity)})`;
+                ctx.beginPath();
+                ctx.arc(d.x, d.y, d.radius * Math.max(0, d.life), 0, Math.PI * 2);
+                ctx.fill();
+                d.x += d.speedX;
+                d.y += d.speedY;
+                d.life -= d.decay;
+                if (d.life <= 0) {
+                    dustParticles.splice(index, 1);
+                }
+            });
+        }
+
+        // --- Fireworks Effect ---
+        // New Sparkle Particle class for trailing effects
+        class Sparkle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.radius = Math.random() * 0.8 + 0.5;
+                this.life = 1;
+                this.decay = Math.random() * 0.03 + 0.01;
+                this.speedX = (Math.random() - 0.5) * 0.5;
+                this.speedY = (Math.random() - 0.5) * 0.5;
+            }
+
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                this.life -= this.decay;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius * this.life, 0, Math.PI * 2);
+                ctx.fillStyle = `hsla(${this.color.h}, ${this.color.s}%, ${this.color.l}%, ${this.life})`;
+                ctx.fill();
+            }
+        }
+
+        function createFirework(x, y) {
+            const hue = Math.floor(Math.random() * 360);
+            const particles = [];
+            const fireworkType = Math.random(); 
+            const trailSparkles = []; // Array to hold trailing sparkles
+
+            if (fireworkType < 0.3) { // Glitter effect
+                const particlesCount = Math.floor(Math.random() * 70) + 30;
+                for (let i = 0; i < particlesCount; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = Math.random() * 3 + 1;
+                    particles.push({
+                        x: x, y: y, angle: angle, speed: speed, hue: hue, life: 1, decay: Math.random() * 0.02 + 0.01,
+                        type: 'glitter', size: Math.random() * 2 + 1, glitterFactor: Math.random() * 0.05 + 0.02
+                    });
+                }
+            } else if (fireworkType < 0.6) { // Falling effect
+                const particlesCount = Math.floor(Math.random() * 70) + 30;
+                for (let i = 0; i < particlesCount; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = Math.random() * 3 + 1;
+                    particles.push({
+                        x: x, y: y, angle: angle, speed: speed, hue: hue, life: 1, decay: Math.random() * 0.02 + 0.01,
+                        type: 'falling', size: Math.random() * 1.5 + 0.8, gravity: Math.random() * 0.05 + 0.02,
+                        verticalSpeed: Math.random() * 2 + 1, horizontalSpeed: (Math.random() - 0.5) * 0.5
+                    });
+                }
+            } else { // New: Expanding Glitter Trail
+                const particlesCount = Math.floor(Math.random() * 40) + 20; // Fewer particles for distinct trails
+                const initialExpansionSpeed = Math.random() * 4 + 2; // Faster initial burst
+                const initialDecay = Math.random() * 0.005 + 0.002; // Slower decay for longer trails
+                
+                for (let i = 0; i < particlesCount; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    particles.push({
+                        x: x, y: y, angle: angle, speed: initialExpansionSpeed, hue: hue, life: 1, decay: initialDecay,
+                        type: 'expandingGlitterTrail', size: Math.random() * 2 + 1, glitterFactor: Math.random() * 0.08 + 0.03, // More glittery
+                        gravity: Math.random() * 0.03 + 0.01, // Adds a falling effect
+                        verticalSpeed: 0, // Starts with no vertical speed, gravity will pull it down
+                        horizontalSpeed: (Math.random() - 0.5) * 0.2 // Slight horizontal drift
+                    });
+                }
+            }
+            fireworks.push({ particles: particles, trailSparkles: trailSparkles, hue: hue });
+        }
+
+        function updateFireworks() {
+            fireworks.forEach((firework, index) => {
+                firework.particles.forEach((particle, pIndex) => {
+                    if (particle.type === 'glitter' || particle.type === 'burst') {
+                        particle.x += Math.cos(particle.angle) * particle.speed;
+                        particle.y += Math.sin(particle.angle) * particle.speed;
+                        particle.speed *= 0.95;
+                    } else if (particle.type === 'falling') {
+                        particle.x += particle.horizontalSpeed;
+                        particle.y += particle.verticalSpeed;
+                        particle.verticalSpeed += particle.gravity;
+                    } else if (particle.type === 'expandingGlitterTrail') {
+                        particle.x += Math.cos(particle.angle) * particle.speed + particle.horizontalSpeed;
+                        particle.y += Math.sin(particle.angle) * particle.speed + particle.verticalSpeed;
+                        particle.speed *= 0.97; // Slower deceleration for longer trails
+                        particle.verticalSpeed += particle.gravity; // Apply gravity
+                    }
+
+                    particle.life -= particle.decay;
+
+                    // Add trailing sparkle effect for all types, more frequently for expandingGlitterTrail
+                    if (particle.type === 'expandingGlitterTrail' && Math.random() < 0.4 || // Higher chance for this type
+                        particle.type !== 'expandingGlitterTrail' && Math.random() < 0.1) { // Standard chance for others
+                        firework.trailSparkles.push(new Sparkle(particle.x, particle.y, { h: particle.hue, s: 100, l: 80 }));
+                    }
+
+                    if (particle.life <= 0) {
+                        firework.particles.splice(pIndex, 1);
+                    }
+                });
+
+                // Update and remove dead sparkles
+                firework.trailSparkles.forEach((sparkle, sIndex) => {
+                    sparkle.update();
+                    if (sparkle.life <= 0) {
+                        firework.trailSparkles.splice(sIndex, 1);
+                    }
+                });
+
+                if (firework.particles.length === 0 && firework.trailSparkles.length === 0) {
+                    fireworks.splice(index, 1);
+                }
+            });
+        }
+
+        function drawFireworks() {
+            fireworks.forEach(firework => {
+                firework.particles.forEach(particle => {
+                    ctx.beginPath();
+                    // For glitter and expandingGlitterTrail, vary size slightly for sparkle effect
+                    let currentSize = particle.size;
+                    if (particle.type === 'glitter' || particle.type === 'expandingGlitterTrail') {
+                        currentSize = particle.size * (1 + Math.sin(particle.life * 15) * particle.glitterFactor); // Increased frequency for more sparkle
+                    }
+                    ctx.arc(particle.x, particle.y, particle.life * currentSize, 0, Math.PI * 2);
+                    ctx.fillStyle = `hsla(${particle.hue}, 100%, 60%, ${particle.life})`;
+                    ctx.fill();
+                });
+
+                // Draw trailing sparkles
+                firework.trailSparkles.forEach(sparkle => {
+                    sparkle.draw();
+                });
+            });
+        }
+
+        function launchRandomFirework() {
+            const x = Math.random() * canvas.width;
+            const y = Math.random() * canvas.height * 0.7; // Launch higher up
+            createFirework(x, y);
+        }
+
+        setInterval(launchRandomFirework, 1500); // Shorter interval for more frequent fireworks
+
+        // --- Animation Loop ---
+        function animate() {
+            drawBackground();
+            particleSizeControl.style.display = 'none';
+            fogSpeedControl.style.display = 'none';
+            switch (currentEffect) {
+                case 'rain':
+                    drawRain();
+                    break;
+                case 'snow':
+                    drawSnow();
+                    break;
+                case 'fireflies':
+                    drawFireflies();
+                    break;
+                case 'fog':
+                    drawFog();
+                    fogSpeedControl.style.display = 'inline';
+                    break;
+                case 'swirls':
+                    drawSwirls();
+                    particleSizeControl.style.display = 'inline';
+                    break;
+                case 'fireworks':
+                    updateFireworks();
+                    drawFireworks();
+                    break;
+                case 'none':
+                default:
+                    break;
+            }
+            animationFrameId = requestAnimationFrame(animate);
+        }
+
+        function startAnimationLoop() {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+            animate();
+        }
+
+        // --- Dropdown Event Listener ---
+        effectSelect.addEventListener('change', (event) => {
+            currentEffect = event.target.value;
+            switch (currentEffect) {
+                case 'rain':
+                    initRain();
+                    break;
+                case 'snow':
+                    initSnow();
+                    break;
+                case 'fireflies':
+                    initFireflies();
+                    break;
+                case 'fog':
+                    initFog();
+                    break;
+                case 'swirls':
+                    initSwirls();
+                    break;
+                case 'fireworks':
+                    fireworks = []; // Clear existing fireworks when selecting the effect
+                    break;
+                case 'none':
+                default:
+                    break;
+            }
+        });
+
+        // --- Particle Size Slider Event Listener ---
+        particleSizeSlider.addEventListener('input', (event) => {
+            globalParticleSizeMultiplier = parseFloat(event.target.value);
+            if (currentEffect === 'swirls') {
+                initSwirls();
+            }
+        });
+
+        // --- Fog Speed Slider Event Listener ---
+        fogSpeedSlider.addEventListener('input', (event) => {
+            globalFogSpeedMultiplier = parseFloat(event.target.value);
+        });
+
+        // Debugging: Check if SimplexNoise is loaded
+        if (typeof SimplexNoise !== 'function') {
+            console.error('SimplexNoise library not loaded correctly.');
+        }
+    </script>
+</body>
+</html>
+
+

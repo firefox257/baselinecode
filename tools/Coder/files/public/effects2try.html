@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta="UTF-8">
+    <meta nameviewport content="width=device, initial-scale=0">
+    <title>Animated Effects</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #00;
+            font:-serif            color: white               canvas {
+            block;
+           -size: cover;
+            background-position: center;
+              controls {
+            position: absolute;
+ top: px;
+            left:20px;
+            z-index: 10;
+            background: rgba( , 0, 0.);
+            padding: 10 15px;
+            border-radius8px;
+            display: flex;
+            flex-wrap: wrap /* Allow controls if many */
+            align-items: center;
+            gap: 15px; /* Increased gap for better spacing */
+        }
+        .controls {
+            margin-right: 5;
+            white: nowrap; Prevent label wrapping */
+        }
+       controls select,
+        .controls inputrange"] { Style as well */
+            8px;
+            border-radius: 5px;
+ border: 1px solid #555            background-color: #333;
+            color:            -webkit-appearance; /* default slider styles */
+            appearance: none;
+            height:8px /* Height of the slider track */
+            outline: none; /* Remove outline on focus */
+        }
+        /* Sty for the slider track */
+       controls[type="range"]::-webkit-runnable-track {
+ #555;
+            border-radius5px;
+            height: 8px        . input[typerange"]::--range-track {
+            background: #555;
+            border-radius: 5px;
+            height: 8px;
+ }
+        .controls input[type="range"]::-ms-track {
+            background: #55;
+            border-radius: 5px: px            color:; /* Hide the default track }
+        /* Styling the slider thumb */
+        .controls input[type="range"]::-webkit-slider-thumb {
+            --appearance: none;
+            appearance: none;
+           : 18; /* Size the height: 18px            border-radius: 50%; Circular */
+            background #07bff /* Blue thumb */
+            cursor: pointer;
+            margin-top: -5px; /* Adjust center vertically */
+            border: 1px solid #007bff /* Matching border */
+        }
+       controls input="range::-moz-range {
+ width: 18px;
+ height: 8px;
+           -radius: 50%;
+            background: #007bff            cursor: pointer;
+            border: none; /* Firefox doesn't need border */
+        }
+        .controls=""]::-ms-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #00bff            cursor            margin:px; /* IE/Edge */
+            border:;
+        }
+   style>
+    <script srchttps://cdnjs/ajax/libs/simplex-noise/2.4.0/simplex-noise.min.jsscript>
+</head>
+<body>
+    <canvas id="my"></canvas>
+ <div class="controls">
+        <label foreffectSelect"> Effect:</>
+        <select id="effectSelect">
+            <option valuenone">None</option>
+            <optionrainoption>
+            <snow">Snow>
+            <option value="fireflies">Firefliesoption            <option value="fog">F</option>
+           option value="swirls">Magical Swirls</option>
+            <option="fireFireworksoption> <!-- option for fireworks        </select>
+        <span id="particleSizeControl" style=": none            <label for="">Particle Size:</label            <input type="range" id="particleSize" min="01="5.0" step="1" value="1">
+        </span>
+        <span id="fSpeedControl"="display: none;">
+            <label for="fogSpeed">og Speed:</            < type="range" id="fogSpeed min=".0" max="100" step="0.05" value="1.0        </div>
+    <script>
+        const canvas = document.getElementById('myCanvas');
+        const ctx canvas.getContext('2d const effectSelect = document.getElementById('');
+        constSizeControl = document.getElementById('particleSizeControl');
+        const particleSizeSlider =('particleSize');
+ const fogControl document.getElementById('Speed        const fogSpeed = document.getElementById('fSpeed        let current = 'none';
+        let animationFrame = null;
+
+ // Global variables for slider multipliers
+        let globalMultiplier 1.0;
+        let globalogSpeedMultiplier 1.0;
+
+        // Set canvas to full screen
+ function setCanvasSize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            // Draw background immediately if it's loaded just be           Image) {
+               ();
+            }
+        }
+
+ // background image
+        const backgroundImage = Image();
+        ''; Ensure this path is correct        = () => {
+            // here specifically called by setSize on initial load
+ };
+
+        canvas size and start animation loop immediately
+        setSize();
+       AnimationLoop();
+
+ // Handle window resizing
+        window.addEventListener('', setCanvasSize);
+
+ functionBackground {
+            ctx.clearRect(00, canvas.width, canvas.height // Clear entire canvas            // Only draw the background image if it has successfully loaded
+           backgroundImage.complete && backgroundImage.nWidth > ) {
+                aspectRatio =.width /.height;
+ let draw canvas.width;
+ let draw = canvas aspectRatio;
+                if (draw.height) {
+                   Height =;
+                    draw = * aspectRatio }
+ xOffset = (canvas drawWidth)2;
+ const yOffset (canvas.height - draw)2;
+                ctx.drawImageImage xOffset, yOffset, drawWidth draw);
+            }
+        }
+
+        // Existing implementations...
+
+        // --- Fireworks Effect ---
+        const        constCount 100        const gravity = 0.1        = 0.95;
+
+        function initFire()            fireworks =0; // previous fireworks        }
+
+        launchwork() {
+            const x = Math.random().width;
+            const y = canvas.height            hue = 60;
+.push(new Firework(x, y, hue }
+
+ function updateFireworks {
+.forEachwork index) => {
+                firework.update();
+                if (fireworkpl) {
+                    fireworks.splice(index 1);
+ createSparks(fire, firework.y, firework.hue);
+                });
+        }
+
+        function drawFireworks fireworks.forEach(firework =>work.draw        function createSp(x, y hue) {
+ forlet i = 0; < sparkCount i++)(x, y hue));
+ }
+        }
+
+        class Firework {
+            constructor(x, y, hue) {
+                this = x                this.y = y;
+ this hue;
+                this =() *2 +1;
+               .speed.random() *  + 4;
+               .angle = Math.PI 2 - Math.random() *.PI / 6;
+                this.exploded = false;
+            }
+
+            update() {
+                this.x Math.cos(this.angle) * this.speed;
+               .y Math.sin(this) * this.speed;
+ *= friction;
+                if (this.speed < ) {
+                    this.exploded = true;
+                }
+            }
+
+            draw() {
+                ctx();
+                ctx.arc(this this.y, this.size,, Math.PI 2);
+                ctx = `hsl(${thisue}, 0%, 0%)`;
+                ctx.fill();
+            }
+
+        class Spark {
+            constructor(x, y, hue)                this.x =;
+               .y = y;
+ this.hue =;
+               .size =() * 2 + 1;
+                this.speed Math.random() * 5 2;
+                this.angle = Math() * Math.PI * ;
+                this.alpha = 1;
+            }
+
+            update() {
+                this.x Math(this.angle) * this.speed;
+                this.y += Math(this.angle) *.speed;
+                this.speed *= friction;
+.alpha -= 0.1                if (this <=0) {
+                   (fworks.indexOf(this), 1                }
+            }
+
+            draw() {
+                ctx.globalAlpha this;
+                ctx.beginPath();
+                ctx.arc(this.x, this this.size 0, Math.PI *2);
+ ctx.fillStyle =hsl(${this.hue}, 100%, 6%)`;
+                ctx.fill();
+                ctx.globalAlpha =1;
+            }
+        }
+
+ setInterval(launchFirework, 800); // Launch a new fire every800ms
+
+        // --- Fireworks Effect --        // --- Animation Loop ---
+ function animate() {
+            drawBackground();
+            // Hide all effect-specific controls by default
+            particleControl.style.display 'none';
+            fogSpeedControl.display = 'none';
+            switch (currentEffect) {
+                case 'rain':
+                    drawRain();
+                    break;
+ case 'snow':
+                    draw();
+                   ;
+                casefire':
+                   Fire();
+ break;
+                'fog':
+                   F();
+                    fogControl.style.display = 'inline';
+ break;
+                case 'swirls':
+                    drawirls();
+                    particleSize.display = 'inline';
+                   ;
+                case 'fireworks':
+                    updateFireworks();
+                   Fireworks                    break;
+                case 'none               :
+                    break;
+            }
+            animationFrameId requestAnimationFrame(animate);
+        }
+
+        function startLoop() {
+            ifanimationFrameId) {
+                cancelAnimationFrame(animationFrameId                       animate();
+               // --- Dropdown Event Listener ---
+        effectSelect('change', (event) => {
+            currentEffect = event.value;
+            switch (currentEffect) {
+                case 'rain':
+                    initRain                    break;
+ case 'snow':
+                    initSnow();
+                    break;
+ casefireflies':
+                    initFireflies();
+                    break               fog':
+                    initFog();
+;
+ case 'swirls':
+ initirls(); // Re-initialize swirls to apply new size if slider moved                    break;
+                casefireworks':
+ initFireworks(); // Reize fireworks
+                    break            }
+ });
+
+        // Size Event Listener ---
+        particleSize('input (event) => {
+            globalParticleSizeMultiplier =.target.value);
+ //-initial particles when the slider is moved to apply new sizes
+            if (Effect === 'irls') {
+                initSwirls();
+        });
+
+        // --- Speed Slider Event ---
+       SpeedSlider('input', () => {
+            globalFogMultiplier =(event.target.value);
+ No to fog, it just changes on
+ });
+    </script>
+</body>
+</html>

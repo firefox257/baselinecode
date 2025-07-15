@@ -1,262 +1,29 @@
-
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Chat Module Test Page</title>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Mono&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Full Screen AI Chat (Zoom Disabled)</title>
+    <script type="module" src="./ux/aichat.js"></script> 
     <style>
         body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            background-color: #f0f2f5; /* Keep a subtle background for the page itself */
+            margin: 0;
+            padding: 0;
+            font-family: sans-serif;
+            overflow: hidden; /* Prevent body scrollbars */
             display: flex;
-            flex-direction: column;
-            gap: 20px; /* Reduced gap between sections */
-            color: #333;
+            height: 100vh; /* Make body take full viewport height */
+            width: 100vw;  /* Make body take full viewport width */
         }
 
-        h1 {
-            color: #2c3e50;
-            border-bottom: 2px solid #3498db;
-            padding-bottom: 5px;
-            margin-bottom: 20px; /* Space after the main title */
-        }
-
-        h2 {
-            color: #2c3e50;
-            border-bottom: 1px solid #ddd; /* Lighter border for sub-sections */
-            padding-bottom: 5px;
-            margin-bottom: 10px; /* Closer to the content */
-            padding-top: 10px; /* Space above sub-titles */
-        }
-
-        /* Remove .test-section box styling */
-        .test-section {
-            /* background-color: #ffffff; */ /* Removed */
-            padding: 0; /* Removed */
-            /* border-radius: 10px; */ /* Removed */
-            /* box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); */ /* Removed */
-        }
-
-        /* Minimalist Container styles for ai-chat */
-        .chat-container-full-width {
-            width: 90%;
-            height: 450px;
-            /* border: 2px solid #007bff; */ /* Removed border to avoid outer box */
-            padding: 0; /* Removed padding */
-            box-sizing: border-box;
-            display: flex;
-            align-items: stretch;
-            justify-content: stretch;
-            margin-bottom: 20px; /* Keep some space below the chat instance */
-            background-color: #fff; /* White background for the chat area itself */
-            border: 1px solid #eee; /* Subtle outer border for the ai-chat container */
-            border-radius: 4px; /* Slight rounding for the container */
-            overflow: hidden; /* Important for ai-chat to fill without internal scrollbars */
-        }
-
-        .chat-container-medium {
-            width: 700px;
-            height: 380px;
-            /* border: 2px solid #28a745; */ /* Removed border */
-            padding: 0; /* Removed padding */
-            box-sizing: border-box;
-            display: flex;
-            align-items: stretch;
-            justify-content: stretch;
-            margin-bottom: 20px;
-            background-color: #fff;
-            border: 1px solid #eee;
-            border-radius: 4px;
-            overflow: hidden;
-        }
-
-        .chat-container-small {
-            width: 400px;
-            height: 300px;
-            /* border: 2px solid #ffc107; */ /* Removed border */
-            padding: 0; /* Removed padding */
-            box-sizing: border-box;
-            display: flex;
-            align-items: stretch;
-            justify-content: stretch;
-            background-color: #fff;
-            border: 1px solid #eee;
-            border-radius: 4px;
-            overflow: hidden;
-        }
-
-        .button-group {
-            margin-top: 15px; /* Slightly reduced margin */
-            display: flex;
-            gap: 10px; /* Reduced gap */
-            flex-wrap: wrap;
-        }
-
-        .button-group button {
-            padding: 8px 15px; /* Reduced button padding */
-            background-color: #6c757d;
-            color: white;
-            border: none;
-            border-radius: 4px; /* Slightly smaller radius */
-            cursor: pointer;
-            font-size: 14px; /* Slightly smaller font */
-            transition: background-color 0.3s ease;
-        }
-        .button-group button:hover {
-            background-color: #5a6268;
-        }
-
-        #dynamicChatLog {
-            margin-top: 15px; /* Reduced margin */
-            padding: 10px; /* Reduced padding */
-            /* border: 1px dashed #95a5a6; */ /* Removed dashed border */
-            background-color: #ecf0f1; /* Kept subtle background */
-            border-radius: 4px; /* Reduced radius */
-            min-height: 50px;
-            font-family: 'Space Mono', monospace;
-            white-space: pre-wrap;
-            border: 1px solid #ddd; /* Solid, subtle border */
+        ai-chat {
+            flex-grow: 1; /* Make the ai-chat component fill available space */
+            width: 100%; /* Ensure it takes full width of its container (body) */
+            height: 100%; /* Ensure it takes full height of its container (body) */
         }
     </style>
 </head>
 <body>
-    <h1>AI Chat Module Test Page</h1>
-
-    <div class="test-section">
-        <h2>1. Basic Chat Instance (Full Width, with Title and Close Callback)</h2>
-        <p>This chat demonstrates full width spanning within its container, a custom title, and an <code>onclose</code> event handler.</p>
-        <div class="chat-container-full-width">
-            <ai-chat title="Main AI Assistant" onclose="handleMainChatClose"></ai-chat>
-        </div>
-        <div id="mainChatLog" style="margin-top: 10px; color: green; font-weight: bold;"></div>
-    </div>
-
-    <div class="test-section">
-        <h2>2. Chat Instance with Custom System Prompt (Medium Width, No Close Button)</h2>
-        <p>This chat is in a medium-sized container. Note that the close button should *not* be visible because <code>onclose</code> is not defined.</p>
-        <div class="chat-container-medium">
-            <ai-chat title="Creative Storyteller AI"></ai-chat>
-        </div>
-        <p><em>To test system prompt: Click the gear icon (⚙️) on this chat.</em></p>
-    </div>
-
-    <div class="test-section">
-        <h2>3. Multiple Chat Instances (Small Containers)</h2>
-        <p>Demonstrates multiple smaller chats on the page, showing independent functionality and model selection.</p>
-        <div style="display: flex; gap: 20px; flex-wrap: wrap;">
-            <div class="chat-container-small">
-                <ai-chat title="Tiny Chat 1"></ai-chat>
-            </div>
-            <div class="chat-container-small">
-                <ai-chat title="Tiny Chat 2" onclose="handleTinyChatClose"></ai-chat>
-            </div>
-        </div>
-    </div>
-
-    <div class="test-section">
-        <h2>4. Dynamically Added Chat Instances</h2>
-        <p>Tests the MutationObserver's ability to detect and initialize `<ai-chat>` tags added to the DOM after initial page load.</p>
-        <div id="dynamicChatContainer" style="display: flex; flex-wrap: wrap; gap: 20px;">
-            </div>
-        <div class="button-group">
-            <button onclick="addDynamicChat()">Add Dynamic Chat (No Title)</button>
-            <button onclick="addDynamicChatWithTitle()">Add Dynamic Chat (With Title)</button>
-            <button onclick="addDynamicChatWithClose()">Add Dynamic Chat (With Close)</button>
-            <button onclick="clearDynamicChats()">Clear All Dynamic Chats</button>
-        </div>
-        <h3>Dynamic Chat Log:</h3>
-        <div id="dynamicChatLog">No dynamic chat close events yet.</div>
-    </div>
-
-    <script type="module">
-        // Import the AI Chat module
-        import './ux/aichat.js'; // Adjust the path if your structure is different
-
-        // Global functions for onClose events
-        function handleMainChatClose() {
-            console.log('Event: Main AI Assistant chat was closed.');
-            document.getElementById('mainChatLog').textContent = 'Main chat closed at ' + new Date().toLocaleTimeString();
-        }
-
-        function handleTinyChatClose() {
-            console.log('Event: Tiny Chat 2 was closed.');
-        }
-
-        let dynamicChatCounter = 0;
-        const dynamicChatLog = document.getElementById('dynamicChatLog');
-
-        function addLogEntry(message) {
-            dynamicChatLog.textContent += `\n${new Date().toLocaleTimeString()}: ${message}`;
-            dynamicChatLog.scrollTop = dynamicChatLog.scrollHeight; // Scroll to bottom
-        }
-
-        window.handleDynamicChatCloseEvent = function(chatId) {
-            console.log(`Event: Dynamic Chat ${chatId} was closed.`);
-            addLogEntry(`Dynamic Chat ${chatId} closed.`);
-        }
-
-        window.addDynamicChat = function() {
-            dynamicChatCounter++;
-            const chatWrapper = document.createElement('div');
-            chatWrapper.className = 'chat-container-small';
-            chatWrapper.style.marginBottom = '20px'; // Add some space
-            const newChat = document.createElement('ai-chat');
-            chatWrapper.appendChild(newChat);
-            document.getElementById('dynamicChatContainer').appendChild(chatWrapper);
-            addLogEntry(`Added Dynamic Chat #${dynamicChatCounter} (no title/close).`);
-        };
-
-        window.addDynamicChatWithTitle = function() {
-            dynamicChatCounter++;
-            const chatWrapper = document.createElement('div');
-            chatWrapper.className = 'chat-container-small';
-            chatWrapper.style.marginBottom = '20px';
-            const newChat = document.createElement('ai-chat');
-            newChat.setAttribute('title', `Dynamic Title Chat #${dynamicChatCounter}`);
-            chatWrapper.appendChild(newChat);
-            document.getElementById('dynamicChatContainer').appendChild(chatWrapper);
-            addLogEntry(`Added Dynamic Chat #${dynamicChatCounter} (with title).`);
-        };
-
-        window.addDynamicChatWithClose = function() {
-            dynamicChatCounter++;
-            const chatWrapper = document.createElement('div');
-            chatWrapper.className = 'chat-container-small';
-            chatWrapper.style.marginBottom = '20px';
-            const newChat = document.createElement('ai-chat');
-            newChat.setAttribute('title', `Closable Dynamic Chat #${dynamicChatCounter}`);
-            // Pass the counter to the handler to identify which chat closed
-            newChat.setAttribute('onclose', `handleDynamicChatCloseEvent(${dynamicChatCounter})`);
-            chatWrapper.appendChild(newChat);
-            document.getElementById('dynamicChatContainer').appendChild(chatWrapper);
-            addLogEntry(`Added Dynamic Chat #${dynamicChatCounter} (with title and close).`);
-        };
-
-        window.clearDynamicChats = function() {
-            const container = document.getElementById('dynamicChatContainer');
-            while (container.firstChild) {
-                container.removeChild(container.firstChild);
-            }
-            dynamicChatCounter = 0;
-            dynamicChatLog.textContent = 'Dynamic chat log cleared.';
-            console.log('All dynamic chats cleared.');
-        };
-
-        // Make sure global functions are accessible
-        window.handleMainChatClose = handleMainChatClose;
-        window.handleTinyChatClose = handleTinyChatClose;
-
-        // Optionally, check if any chat elements are missed on initial load (shouldn't be with the module setup)
-        document.addEventListener('DOMContentLoaded', () => {
-            const initialChats = document.querySelectorAll('ai-chat');
-            console.log(`Found ${initialChats.length} ai-chat elements on initial DOMContentLoaded.`);
-        });
-    </script>
+    <ai-chat></ai-chat>
 </body>
 </html>
-
