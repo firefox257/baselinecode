@@ -1,0 +1,115 @@
+
+/*
+
+This is globals.doc.txt. Which is documentation for all the globalThis.
+
+*/
+
+
+
+This document provides an overview and usage examples for the globalThis functions defined within the provided Node.js web server code.
+globalThis.sendPlainTextResponse(res, message, statusCode = 200, headers = {})
+Description:
+This function sends a plain text response to the client. It sets the Content-Type header to text/plain and can include additional custom headers. It automatically handles converting object messages to JSON strings.
+Parameters:
+ * res (http.ServerResponse): The HTTP response object.
+ * message (string | object): The message content to send. If an object, it will be JSON.stringifyied.
+ * statusCode (number, optional): The HTTP status code for the response. Defaults to 200.
+ * headers (object, optional): An object containing additional HTTP headers to include in the response. Defaults to an empty object.
+Examples:
+ * Sending a simple success message:
+   globalThis.sendPlainTextResponse(res, 'Operation successful!');
+// This will send a 200 OK response with "Operation successful!" as plain text.
+
+ * Sending an error message with a specific status code:
+   globalThis.sendPlainTextResponse(res, 'Unauthorized access.', 401);
+// This will send a 401 Unauthorized response with "Unauthorized access."
+
+ * Sending an object as plain text (JSON stringified):
+   const errorDetails = {
+    code: 'INVALID_INPUT',
+    description: 'Missing required field: username'
+};
+globalThis.sendPlainTextResponse(res, errorDetails, 400);
+/*
+This will send a 400 Bad Request response with the body:
+'{"code":"INVALID_INPUT","description":"Missing required field: username"}'
+and Content-Type: text/plain.
+*/
+
+ * Sending with additional custom headers:
+   globalThis.sendPlainTextResponse(res, 'Custom header example', 200, { 'X-Custom-Header': 'Hello' });
+// This will send a 200 OK response with "Custom header example" and an 'X-Custom-Header'.
+
+globalThis.sendJsonResponse(res, data, statusCode = 200, headers = {})
+Description:
+This function sends a JSON response to the client. It sets the Content-Type header to application/json and automatically JSON.stringifyies the provided data. It can also include additional custom headers.
+Parameters:
+ * res (http.ServerResponse): The HTTP response object.
+ * data (object): The JavaScript object to be sent as a JSON response.
+ * statusCode (number, optional): The HTTP status code for the response. Defaults to 200.
+ * headers (object, optional): An object containing additional HTTP headers to include in the response. Defaults to an empty object.
+Examples:
+ * Sending a successful JSON response:
+   const userData = {
+    id: 123,
+    name: 'John Doe',
+    email: 'john.doe@example.com'
+};
+globalThis.sendJsonResponse(res, userData);
+/*
+This will send a 200 OK response with the body:
+'{"id":123,"name":"John Doe","email":"john.doe@example.com"}'
+and Content-Type: application/json.
+*/
+
+ * Sending an error JSON response with a specific status code:
+   const errorMessage = {
+    error: 'Resource not found',
+    details: 'The requested user ID does not exist.'
+};
+globalThis.sendJsonResponse(res, errorMessage, 404);
+/*
+This will send a 404 Not Found response with the body:
+'{"error":"Resource not found","details":"The requested user ID does not exist."}'
+and Content-Type: application/json.
+*/
+
+ * Sending with additional custom headers:
+   const successMessage = { status: 'OK' };
+globalThis.sendJsonResponse(res, successMessage, 200, { 'Cache-Control': 'no-cache' });
+// This will send a 200 OK response with a JSON body and 'Cache-Control' header.
+
+globalThis.streamFile(req, res, filePath, contentType, statusCode = 200, headers = {})
+Description:
+This function handles streaming files to the client, supporting partial content (range requests). It reads the file from the given filePath and pipes it to the response stream. It automatically determines whether to send the full file or a specific range based on the Range header in the request.
+Parameters:
+ * req (http.ServerRequest): The HTTP request object, used to check for Range headers.
+ * res (http.ServerResponse): The HTTP response object.
+ * filePath (string): The absolute path to the file to be streamed.
+ * contentType (string): The MIME type of the file (e.g., 'image/jpeg', 'application/pdf').
+ * statusCode (number, optional): The HTTP status code for a full file response. Defaults to 200. For range requests, it will automatically use 206.
+ * headers (object, optional): An object containing additional HTTP headers to include in the response. Defaults to an empty object.
+Examples:
+ * Streaming an image file:
+   // Assuming 'req' and 'res' are from the webHandler, and 'filePath' is the path to an image.
+const imagePath = path.join(__dirname, 'files', 'public', 'images', 'example.jpg');
+globalThis.streamFile(req, res, imagePath, 'image/jpeg');
+// This will stream 'example.jpg' to the client, handling range requests if present.
+
+ * Streaming an HTML file with a custom header:
+   const htmlPath = path.join(__dirname, 'files', 'public', 'index.html');
+globalThis.streamFile(req, res, htmlPath, 'text/html', 200, { 'X-File-Type': 'Web Page' });
+// This will stream 'index.html' and include an 'X-File-Type' header.
+
+ * Handling a range request for a video file:
+   This function inherently handles range requests if the req.headers.range is present. You just call it with the file path and content type.
+   // If a client requests a video with a 'Range' header, `streamFile` will automatically
+// respond with a 206 Partial Content status and the appropriate bytes.
+const videoPath = path.join(__dirname, 'files', 'public', 'videos', 'my_movie.mp4');
+globalThis.streamFile(req, res, videoPath, 'video/mp4');
+
+Important Notes:
+ * This documentation covers the globalThis functions. Other functions like handleFileRequest, handleApiRequest, and webHandler are internal to the server's operation and not intended for direct external use in the same way globalThis functions are.
+ * Ensure that file paths provided to streamFile are correct and accessible by the Node.js process.
+ * The _mimetype object and serverOptions are not globalThis objects but rather module-scoped constants used internally by the server setup.

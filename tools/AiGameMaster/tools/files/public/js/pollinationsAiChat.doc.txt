@@ -1,0 +1,52 @@
+PollinationsAIChat Module Documentation
+The PollinationsAIChat module provides a convenient interface for interacting with the Pollinations.ai text generation API. It simplifies fetching available AI models and sending chat prompts to those models, including caching mechanisms for model lists and robust error handling.
+getModels()
+getModels() is an asynchronous function that retrieves a list of available AI models from the Pollinations.ai service. To optimize performance and reduce API calls, it first attempts to load the models from the browser's local storage. If the cached data is unavailable or corrupted, it then fetches the latest list of models directly from the Pollinations.ai API. The fetched list is then stored in local storage for future use.
+Returns
+ * Promise<Array<string>>: A promise that resolves to an array of strings, where each string is the name of an available AI model (e.g., "gemma-7b-it").
+Error Handling
+ * If fetching models from Pollinations.ai fails (e.g., due to network issues or an invalid API response), an error is logged to the console, and an empty array is returned.
+Example
+import PollinationsAIChat from './js/pollinationsAiChat.js';
+
+async function listModels() {
+  try {
+    const models = await PollinationsAIChat.getModels();
+    console.log('Available models:', models);
+    // Example output: ['gemma-7b-it', 'llama-2-7b-chat']
+  } catch (error) {
+    console.error('Failed to get models:', error);
+  }
+}
+
+listModels();
+
+chat(modelName, prompt, systemPrompt)
+chat() is an asynchronous function that sends a chat prompt to a specified AI model on Pollinations.ai and retrieves the AI's response. It uses a POST request to the API, sending the user's prompt and an optional system prompt in JSON format.
+Parameters
+ * modelName (string): The name of the AI model you want to use for the chat (e.g., "gemma-7b-it").
+ * prompt (string): The main text prompt or question you want to send to the AI.
+ * systemPrompt (string, optional): An optional introductory prompt that guides the AI's overall behavior or persona. The default value is 'You are a helpful AI assistant.'.
+Returns
+ * Promise<string>: A promise that resolves to a string containing the AI's generated response text.
+Error Handling
+ * If the API call fails (e.g., invalid modelName, network issues, or an error returned by the API), an Error is thrown. The error message will include details about the failure, potentially including error messages from the Pollinations.ai API if available.
+Example
+import PollinationsAIChat from './js/pollinationsAiChat.js';
+
+async function getChatResponse() {
+  const model = 'gemma-7b-it'; // Or choose from the list obtained by getModels()
+  const userPrompt = 'What is the capital of France?';
+  const systemInstruction = 'You are a polite and informative AI.';
+
+  try {
+    const response = await PollinationsAIChat.chat(model, userPrompt, systemInstruction);
+    console.log('AI Response:', response);
+    // Example output: 'Paris is the capital of France.'
+  } catch (error) {
+    console.error('Failed to get chat response:', error);
+  }
+}
+
+getChatResponse();
+

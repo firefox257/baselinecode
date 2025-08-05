@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebGL Shaded Triangle</title>
+    <style>
+        canvas {
+            width: 600px;
+            height: 400px;
+            display: block;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body>
+    <h1 style="text-align:center;">WebGL Shaded Triangle</h1>
+    <canvas id="glcanvas"></canvas>
+
+    <script type="text/javascript">
+        // Get the WebGL context
+        const canvas = document.getElementById('glcanvas');
+        const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+
+        if (!gl) {
+            alert('WebGL not supported, falling back on experimental-webgl');
+        }
+
+        // Vertex shader program
+        const vsSource = `
+            attribute vec4 aVertexPosition;
+            attribute vec3 aVertexNormal;
+
+            uniform mat4 uModelViewMatrix;
+            uniform mat4 uProjectionMatrix;
+            uniform mat4 uNormalMatrix;
+
+            varying vec3 vLighting;
+
+            void main(void) {
+                gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
+
+                // Apply lighting effect
+                vec3 ambientLight = vec3(0.3, 0.3, 0.3);
+                vec3 directionalLightColor = vec3(1, 1, 1);
+                vec3 directionalVector = normalize(vec3(0.85, 0.8, 0.75));
+
+                vec4 transformedNormal = uNormalMatrix * vec4(aVertexNormal, 1.0);
+                float delta = max(dot(transformedNormal.xyz, directionalVector), 0.0);
+                vLighting = ambientLight + (directionalLightColor * delta);
+            }
+        `;
+
+        // Fragment shader program
+        const fsSource = `
+            precision mediump float;
+            varying vec3 vLighting;
+
+            void main(void) {
+                // Set object color
+                vec3 objectColor = vec3(0.2, 0.6, 0.8);
+                gl_FragColor = vec4(objectColor * vLighting, 1.0);
+            }
+        `;
+
+        // Initialize shader program
+        function initShaderProgram(gl, vsSource, fsSource) {
+            const vertexShader = loadShader(gl, gl.VERTEX_SHADER, vsSource);
+            const fragmentShader = loadShader(gl, gl.FRAGMENT_SHADER, fsSource);
+
+            const shaderProgram = gl.createProgram();
+            gl.attachShader(shaderProgram, vertexShader);
+            gl.attachShader(shaderProgram, fragmentShader);
+            gl.linkProgram(shaderProgram);
+
+            if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+                alert('Unable to initialize the shader program: ' + gl.getProgramInfoLog(shaderProgram));
+                return null;
+            }
+            return shaderProgram;
+        }
+
+        // Creates a shader of the given type, uploads the source and compiles it.
+        function loadShader(gl, type, source) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                alert('An error occurred compiling the shaders: ' + gl.getShaderInfoLog(shader));
+                gl.deleteShader(shader);
+                return null;
+            }
+            return shader;
+        }
+
+        const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
+        const programInfo = {
+            program: shaderProgram,
+            attribLocations: {
+                vertexPosition: gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
+                vertexNormal: gl.getAttribLocation(shaderProgram, 'aVertexNormal'),
+            },
+            uniformLocations: {
+                projectionMatrix: gl.getUniformLocation(shaderProgram, 'uProjectionMatrix'),
+                modelViewMatrix: gl.getUniformLocation(shaderProgram, 'uModelViewMatrix'),
+                normalMatrix: gl.getUniformLocation(shaderProgram, 'uNormalMatrix'),
+            },
+        };
+
+        // Define the geometry and store it in buffers
+        function initBuffers(gl) {
+            // Create a buffer for the triangle's positions.
+            const positionBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+
+            // Define the positions for a triangle
+            const positions = [
+                0.0,  1.0,  0.0,
+               -1.0, -1.0,  0.0,
+                1.0, -1.0,  0.0,
+            ];
+
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+
+            // Normal buffer
+            const normalBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
+
+            // Normals for each vertex
+            const vertexNormals = [
+                0.0,  0.0,  1.0,
+                0.0,  0.0,  1.0,
+                0.0,  0.0,  1.0,
+            ];
+
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexNormals), gl.STATIC_DRAW);
+
+            return {
+                position: positionBuffer,
+                normal: normalBuffer,
+            };
+        }
+
+        const buffers = initBuffers(gl);
+
+        // Draw the scene repeatedly
+        function render() {
+            drawScene(gl, programInfo, buffers);
+            requestAnimationFrame(render);
+        }
+
+        // Draw the scene
+        function drawScene(gl, programInfo, buffers) {
+            gl.canvas.width = gl.canvas.clientWidth;
+            gl.canvas.height = gl.canvas.clientHeight;
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+            gl.clearColor(0.0, 0.0, 0.0, 1.0);
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+            gl.enable(gl.DEPTH_TEST);
+
+            // Create perspective matrix
+            const fieldOfView = 45 * Math.PI / 180;   // in radians
+            const aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
+            const zNear = 0.1;
+            const zFar = 100.0;
+            const projectionMatrix = mat4.create();
+
+            mat4.perspective(projectionMatrix,
+                             fieldOfView,
+                             aspect,
+                             zNear,
+                             zFar);
+
+            // Set the drawing position to the "identity" point, which is the center of the scene.
+            const modelViewMatrix = mat4.create();
+
+            // Move the drawing position a bit
+            mat4.translate(modelViewMatrix,     // destination matrix
+                           modelViewMatrix,     // matrix to translate
+                           [0.0, 0.0, -6.0]);  // amount to translate
+
+            // Compute normal matrix
+            const normalMatrix = mat4.create();
+            mat4.invert(normalMatrix, modelViewMatrix);
+            mat4.transpose(normalMatrix, normalMatrix);
+
+            // Tell WebGL how to pull out the positions from the position buffer into the vertexPosition attribute.
+            {
+                const numComponents = 3;
+                const type = gl.FLOAT;
+                const normalize = false;
+                const stride = 0;
+                const offset = 0;
+                gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position);
+                gl.vertexAttribPointer(
+                    programInfo.attribLocations.vertexPosition,
+                    numComponents,
+                    type,
+                    normalize,
+                    stride,
+                    offset);
+                gl.enableVertexAttribArray(programInfo.attribLocations.vertexPosition);
+            }
+
+            // Tell WebGL how to pull out the normals from the normal buffer into the vertexNormal attribute.
+            {
+                const numComponents = 3;
+                const type = gl.FLOAT;
+                const normalize = false;
+                const stride = 0;
+                const offset = 0;
+                gl.bindBuffer(gl.ARRAY_BUFFER, buffers.normal);
+                gl.vertexAttribPointer(
+                    programInfo.attribLocations.vertexNormal,
+                    numComponents,
+                    type,
+                    normalize,
+                    stride,
+                    offset);
+                gl.enableVertexAttribArray(programInfo.attribLocations.vertexNormal);
+            }
+
+            // Use our shader program
+            gl.useProgram(programInfo.program);
+
+            // Set shader uniforms
+            gl.uniformMatrix4fv(
+                programInfo.uniformLocations.projectionMatrix,
+                false,
+                projectionMatrix);
+            gl.uniformMatrix4fv(
+                programInfo.uniformLocations.modelViewMatrix,
+                false,
+                modelViewMatrix);
+            gl.uniformMatrix4fv(
+                programInfo.uniformLocations.normalMatrix,
+                false,
+                normalMatrix);
+
+            {
+                const offset = 0;
+                const vertexCount = 3;
+                gl.drawArrays(gl.TRIANGLES, offset, vertexCount);
+            }
+        }
+
+        // Load the glMatrix library for matrix operations
+        // Include it via CDN
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/gl-matrix@2.8.1/dist/gl-matrix-min.js';
+        document.head.appendChild(script);
+        script.onload = () => {
+            // Start rendering once the library is loaded
+            render();
+        };
+    </script>
+</body>
+</html>

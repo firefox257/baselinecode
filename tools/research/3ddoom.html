@@ -1,0 +1,669 @@
+<!--
+make the walls higher
+-->
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Doom-like Raycasting on Canvas (Mobile Controls & DDA)</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #333;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start; /* Align items to the start (top) */
+            align-items: center;
+            min-height: 100vh;
+            -webkit-user-select: none; /* Prevent text selection on iOS */
+            -ms-user-select: none;
+            user-select: none;
+            touch-action: manipulation; /* Prevent default touch actions like double-tap zoom */
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            border: 1px solid #000;
+            background-color: #555;
+            flex-shrink: 0;
+            image-rendering: pixelated;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+            width: 100vw; /* Make the canvas take full viewport width */
+            height: auto; /* Allow height to adjust proportionally */
+            display: block; /* Remove extra space below canvas */
+        }
+
+        #controls {
+            display: none; /* Hide the old controls */
+        }
+
+        /* --- Joystick Styles --- */
+        #joystick-container {
+            position: absolute;
+            bottom: 20px; /* Adjust as needed */
+            left: 20px; /* Adjust as needed */
+            width: 150px; /* Size of the joystick base */
+            height: 150px; /* Size of the joystick base */
+            background-color: rgba(100, 100, 100, 0.5); /* Semi-transparent base */
+            border-radius: 50%; /* Make it circular */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            touch-action: none; /* Prevent browser default touch actions */
+            z-index: 100; /* Ensure it's above other elements */
+        }
+
+        #joystick-stick {
+            width: 60px; /* Size of the joystick stick */
+            height: 60px; /* Size of the joystick stick */
+            background-color: rgba(200, 200, 200, 0.8); /* Semi-transparent stick */
+            border-radius: 50%;
+            position: absolute; /* Allows movement within its parent */
+            cursor: grab;
+            touch-action: none; /* Prevent browser default touch actions */
+        }
+
+        /* Media query for larger screens to limit canvas size */
+        @media (min-width: 768px) {
+            canvas {
+                max-width: 800px; /* Example max width for larger screens */
+                /* Adjust height proportionally based on the original aspect ratio */
+                height: calc(800px / (320 / 200));
+            }
+            #joystick-container {
+                /* On larger screens, you might want to adjust positioning or size */
+                /* For example, center it or keep it relative to the canvas */
+                left: 50%;
+                transform: translateX(-50%); /* Center horizontally */
+                bottom: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="320" height="200"></canvas>
+
+    <div id="controls" style="display: none;">
+        <div id="rotation-controls">
+            <button id="turnLeft" class="control-button">⟲ Turn Left</button>
+        </div>
+        <div id="movement-controls">
+            <button id="moveForward" class="control-button">⬆️ Forward</button>
+            <button id="moveBackward" class="control-button">⬇️ Backward</button>
+        </div>
+        <div id="rotation-controls">
+            <button id="turnRight" class="control-button">⟳ Turn Right</button>
+        </div>
+    </div>
+
+    <div id="joystick-container">
+        <div id="joystick-stick"></div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d', { alpha: false }); // Disable alpha for slight performance gain if not needed
+
+        // --- Game Configuration ---
+        // Keep these fixed for the internal game resolution
+        const SCREEN_WIDTH = 320;
+        const SCREEN_HEIGHT = 200;
+
+        // Set the canvas dimensions based on the fixed internal resolution
+        canvas.width = SCREEN_WIDTH;
+        canvas.height = SCREEN_HEIGHT;
+
+        const HALF_SCREEN_HEIGHT = SCREEN_HEIGHT / 2; // Pre-calculate for speed
+        const FOV = Math.PI / 3; // 60 degrees field of view
+        const HALF_FOV = FOV / 2; // Pre-calculate
+        const WALL_HEIGHT = 128; // Approximate height of a wall in game units
+        const TILE_SIZE = 64;   // Size of a single tile in the map (e.g., 64x64 units)
+        const INV_TILE_SIZE = 1 / TILE_SIZE; // Pre-calculate inverse for division to multiplication
+        const HALF_TILE_SIZE = TILE_SIZE / 2; // Pre-calculate for DDA fix
+
+        // Player properties
+        const player = {
+            x: TILE_SIZE * 1.5,
+            y: TILE_SIZE * 1.5,
+            angle: Math.PI / 2, // Looking "up" initially
+            speed: 2.5, // Slightly reduced speed for lower resolution
+            rotationSpeed: 0.04, // Slightly reduced rotation speed
+            z: TILE_SIZE / 2 // Player's height from the floor
+        };
+
+        // Map (1 = wall, 0 = empty) - A simple 2D grid
+        const gameMap = [
+            [1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 0, 0, 1],
+            [1, 0, 0, 0, 1, 0, 0, 1],
+            [1, 0, 0, 0, 1, 0, 0, 1],
+            [1, 0, 1, 0, 1, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 0, 1, 1, 1]
+        ];
+        const MAP_WIDTH = gameMap[0].length;
+        const MAP_HEIGHT = gameMap.length;
+
+        // Texture images
+        const wallTexture = new Image();
+        wallTexture.src = 'wall_texture.png'; // Make sure these paths are correct
+        const floorTexture = new Image();
+        floorTexture.src = 'floor_texture.png';
+        const ceilingTexture = new Image();
+        ceilingTexture.src = 'ceiling_texture.png';
+
+        let texturesLoadedCount = 0;
+        const totalTextures = 3;
+
+        // Store texture data as ImageData for faster pixel-level access
+        let wallTextureData, floorTextureData, ceilingTextureData;
+
+        function loadImage(img, src, callback) {
+            img.onload = () => {
+                callback();
+            };
+            img.onerror = () => {
+                console.error(`Failed to load ${src}!`);
+                callback(); // Still increment count to avoid blocking
+            };
+            img.src = src;
+        }
+
+        // Use a temporary canvas to get ImageData for textures
+        function getImageData(img) {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = img.width;
+            tempCanvas.height = img.height;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(img, 0, 0);
+            return tempCtx.getImageData(0, 0, img.width, img.height);
+        }
+
+        function textureLoadedCallback() {
+            texturesLoadedCount++;
+            if (texturesLoadedCount === totalTextures) {
+                console.log('All textures loaded successfully!');
+                // Get image data once all are loaded
+                wallTextureData = getImageData(wallTexture);
+                floorTextureData = getImageData(floorTexture);
+                ceilingTextureData = getImageData(ceilingTexture);
+                gameLoop(); // Start the game loop
+            }
+        }
+
+        loadImage(wallTexture, 'wall_texture.png', textureLoadedCallback);
+        loadImage(floorTexture, 'floor_texture.png', textureLoadedCallback);
+        loadImage(ceilingTexture, 'ceiling_texture.png', textureLoadedCallback);
+
+        // --- Input Handling ---
+        const keys = {
+            moveForward: false,
+            moveBackward: false,
+            turnLeft: false,
+            turnRight: false
+        };
+
+        // Keyboard controls (still useful for testing on desktop)
+        document.addEventListener('keydown', (e) => {
+            switch (e.code) {
+                case 'ArrowUp':
+                case 'KeyW':
+                    keys.moveForward = true;
+                    break;
+                case 'ArrowDown':
+                case 'KeyS':
+                    keys.moveBackward = true;
+                    break;
+                case 'ArrowLeft':
+                case 'KeyA':
+                    keys.turnLeft = true;
+                    break;
+                case 'ArrowRight':
+                case 'KeyD':
+                    keys.turnRight = true;
+                    break;
+            }
+        });
+        document.addEventListener('keyup', (e) => {
+            switch (e.code) {
+                case 'ArrowUp':
+                case 'KeyW':
+                    keys.moveForward = false;
+                    break;
+                case 'ArrowDown':
+                case 'KeyS':
+                    keys.moveBackward = false;
+                    break;
+                case 'ArrowLeft':
+                case 'KeyA':
+                    keys.turnLeft = false;
+                    break;
+                case 'ArrowRight':
+                case 'KeyD':
+                    keys.turnRight = false;
+                    break;
+            }
+        });
+
+        // --- Joystick Controls ---
+        const joystickContainer = document.getElementById('joystick-container');
+        const joystickStick = document.getElementById('joystick-stick');
+        let isJoystickActive = false;
+        let stickCenterX, stickCenterY; // Center of the stick relative to the container
+        let maxDistance; // Max distance the stick can move from center
+
+        // Set up joystick dimensions and center once the DOM is ready
+        window.addEventListener('load', () => {
+            const containerRect = joystickContainer.getBoundingClientRect();
+            stickCenterX = containerRect.width / 2;
+            stickCenterY = containerRect.height / 2;
+            maxDistance = (containerRect.width / 2) - (joystickStick.offsetWidth / 2);
+
+            // Position the stick initially at the center
+            joystickStick.style.left = `${stickCenterX - joystickStick.offsetWidth / 2}px`;
+            joystickStick.style.top = `${stickCenterY - joystickStick.offsetHeight / 2}px`;
+        });
+
+        joystickContainer.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            isJoystickActive = true;
+            // Capture pointer for consistent tracking even if it moves off the container
+            joystickContainer.setPointerCapture(e.pointerId);
+        });
+
+        joystickContainer.addEventListener('pointermove', (e) => {
+            if (!isJoystickActive) return;
+
+            e.preventDefault();
+
+            const containerRect = joystickContainer.getBoundingClientRect();
+            let touchX = e.clientX - containerRect.left;
+            let touchY = e.clientY - containerRect.top;
+
+            // Calculate distance from the center of the container
+            let deltaX = touchX - stickCenterX;
+            let deltaY = touchY - stickCenterY;
+
+            // Calculate current distance from center
+            const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+            if (distance > maxDistance) {
+                // Normalize and scale back to maxDistance
+                deltaX = (deltaX / distance) * maxDistance;
+                deltaY = (deltaY / distance) * maxDistance;
+            }
+
+            // Update stick position
+            joystickStick.style.left = `${stickCenterX + deltaX - joystickStick.offsetWidth / 2}px`;
+            joystickStick.style.top = `${stickCenterY + deltaY - joystickStick.offsetHeight / 2}px`;
+
+            // Control player based on joystick position
+            // Movement: Forward/Backward based on Y-axis
+            // Rotation: Left/Right based on X-axis
+
+            keys.moveForward = deltaY < -10; // Threshold to prevent accidental movement
+            keys.moveBackward = deltaY > 10;
+
+            keys.turnLeft = deltaX < -10;
+            keys.turnRight = deltaX > 10;
+
+            // Adjust speed/rotation based on how far the stick is pushed
+            // You can make these non-linear for a better feel
+            player.speed = 2.5 * (Math.abs(deltaY) / maxDistance);
+            player.rotationSpeed = 0.04 * (Math.abs(deltaX) / maxDistance);
+
+            // Minimum speed/rotation to prevent jitter when stick is near center
+            if (player.speed < 0.5) player.speed = 0;
+            if (player.rotationSpeed < 0.005) player.rotationSpeed = 0;
+
+        });
+
+        joystickContainer.addEventListener('pointerup', (e) => {
+            if (!isJoystickActive) return;
+            e.preventDefault();
+            isJoystickActive = false;
+            joystickContainer.releasePointerCapture(e.pointerId);
+
+            // Reset stick position to center
+            joystickStick.style.left = `${stickCenterX - joystickStick.offsetWidth / 2}px`;
+            joystickStick.style.top = `${stickCenterY - joystickStick.offsetHeight / 2}px`;
+
+            // Stop player movement/rotation
+            keys.moveForward = false;
+            keys.moveBackward = false;
+            keys.turnLeft = false;
+            keys.turnRight = false;
+            player.speed = 0; // Reset speed to base value or 0 if no movement
+            player.rotationSpeed = 0; // Reset rotation speed
+        });
+
+        joystickContainer.addEventListener('pointerleave', (e) => {
+             // If the pointer leaves the container while active, treat as pointerup
+            if (isJoystickActive && e.pointerId === e.currentTarget.releasePointerId) { // Check if it's the active pointer
+                joystickContainer.dispatchEvent(new PointerEvent('pointerup', {
+                    pointerId: e.pointerId,
+                    clientX: e.clientX,
+                    clientY: e.clientY,
+                    button: e.button
+                }));
+            }
+        });
+
+
+        function updatePlayer() {
+            let moved = false;
+
+            // Calculate new position based on current angle
+            let newX = player.x;
+            let newY = player.y;
+
+            if (keys.moveForward) {
+                newX += Math.cos(player.angle) * player.speed;
+                newY += Math.sin(player.angle) * player.speed;
+                moved = true;
+            }
+            if (keys.moveBackward) {
+                newX -= Math.cos(player.angle) * player.speed;
+                newY -= Math.sin(player.angle) * player.speed;
+                moved = true;
+            }
+
+            // Optimized collision detection: Check X and Y movement separately
+            if (moved) {
+                // Check X collision
+                const mapX_newX = Math.floor(newX * INV_TILE_SIZE);
+                const mapY_playerY = Math.floor(player.y * INV_TILE_SIZE);
+                if (mapX_newX >= 0 && mapX_newX < MAP_WIDTH && mapY_playerY >= 0 && mapY_playerY < MAP_HEIGHT &&
+                    gameMap[mapY_playerY][mapX_newX] === 0) {
+                    player.x = newX;
+                }
+
+                // Check Y collision
+                const mapX_playerX = Math.floor(player.x * INV_TILE_SIZE);
+                const mapY_newY = Math.floor(newY * INV_TILE_SIZE);
+                if (mapX_playerX >= 0 && mapX_playerX < MAP_WIDTH && mapY_newY >= 0 && mapY_newY < MAP_HEIGHT &&
+                    gameMap[mapY_newY][mapX_playerX] === 0) {
+                    player.y = newY;
+                }
+            }
+
+
+            if (keys.turnLeft) {
+                player.angle -= player.rotationSpeed;
+            }
+            if (keys.turnRight) {
+                player.angle += player.rotationSpeed;
+            }
+
+            // Optimize angle normalization: use bitwise AND for modulo 2*PI if angle is always positive
+            // Or a simple clamp if it can go negative
+            player.angle = player.angle % (Math.PI * 2);
+            if (player.angle < 0) player.angle += (Math.PI * 2);
+        }
+
+        // Function to get pixel data from an ImageData object
+        // This is much faster than ctx.getImageData for individual pixels
+        function getPixel(imageData, x, y) {
+            x = Math.floor(x);
+            y = Math.floor(y);
+            // Ensure x, y are within bounds
+            if (x < 0 || x >= imageData.width || y < 0 || y >= imageData.height) {
+                return [0, 0, 0, 255]; // Return transparent black for out-of-bounds (or any default color)
+            }
+            const index = (y * imageData.width + x) * 4;
+            const data = imageData.data;
+            return [data[index], data[index + 1], data[index + 2], data[index + 3]];
+        }
+
+        // Pre-allocate a single ImageData object for the whole screen
+        // Make sure this is using the *internal* SCREEN_WIDTH and SCREEN_HEIGHT
+        const screenImageData = ctx.createImageData(SCREEN_WIDTH, SCREEN_HEIGHT);
+        const screenPixels = screenImageData.data;
+
+        // --- Raycasting and Rendering ---
+        function renderGame() {
+            if (texturesLoadedCount !== totalTextures) return; // Wait until all textures are loaded
+
+            // Clear screen or fill with background color (can be skipped if drawing everything)
+            // ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT); // Not needed if drawing every pixel
+
+            // Pre-calculate common values for floor/ceiling to avoid repeated calculations inside loops
+            const playerX_div_TILE = player.x * INV_TILE_SIZE;
+            const playerY_div_TILE = player.y * INV_TILE_SIZE;
+            const INV_SCREEN_HEIGHT_x_HALF_TILE = SCREEN_HEIGHT * INV_TILE_SIZE * 0.5; // (SCREEN_HEIGHT / (2 * TILE_SIZE))
+
+            // Draw floor and ceiling pixels
+            for (let y = 0; y < HALF_SCREEN_HEIGHT; y++) {
+                const currentYFromCenter = y + 0.5; // Optimized to prevent division by zero for y=0
+
+                // Pre-calculate constants for current row
+                const rowDistanceFloor = player.z / currentYFromCenter;
+                const rowDistanceCeiling = (WALL_HEIGHT - player.z) / currentYFromCenter;
+
+                for (let x = 0; x < SCREEN_WIDTH; x++) {
+                    const rayAngle = (player.angle - HALF_FOV) + (x / SCREEN_WIDTH) * FOV;
+                    const rayDirX = Math.cos(rayAngle);
+                    const rayDirY = Math.sin(rayAngle);
+
+                    // Floor
+                    const floorX = playerX_div_TILE + rayDirX * rowDistanceFloor * INV_SCREEN_HEIGHT_x_HALF_TILE;
+                    const floorY = playerY_div_TILE + rayDirY * rowDistanceFloor * INV_SCREEN_HEIGHT_x_HALF_TILE;
+
+                    const floorTexX = Math.floor((floorX - Math.floor(floorX)) * floorTexture.width);
+                    const floorTexY = Math.floor((floorY - Math.floor(floorY)) * floorTexture.height);
+
+                    // Get floor pixel data and set
+                    const floorPixel = getPixel(floorTextureData, floorTexX, floorTexY);
+                    const floorPixelIndex = ((HALF_SCREEN_HEIGHT + y) * SCREEN_WIDTH + x) * 4;
+                    screenPixels[floorPixelIndex] = floorPixel[0];
+                    screenPixels[floorPixelIndex + 1] = floorPixel[1];
+                    screenPixels[floorPixelIndex + 2] = floorPixel[2];
+                    screenPixels[floorPixelIndex + 3] = 255; // Alpha
+
+                    // Ceiling
+                    const ceilingX = playerX_div_TILE + rayDirX * rowDistanceCeiling * INV_SCREEN_HEIGHT_x_HALF_TILE;
+                    const ceilingY = playerY_div_TILE + rayDirY * rowDistanceCeiling * INV_SCREEN_HEIGHT_x_HALF_TILE;
+
+                    const ceilTexX = Math.floor((ceilingX - Math.floor(ceilingX)) * ceilingTexture.width);
+                    const ceilTexY = Math.floor((ceilingY - Math.floor(ceilingY)) * ceilingTexture.height);
+
+                    // Get ceiling pixel data and set
+                    const ceilPixel = getPixel(ceilingTextureData, ceilTexX, ceilTexY);
+                    const ceilPixelIndex = ((HALF_SCREEN_HEIGHT - 1 - y) * SCREEN_WIDTH + x) * 4;
+                    screenPixels[ceilPixelIndex] = ceilPixel[0];
+                    screenPixels[ceilPixelIndex + 1] = ceilPixel[1];
+                    screenPixels[ceilPixelIndex + 2] = ceilPixel[2];
+                    screenPixels[ceilPixelIndex + 3] = 255; // Alpha
+                }
+            }
+
+
+            // Loop through each column of pixels on the screen for walls
+            for (let x = 0; x < SCREEN_WIDTH; x++) {
+                // Calculate ray angle for this column
+                const rayAngle = (player.angle - HALF_FOV) + (x / SCREEN_WIDTH) * FOV;
+
+                // --- DDA Raycasting Setup ---
+                const rayDirX = Math.cos(rayAngle);
+                const rayDirY = Math.sin(rayAngle);
+
+                // Which box of the map we're in
+                let mapX = Math.floor(player.x * INV_TILE_SIZE);
+                let mapY = Math.floor(player.y * INV_TILE_SIZE);
+
+                // Length of ray from current position to next x or y-side
+                let sideDistX;
+                let sideDistY;
+
+                // Length of ray from one x or y-side to the next x or y-side
+                // Optimized: use multiplication by inverse instead of division
+                const deltaDistX = Math.abs(TILE_SIZE / rayDirX);
+                const deltaDistY = Math.abs(TILE_SIZE / rayDirY);
+
+                // What direction to step in x or y (-1 or +1)
+                let stepX;
+                let stepY;
+
+                let hit = 0; // Was there a wall hit? (0=no, 1=yes, 2=out of bounds)
+                let side;    // Was a NS or EW wall hit? (0 for X-axis (EW), 1 for Y-axis (NS))
+
+                // Calculate step and initial sideDist
+                if (rayDirX < 0) {
+                    stepX = -1;
+                    sideDistX = (player.x - mapX * TILE_SIZE) * deltaDistX * INV_TILE_SIZE;
+                } else {
+                    stepX = 1;
+                    sideDistX = ((mapX + 1) * TILE_SIZE - player.x) * deltaDistX * INV_TILE_SIZE;
+                }
+                if (rayDirY < 0) {
+                    stepY = -1;
+                    sideDistY = (player.y - mapY * TILE_SIZE) * deltaDistY * INV_TILE_SIZE;
+                } else {
+                    stepY = 1;
+                    sideDistY = ((mapY + 1) * TILE_SIZE - player.y) * deltaDistY * INV_TILE_SIZE;
+                }
+
+                // Perform DDA
+                while (hit === 0) {
+                    if (sideDistX < sideDistY) {
+                        sideDistX += deltaDistX;
+                        mapX += stepX;
+                        side = 0;
+                    } else {
+                        sideDistY += deltaDistY;
+                        mapY += stepY;
+                        side = 1;
+                    }
+
+                    // Check if ray has hit a wall
+                    if (mapX >= 0 && mapX < MAP_WIDTH && mapY >= 0 && mapY < MAP_HEIGHT) {
+                        if (gameMap[mapY][mapX] === 1) {
+                            hit = 1;
+                        }
+                    } else {
+                        hit = 2; // Ray went out of bounds
+                        break; // Exit loop early if out of bounds
+                    }
+                }
+
+                let perpWallDist;
+                let wallX_texture_coord = 0;
+
+                if (hit === 1) {
+                    if (side === 0) {
+                        perpWallDist = (mapX * TILE_SIZE - player.x + (1 - stepX) * HALF_TILE_SIZE) / rayDirX; // Use HALF_TILE_SIZE
+                        wallX_texture_coord = player.y + perpWallDist * rayDirY;
+                    } else {
+                        perpWallDist = (mapY * TILE_SIZE - player.y + (1 - stepY) * HALF_TILE_SIZE) / rayDirY;
+                        wallX_texture_coord = player.x + perpWallDist * rayDirX;
+                    }
+
+                    // Normalize wallX_texture_coord to be within the tile
+                    wallX_texture_coord = wallX_texture_coord % TILE_SIZE;
+                    if (wallX_texture_coord < 0) wallX_texture_coord += TILE_SIZE; // Ensure positive
+
+                    // Flip texture coordinate for correct orientation on different sides
+                    // Added -1 for precise pixel snapping on texture
+                    if (side === 0 && rayDirX > 0) wallX_texture_coord = TILE_SIZE - wallX_texture_coord - 1;
+                    if (side === 1 && rayDirY < 0) wallX_texture_coord = TILE_SIZE - wallX_texture_coord - 1;
+
+                } else {
+                    perpWallDist = SCREEN_WIDTH * TILE_SIZE; // Effectively infinite distance
+                }
+
+                // Correct for fish-eye effect (already done in your code, but good to note)
+                // This correction is implicitly done by `perpWallDist` formula for DDA.
+
+                let distance = perpWallDist;
+                // Prevent division by zero or very small numbers
+                if (distance < 0.1) distance = 0.1;
+
+                // Calculate wall slice height on screen
+                // Optimized: multiplication instead of division where possible
+                const wallSliceHeight = (WALL_HEIGHT * HALF_SCREEN_HEIGHT) / distance;
+
+                // Calculate where to draw the wall slice on the screen
+                const drawStartY = HALF_SCREEN_HEIGHT - (wallSliceHeight / 2);
+                const drawEndY = HALF_SCREEN_HEIGHT + (wallSliceHeight / 2);
+
+                // Source X in the texture
+                const textureX = Math.floor(wallX_texture_coord * wallTexture.width * INV_TILE_SIZE);
+
+                // Draw the textured wall slice pixel by pixel
+                if (hit === 1 && wallTextureData) {
+                    for (let y = Math.floor(drawStartY); y < Math.ceil(drawEndY); y++) {
+                        if (y >= 0 && y < SCREEN_HEIGHT) {
+                            // Calculate texture Y coordinate based on screen Y
+                            // (y - drawStartY) / wallSliceHeight gives 0 to 1 range
+                            // Multiply by texture height to get actual texture Y
+                            const textureY = Math.floor(((y - drawStartY) / wallSliceHeight) * wallTexture.height);
+
+                            const pixel = getPixel(wallTextureData, textureX, textureY);
+                            const pixelIndex = (y * SCREEN_WIDTH + x) * 4;
+                            screenPixels[pixelIndex] = pixel[0];
+                            screenPixels[pixelIndex + 1] = pixel[1];
+                            screenPixels[pixelIndex + 2] = pixel[2];
+                            screenPixels[pixelIndex + 3] = 255; // Alpha
+                        }
+                    }
+                }
+            }
+
+            // Put the completely rendered ImageData to the canvas in one go
+            ctx.putImageData(screenImageData, 0, 0);
+
+            // Optional: Draw mini-map (for debugging/visualization) - disable for production
+            // drawMiniMap();
+        }
+
+
+        // Mini-map function (for debugging only, disable for performance)
+        /*
+        function drawMiniMap() {
+            const miniMapScale = 5;
+            for (let y = 0; y < MAP_HEIGHT; y++) {
+                for (let x = 0; x < MAP_WIDTH; x++) {
+                    const color = gameMap[y][x] === 1 ? '#F00' : '#333';
+                    ctx.fillStyle = color;
+                    ctx.fillRect(x * miniMapScale, y * miniMapScale, miniMapScale, miniMapScale);
+                }
+            }
+            // Draw player on mini-map
+            ctx.fillStyle = 'blue';
+            ctx.beginPath();
+            ctx.arc(player.x * INV_TILE_SIZE * miniMapScale, player.y * INV_TILE_SIZE * miniMapScale, 2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw player direction on mini-map
+            ctx.strokeStyle = 'blue';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(player.x * INV_TILE_SIZE * miniMapScale, player.y * INV_TILE_SIZE * miniMapScale);
+            ctx.lineTo(
+                (player.x + Math.cos(player.angle) * TILE_SIZE / 2) * INV_TILE_SIZE * miniMapScale,
+                (player.y + Math.sin(player.angle) * TILE_SIZE / 2) * INV_TILE_SIZE * miniMapScale
+            );
+            ctx.stroke();
+        }
+        */
+
+        // --- Game Loop ---
+        function gameLoop() {
+            updatePlayer();
+            renderGame();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // The game loop will start once all textures are loaded via textureLoadedCallback
+    </script>
+</body>
+</html>
+
+
+

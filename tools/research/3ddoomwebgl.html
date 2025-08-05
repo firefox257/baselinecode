@@ -1,0 +1,539 @@
+
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGL Maze (Generated from 2D Map)</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #333; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        canvas { border: 1px solid #000; background-color: #555; }
+    </style>
+</head>
+<body>
+    <canvas id="glCanvas" width="640" height="480"></canvas>
+
+    <script>
+        const canvas = document.getElementById('glCanvas');
+        const gl = canvas.getContext('webgl');
+
+        if (!gl) {
+            alert('Unable to initialize WebGL. Your browser or machine may not support it.');
+        }
+
+        // --- Game Configuration (from previous examples) ---
+        const TILE_SIZE = 64; // This will now represent the actual size of a wall in 3D units
+
+        const gameMap = [
+            [1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 0, 0, 1],
+            [1, 0, 0, 0, 1, 0, 0, 1],
+            [1, 0, 0, 0, 1, 0, 0, 1],
+            [1, 0, 1, 0, 1, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1]
+        ];
+        const MAP_WIDTH = gameMap[0].length;
+        const MAP_HEIGHT = gameMap.length;
+
+        // Player (for camera position)
+        const player = {
+            x: TILE_SIZE * 1.5,
+            y: TILE_SIZE * 1.5,
+            z: TILE_SIZE / 2, // Player height
+            angle: Math.PI / 2,
+            speed: 5, // Adjusted for WebGL units
+            rotationSpeed: 0.05
+        };
+
+        // --- 1. Shaders (GLSL Code) ---
+        const vsSource = `
+            attribute vec4 aVertexPosition;
+            attribute vec2 aTextureCoord;
+
+            uniform mat4 uModelViewMatrix;
+            uniform mat4 uProjectionMatrix;
+
+            varying highp vec2 vTextureCoord;
+
+            void main(void) {
+                gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
+                vTextureCoord = aTextureCoord;
+            }
+        `;
+
+        const fsSource = `
+            varying highp vec2 vTextureCoord;
+
+            uniform sampler2D uSampler;
+
+            void main(void) {
+                gl_FragColor = texture2D(uSampler, vTextureCoord);
+            }
+        `;
+
+        // --- Shader Compilation Helper ---
+        function loadShader(gl, type, source) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                alert('An error occurred compiling the shaders: ' + gl.getShaderInfoLog(shader));
+                gl.deleteShader(shader);
+                return null;
+            }
+            return shader;
+        }
+
+        // --- Shader Program Creation ---
+        function initShaderProgram(gl, vsSource, fsSource) {
+            const vertexShader = loadShader(gl, gl.VERTEX_SHADER, vsSource);
+            const fragmentShader = loadShader(gl, gl.FRAGMENT_SHADER, fsSource);
+            const shaderProgram = gl.createProgram();
+            gl.attachShader(shaderProgram, vertexShader);
+            gl.attachShader(shaderProgram, fragmentShader);
+            gl.linkProgram(shaderProgram);
+            if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+                alert('Unable to initialize the shader program: ' + gl.getProgramInfoLog(shaderProgram));
+                return null;
+            }
+            return shaderProgram;
+        }
+
+        const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
+
+        const programInfo = {
+            program: shaderProgram,
+            attribLocations: {
+                vertexPosition: gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
+                textureCoord: gl.getAttribLocation(shaderProgram, 'aTextureCoord'),
+            },
+            uniformLocations: {
+                projectionMatrix: gl.getUniformLocation(shaderProgram, 'uProjectionMatrix'),
+                modelViewMatrix: gl.getUniformLocation(shaderProgram, 'uModelViewMatrix'),
+                uSampler: gl.getUniformLocation(shaderProgram, 'uSampler'),
+            },
+        };
+
+        // --- 2. Geometry Generation from Maze Map ---
+        function initMazeBuffers(gl, gameMap, TILE_SIZE) {
+            const positions = [];
+            const textureCoords = [];
+            const indices = [];
+            let vertexCount = 0; // To keep track of the current vertex index
+
+            // Iterate through the map to create wall geometry
+            for (let y = 0; y < MAP_HEIGHT; y++) {
+                for (let x = 0; x < MAP_WIDTH; x++) {
+                    if (gameMap[y][x] === 1) { // If it's a wall
+                        const halfSize = TILE_SIZE / 2;
+                        const wallCenterX = x * TILE_SIZE + halfSize;
+                        const wallCenterY = y * TILE_SIZE + halfSize;
+                        const wallHeight = TILE_SIZE;
+
+                        // Define vertices for each side of the wall, if not blocked by another wall
+                        // Z-axis represents height, Y-axis represents depth in our conceptual 3D world
+                        // WebGL typically uses Y for up/down, so we'll map our maze Y to WebGL Z.
+
+                        // North face (along -Y in game map, but will be -Z in WebGL if we consider Y as depth)
+                        // Or, let's keep it simple: X and Y are horizontal, Z is vertical.
+                        // So, map X -> WebGL X, map Y -> WebGL Z, Height -> WebGL Y
+
+                        // For the purpose of this example, let's assume map Y is depth (Z), and map X is width (X)
+                        // We will set wall height along Y-axis in WebGL.
+                        const wallX_min = x * TILE_SIZE;
+                        const wallX_max = (x + 1) * TILE_SIZE;
+                        const wallZ_min = y * TILE_SIZE;
+                        const wallZ_max = (y + 1) * TILE_SIZE;
+                        const wallY_bottom = 0;
+                        const wallY_top = wallHeight;
+
+                        // Check neighbors to avoid rendering internal faces
+                        const neighborN = (y > 0) ? gameMap[y - 1][x] : 1; // North
+                        const neighborS = (y < MAP_HEIGHT - 1) ? gameMap[y + 1][x] : 1; // South
+                        const neighborW = (x > 0) ? gameMap[y][x - 1] : 1; // West
+                        const neighborE = (x < MAP_WIDTH - 1) ? gameMap[y][x + 1] : 1; // East
+
+                        // Each face is 4 vertices, 2 triangles, 6 indices
+
+                        // Face 1: North Wall (facing positive Z, from y to y-1)
+                        if (neighborN === 0) { // If north is open space
+                            positions.push(
+                                wallX_min, wallY_bottom, wallZ_min, // 0 Bottom Left
+                                wallX_max, wallY_bottom, wallZ_min, // 1 Bottom Right
+                                wallX_max, wallY_top,    wallZ_min, // 2 Top Right
+                                wallX_min, wallY_top,    wallZ_min  // 3 Top Left
+                            );
+                            textureCoords.push(
+                                0.0, 1.0, // BL
+                                1.0, 1.0, // BR
+                                1.0, 0.0, // TR
+                                0.0, 0.0  // TL
+                            );
+                            indices.push(
+                                vertexCount, vertexCount + 1, vertexCount + 2,
+                                vertexCount, vertexCount + 2, vertexCount + 3
+                            );
+                            vertexCount += 4;
+                        }
+
+                        // Face 2: South Wall (facing negative Z, from y to y+1)
+                        if (neighborS === 0) { // If south is open space
+                            positions.push(
+                                wallX_min, wallY_bottom, wallZ_max, // 0 Bottom Left
+                                wallX_min, wallY_top,    wallZ_max, // 1 Top Left
+                                wallX_max, wallY_top,    wallZ_max, // 2 Top Right
+                                wallX_max, wallY_bottom, wallZ_max  // 3 Bottom Right
+                            );
+                            textureCoords.push(
+                                0.0, 1.0, // BL
+                                0.0, 0.0, // TL
+                                1.0, 0.0, // TR
+                                1.0, 1.0  // BR
+                            );
+                            indices.push(
+                                vertexCount, vertexCount + 1, vertexCount + 2,
+                                vertexCount, vertexCount + 2, vertexCount + 3
+                            );
+                            vertexCount += 4;
+                        }
+
+                        // Face 3: West Wall (facing positive X, from x to x-1)
+                        if (neighborW === 0) { // If west is open space
+                            positions.push(
+                                wallX_min, wallY_bottom, wallZ_max, // 0 Bottom Left
+                                wallX_min, wallY_bottom, wallZ_min, // 1 Bottom Right
+                                wallX_min, wallY_top,    wallZ_min, // 2 Top Right
+                                wallX_min, wallY_top,    wallZ_max  // 3 Top Left
+                            );
+                            textureCoords.push(
+                                0.0, 1.0, // BL
+                                1.0, 1.0, // BR
+                                1.0, 0.0, // TR
+                                0.0, 0.0  // TL
+                            );
+                            indices.push(
+                                vertexCount, vertexCount + 1, vertexCount + 2,
+                                vertexCount, vertexCount + 2, vertexCount + 3
+                            );
+                            vertexCount += 4;
+                        }
+
+                        // Face 4: East Wall (facing negative X, from x to x+1)
+                        if (neighborE === 0) { // If east is open space
+                            positions.push(
+                                wallX_max, wallY_bottom, wallZ_min, // 0 Bottom Left
+                                wallX_max, wallY_bottom, wallZ_max, // 1 Bottom Right
+                                wallX_max, wallY_top,    wallZ_max, // 2 Top Right
+                                wallX_max, wallY_top,    wallZ_min  // 3 Top Left
+                            );
+                            textureCoords.push(
+                                0.0, 1.0, // BL
+                                1.0, 1.0, // BR
+                                1.0, 0.0, // TR
+                                0.0, 0.0  // TL
+                            );
+                            indices.push(
+                                vertexCount, vertexCount + 1, vertexCount + 2,
+                                vertexCount, vertexCount + 2, vertexCount + 3
+                            );
+                            vertexCount += 4;
+                        }
+
+                        // NOTE: For a true 3D maze, you'd also want to add floor and ceiling quads
+                        // for each open (0) cell. This example focuses on walls.
+                    }
+                }
+            }
+
+            const positionBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+
+            const textureCoordBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(textureCoords), gl.STATIC_DRAW);
+
+            const indexBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+
+            return {
+                position: positionBuffer,
+                textureCoord: textureCoordBuffer,
+                indices: indexBuffer,
+                vertexCount: indices.length, // Total number of indices to draw
+            };
+        }
+
+        const buffers = initMazeBuffers(gl, gameMap, TILE_SIZE);
+
+        // --- 3. Texture Loading ---
+        function loadTexture(gl, url) {
+            const texture = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE,
+                          new Uint8Array([0, 0, 255, 255])); // Blue placeholder
+
+            const image = new Image();
+            image.onload = function() {
+                gl.bindTexture(gl.TEXTURE_2D, texture);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+                if (isPowerOf2(image.width) && isPowerOf2(image.height)) {
+                   gl.generateMipmap(gl.TEXTURE_2D);
+                } else {
+                   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+                   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+                   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+                }
+                console.log('WebGL Texture loaded successfully!');
+            };
+            image.onerror = function() {
+                console.error('Failed to load WebGL texture:', url);
+            };
+            image.src = url;
+            return texture;
+        }
+
+        function isPowerOf2(value) {
+            return (value & (value - 1)) === 0;
+        }
+
+        const wallTexture = loadTexture(gl, 'wall_texture.png');
+
+        // --- 4. Matrix Math (Using a simple matrix setup for now) ---
+        // For a full game, you'd integrate a math library like gl-matrix.js
+        // For this example, we'll manually set up basic matrices for perspective and camera movement.
+        
+        const projectionMatrix = new Float32Array(16); // 4x4 matrix
+        const modelViewMatrix = new Float32Array(16);  // 4x4 matrix
+
+        // Initialize to identity
+        function identityMatrix(m) {
+            m[0]=1; m[1]=0; m[2]=0; m[3]=0;
+            m[4]=0; m[5]=1; m[6]=0; m[7]=0;
+            m[8]=0; m[9]=0; m[10]=1; m[11]=0;
+            m[12]=0; m[13]=0; m[14]=0; m[15]=1;
+        }
+
+        // Simple perspective matrix (fovy, aspect, near, far)
+        function perspectiveMatrix(m, fovy, aspect, near, far) {
+            const f = 1.0 / Math.tan(fovy / 2);
+            m[0] = f / aspect; m[1] = 0; m[2] = 0; m[3] = 0;
+            m[4] = 0; m[5] = f; m[6] = 0; m[7] = 0;
+            m[8] = 0; m[9] = 0; m[10] = (far + near) / (near - far); m[11] = -1;
+            m[12] = 0; m[13] = 0; m[14] = (2 * far * near) / (near - far); m[15] = 0;
+        }
+
+        // Simple lookAt matrix (eyeX, eyeY, eyeZ, targetX, targetY, targetZ, upX, upY, upZ)
+        function lookAtMatrix(m, eyeX, eyeY, eyeZ, targetX, targetY, targetZ, upX, upY, upZ) {
+            let z0, z1, z2, x0, x1, x2, y0, y1, y2, len;
+            const eyex = eyeX; const eyey = eyeY; const eyez = eyeZ;
+            const upx = upX; const upy = upY; const upz = upZ;
+            const targetx = targetX; const targety = targetY; const targetz = targetZ;
+
+            z0 = eyex - targetx;
+            z1 = eyey - targety;
+            z2 = eyez - targetz;
+
+            len = 1 / Math.sqrt(z0 * z0 + z1 * z1 + z2 * z2);
+            z0 *= len;
+            z1 *= len;
+            z2 *= len;
+
+            x0 = upy * z2 - upz * z1;
+            x1 = upz * z0 - upx * z2;
+            x2 = upx * z1 - upy * z0;
+            len = Math.sqrt(x0 * x0 + x1 * x1 + x2 * x2);
+            if (!len) {
+                x0 = 0; x1 = 0; x2 = 0;
+            } else {
+                len = 1 / len;
+                x0 *= len;
+                x1 *= len;
+                x2 *= len;
+            }
+
+            y0 = z1 * x2 - z2 * x1;
+            y1 = z2 * x0 - z0 * x2;
+            y2 = z0 * x1 - z1 * x0;
+
+            m[0] = x0; m[1] = y0; m[2] = z0; m[3] = 0;
+            m[4] = x1; m[5] = y1; m[6] = z1; m[7] = 0;
+            m[8] = x2; m[9] = y2; m[10] = z2; m[11] = 0;
+            m[12] = -(x0 * eyex + x1 * eyey + x2 * eyez);
+            m[13] = -(y0 * eyex + y1 * eyey + y2 * eyez);
+            m[14] = -(z0 * eyex + z1 * eyey + z2 * eyez);
+            m[15] = 1;
+        }
+
+        // --- Input Handling (from previous examples) ---
+        const keys = {
+            ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false,
+            KeyW: false, KeyS: false, KeyA: false, KeyD: false
+        };
+
+        document.addEventListener('keydown', (e) => {
+            if (keys.hasOwnProperty(e.code)) keys[e.code] = true;
+        });
+        document.addEventListener('keyup', (e) => {
+            if (keys.hasOwnProperty(e.code)) keys[e.code] = false;
+        });
+
+        const moveForwardBtn = document.getElementById('moveForward');
+        const moveBackwardBtn = document.getElementById('moveBackward');
+        const turnLeftBtn = document.getElementById('turnLeft');
+        const turnRightBtn = document.getElementById('turnRight');
+
+        function setupTouchControl(button, keyCode) {
+            button.addEventListener('touchstart', (e) => { e.preventDefault(); keys[keyCode] = true; }, { passive: false });
+            button.addEventListener('touchend', (e) => { e.preventDefault(); keys[keyCode] = false; }, { passive: false });
+            button.addEventListener('mousedown', () => { keys[keyCode] = true; });
+            button.addEventListener('mouseup', () => { keys[keyCode] = false; });
+            button.addEventListener('mouseleave', () => { keys[keyCode] = false; });
+        }
+
+        setupTouchControl(moveForwardBtn, 'KeyW');
+        setupTouchControl(moveBackwardBtn, 'KeyS');
+        setupTouchControl(turnLeftBtn, 'KeyA');
+        setupTouchControl(turnRightBtn, 'KeyD');
+
+        // --- Player Update Logic ---
+        function updatePlayer() {
+            let moved = false;
+            let rotated = false;
+
+            // Calculate forward/backward movement vector
+            const moveX = Math.cos(player.angle) * player.speed;
+            const moveZ = Math.sin(player.angle) * player.speed; // Now moving along Z (depth) in WebGL
+
+            let newPlayerX = player.x;
+            let newPlayerZ = player.y; // Temporarily use player.y for map Z
+
+            if (keys['ArrowUp'] || keys['KeyW']) {
+                newPlayerX += moveX;
+                newPlayerZ += moveZ;
+                moved = true;
+            }
+            if (keys['ArrowDown'] || keys['KeyS']) {
+                newPlayerX -= moveX;
+                newPlayerZ -= moveZ;
+                moved = true;
+            }
+
+            // Simple collision detection (check the new cell)
+            if (moved) {
+                const mapGridX = Math.floor(newPlayerX / TILE_SIZE);
+                const mapGridZ = Math.floor(newPlayerZ / TILE_SIZE); // Map Y is now Z
+                
+                // Allow movement if the new tile is not a wall and within bounds
+                if (mapGridX >= 0 && mapGridX < MAP_WIDTH &&
+                    mapGridZ >= 0 && mapGridZ < MAP_HEIGHT &&
+                    gameMap[mapGridZ][mapGridX] === 0) {
+                    player.x = newPlayerX;
+                    player.y = newPlayerZ; // Update player.y which stores maze Z
+                }
+            }
+
+
+            if (keys['ArrowLeft'] || keys['KeyA']) {
+                player.angle -= player.rotationSpeed;
+                rotated = true;
+            }
+            if (keys['ArrowRight'] || keys['KeyD']) {
+                player.angle += player.rotationSpeed;
+                rotated = true;
+            }
+
+            if (rotated) {
+                player.angle %= (Math.PI * 2);
+                if (player.angle < 0) player.angle += (Math.PI * 2);
+            }
+        }
+
+        // --- 5. Drawing the Scene ---
+        function drawScene(gl, programInfo, buffers, texture) {
+            gl.clearColor(0.0, 0.0, 0.0, 1.0); // Clear to black, fully opaque
+            gl.clearDepth(1.0);                 // Clear everything
+            gl.enable(gl.DEPTH_TEST);           // Enable depth testing
+            gl.depthFunc(gl.LEQUAL);            // Near things obscure far things
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+            gl.useProgram(programInfo.program);
+
+            // Set up projection matrix
+            const fieldOfView = 45 * Math.PI / 180;
+            const aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
+            const zNear = 0.1;
+            const zFar = MAP_WIDTH * TILE_SIZE * 2; // Far clip based on maze size
+            perspectiveMatrix(projectionMatrix, fieldOfView, aspect, zNear, zFar);
+            gl.uniformMatrix4fv(programInfo.uniformLocations.projectionMatrix, false, projectionMatrix);
+
+            // Set up model-view matrix (camera)
+            // Player's position (x, y, z) is eye.target is where it's looking.
+            const targetX = player.x + Math.cos(player.angle);
+            const targetY = player.z; // Player's vertical position
+            const targetZ = player.y + Math.sin(player.angle); // Player's depth position
+            const upX = 0;
+            const upY = 1; // Y is up in WebGL
+            const upZ = 0;
+            lookAtMatrix(modelViewMatrix, player.x, player.z, player.y, targetX, targetY, targetZ, upX, upY, upZ);
+            gl.uniformMatrix4fv(programInfo.uniformLocations.modelViewMatrix, false, modelViewMatrix);
+
+            // Bind texture
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.uniform1i(programInfo.uniformLocations.uSampler, 0);
+
+            // Set up vertex positions
+            gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position);
+            gl.vertexAttribPointer(
+                programInfo.attribLocations.vertexPosition,
+                3, // X, Y, Z
+                gl.FLOAT,
+                false,
+                0,
+                0);
+            gl.enableVertexAttribArray(programInfo.attribLocations.vertexPosition);
+
+            // Set up texture coordinates
+            gl.bindBuffer(gl.ARRAY_BUFFER, buffers.textureCoord);
+            gl.vertexAttribPointer(
+                programInfo.attribLocations.textureCoord,
+                2, // U, V
+                gl.FLOAT,
+                false,
+                0,
+                0);
+            gl.enableVertexAttribArray(programInfo.attribLocations.textureCoord);
+
+            // Draw the maze walls
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffers.indices);
+            gl.drawElements(gl.TRIANGLES, buffers.vertexCount, gl.UNSIGNED_SHORT, 0);
+        }
+
+        // --- Render Loop (for animation) ---
+        let lastRenderTime = 0;
+        function render(now) {
+            now *= 0.001; // convert to seconds
+            const deltaTime = now - lastRenderTime;
+            lastRenderTime = now;
+
+            updatePlayer(deltaTime);
+            drawScene(gl, programInfo, buffers, wallTexture);
+            requestAnimationFrame(render);
+        }
+
+        // Start the render loop once texture is loaded
+        // For this example, we'll start it directly as the texture loading is asynchronous.
+        // The blue placeholder will be shown until texture loads.
+        requestAnimationFrame(render);
+
+    </script>
+</body>
+</html>
+

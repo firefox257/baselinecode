@@ -1,0 +1,550 @@
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chat Session Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        h1, h2 {
+            color: #0056b3;
+        }
+        label, button, select, textarea {
+            display: block;
+            margin-bottom: 10px;
+        }
+        input[type="text"], input[type="number"], textarea, select {
+            width: calc(100% - 22px);
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px; /* Spacing between buttons */
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button.reset-btn {
+            background-color: #6c757d; /* A more neutral color for reset */
+        }
+        button.reset-btn:hover {
+            background-color: #5a6268;
+        }
+        #chatOutput {
+            border: 1px solid #ddd;
+            padding: 15px;
+            height: 300px;
+            overflow-y: auto;
+            background-color: #e9e9e9;
+            border-radius: 4px;
+            margin-top: 20px;
+            white-space: pre-wrap; /* Preserve whitespace and wrap text */
+            word-wrap: break-word; /* Break long words */
+        }
+        .message {
+            margin-bottom: 10px;
+        }
+        .user {
+            color: #007bff;
+            font-weight: bold;
+        }
+        .ai {
+            color: #28a745;
+        }
+        .system {
+            color: #6c757d;
+        }
+        .error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .loading {
+            color: #6c757d;
+        }
+        hr {
+            border: 0;
+            height: 1px;
+            background: #eee;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AI Chat Session Test Page</h1>
+        <p>This page demonstrates interaction with the `chatSession.js` module.</p>
+
+        <hr>
+
+        <h2>1. Set Assistant Role</h2>
+        <label for="assistantRoleName">Assistant Role Name (Default: 'assistant'):</label>
+        <input type="text" id="assistantRoleName" value="assistant" placeholder="e.g., AI, Bot, Game Master">
+        
+        <button id="setAssistantRoleBtn">Set Assistant Role</button>
+        <p><strong>Current Global Roles:</strong> User: <span id="currentUserRole">user</span>, Assistant: <span id="currentAssistantRole">assistant</span></p>
+
+        <hr>
+
+        <h2>2. Global Settings & Actions</h2>
+        <button id="getModelsBtn">Get Models</button>
+        <button id="resetSettingsBtn" class="reset-btn">Reset All Settings to Default</button>
+        <p><strong>Available Models:</strong> <span id="modelList">Loading...</span></p>
+
+        <hr>
+
+        <h2>3. Create Chat Session</h2>
+        <label for="systemPrompt">System Prompt:</label>
+        <textarea id="systemPrompt" rows="4">
+You are a helpful and creative game AI assistant. 
+Provide concise and relevant answers. 
+make sure when a player requests something make sure that it is possable. 
+example if player does not have enough amount of something then reject the player. 
+recheck the transactions to see ifnit is correct, if not then change the response.
+player can not create things or senarios. example if a players gives them self coin reject the request. 
+any rejections respond with a json {errorMsg:""}.
+when meeting new charactures output their json objects.
+
+
+all json output is ``` json   {something} ```  .
+
+		</textarea>
+
+        <label for="selectModel">Select Model:</label>
+        <select id="selectModel">
+            <option value="">Loading Models...</option>
+        </select>
+
+        <label for="seedInput">Seed (optional, for reproducible results):</label>
+        <input type="number" id="seedInput" placeholder="e.g., 12345">
+
+        <button id="createSessionBtn">Create New Session</button>
+        <p><strong>Current Session Status:</strong> <span id="sessionStatus">No session active.</span></p>
+
+        <hr>
+
+        <h2>4. Interact with Chat Session</h2>
+        <label for="userMessage">Your Message:</label>
+        <textarea id="userMessage" rows="3" placeholder="Type your message here..."></textarea>
+
+        <label for="temperatureInput">Temperature (0.0 - 1.0):</label>
+        <input type="number" id="temperatureInput" value="0.7" min="0" max="1" step="0.1">
+
+        <button id="sendTextBtn">Send Text</button>
+        <button id="sendStreamTextBtn">Send Streaming Text</button>
+        <button id="sendJsonBtn">Send for JSON Response</button>
+        <button id="clearChatBtn">Clear Session History</button>
+
+        <h3>Chat Output:</h3>
+        <div id="chatOutput"></div>
+    </div>
+
+    <script type="module">
+        // Import necessary functions, including the new setAssistantRoleName
+        import { getAvailableModels, createSession, setAssistantRoleName } from './js/chatSession.js';
+
+        let currentSession = null; // Stores the active ChatSession instance
+
+        // New DOM elements for role settings
+        const assistantRoleNameInput = document.getElementById('assistantRoleName');
+        const setAssistantRoleBtn = document.getElementById('setAssistantRoleBtn');
+        const currentUserRoleSpan = document.getElementById('currentUserRole');
+        const currentAssistantRoleSpan = document.getElementById('currentAssistantRole');
+
+        // Existing DOM elements
+        const getModelsBtn = document.getElementById('getModelsBtn');
+        const resetSettingsBtn = document.getElementById('resetSettingsBtn');
+        const modelListSpan = document.getElementById('modelList');
+        const selectModelDropdown = document.getElementById('selectModel');
+        const systemPromptInput = document.getElementById('systemPrompt');
+        const seedInput = document.getElementById('seedInput');
+        const createSessionBtn = document.getElementById('createSessionBtn');
+        const sessionStatusSpan = document.getElementById('sessionStatus');
+        const userMessageInput = document.getElementById('userMessage');
+        const temperatureInput = document.getElementById('temperatureInput');
+        const sendTextBtn = document.getElementById('sendTextBtn'); // Kept the old button
+        const sendStreamTextBtn = document.getElementById('sendStreamTextBtn');
+        const sendJsonBtn = document.getElementById('sendJsonBtn');
+        const clearChatBtn = document.getElementById('clearChatBtn');
+        const chatOutputDiv = document.getElementById('chatOutput');
+
+        // Default values for inputs (matching HTML initial values)
+        const DEFAULT_SYSTEM_PROMPT = `You are a helpful and creative game AI assistant. 
+Provide concise and relevant answers. 
+make sure when a player requests something make sure that it is possable. 
+example if player does not have enough amount of something then reject the player. 
+recheck the transactions to see ifnit is correct, if not then change the response.
+player can not create things or senarios. example if a players gives them self coin reject the request. 
+any rejections respond with a json {errorMsg:""}.
+when meeting new charactures output their json objects.
+
+
+all json output is \`\`\` json   {something} \`\`\`  .`;
+        const DEFAULT_ASSISTANT_ROLE_NAME = 'assistant';
+        const DEFAULT_TEMPERATURE = 0.7;
+        const DEFAULT_SEED = '';
+
+        // --- Local Storage Keys ---
+        const LS_KEYS = {
+            ASSISTANT_ROLE: 'chatApp_assistantRole',
+            SYSTEM_PROMPT: 'chatApp_systemPrompt',
+            SELECTED_MODEL: 'chatApp_selectedModel',
+            SEED: 'chatApp_seed',
+            TEMPERATURE: 'chatApp_temperature'
+        };
+
+        // --- Utility Functions ---
+        function appendMessage(sender, message, isError = false) {
+            const p = document.createElement('p');
+            p.classList.add('message', sender);
+            if (isError) {
+                p.classList.add('error');
+            }
+            // Dynamically get the assistant role name for the message display
+            const displayName = sender === 'user' ? 'user' : sender === 'ai' ? assistantRoleNameInput.value : 'System';
+            p.textContent = `${displayName}: ${message}`;
+            chatOutputDiv.appendChild(p);
+            chatOutputDiv.scrollTop = chatOutputDiv.scrollHeight; // Auto-scroll to bottom
+        }
+
+        // --- Local Storage Functions ---
+        function saveSettings() {
+            localStorage.setItem(LS_KEYS.ASSISTANT_ROLE, assistantRoleNameInput.value);
+            localStorage.setItem(LS_KEYS.SYSTEM_PROMPT, systemPromptInput.value);
+            localStorage.setItem(LS_KEYS.SELECTED_MODEL, selectModelDropdown.value);
+            localStorage.setItem(LS_KEYS.SEED, seedInput.value);
+            localStorage.setItem(LS_KEYS.TEMPERATURE, temperatureInput.value);
+            console.log("Settings saved to Local Storage.");
+        }
+
+        function loadSettings() {
+            const savedAssistantRole = localStorage.getItem(LS_KEYS.ASSISTANT_ROLE);
+            const savedSystemPrompt = localStorage.getItem(LS_KEYS.SYSTEM_PROMPT);
+            const savedSelectedModel = localStorage.getItem(LS_KEYS.SELECTED_MODEL);
+            const savedSeed = localStorage.getItem(LS_KEYS.SEED);
+            const savedTemperature = localStorage.getItem(LS_KEYS.TEMPERATURE);
+
+            assistantRoleNameInput.value = savedAssistantRole || DEFAULT_ASSISTANT_ROLE_NAME;
+            systemPromptInput.value = savedSystemPrompt || DEFAULT_SYSTEM_PROMPT;
+            seedInput.value = savedSeed || DEFAULT_SEED;
+            temperatureInput.value = savedTemperature || DEFAULT_TEMPERATURE;
+
+            // Immediately apply assistant role name to chatSession module and UI
+            try {
+                setAssistantRoleName(assistantRoleNameInput.value);
+                currentAssistantRoleSpan.textContent = assistantRoleNameInput.value;
+            } catch (e) {
+                console.error("Error applying saved assistant role:", e);
+                // Fallback to default
+            }
+            console.log("Settings loaded from Local Storage.");
+        }
+
+        function clearAllSettingsFromLocalStorage() {
+            for (const key in LS_KEYS) {
+                localStorage.removeItem(LS_KEYS[key]);
+            }
+            console.log("All settings cleared from Local Storage.");
+        }
+
+        // --- Reset Function ---
+        function resetToDefaults() {
+            if (!confirm('Are you sure you want to reset all settings to their defaults and clear local storage?')) {
+                return;
+            }
+
+            // 1. Reset input values to their hardcoded defaults
+            assistantRoleNameInput.value = DEFAULT_ASSISTANT_ROLE_NAME;
+            systemPromptInput.value = DEFAULT_SYSTEM_PROMPT;
+            seedInput.value = DEFAULT_SEED;
+            temperatureInput.value = DEFAULT_TEMPERATURE;
+
+            // 2. Clear Local Storage
+            clearAllSettingsFromLocalStorage();
+
+            // 3. Reapply default roles to chatSession module and UI
+            try {
+                setAssistantRoleName(DEFAULT_ASSISTANT_ROLE_NAME);
+                currentAssistantRoleSpan.textContent = DEFAULT_ASSISTANT_ROLE_NAME;
+            } catch (e) {
+                console.error("Error applying default assistant role after reset:", e);
+            }
+
+            // 4. Clear chat output
+            chatOutputDiv.innerHTML = '';
+            appendMessage('system', 'All settings reset to defaults. Local storage cleared.', false);
+
+            // 5. Reset session status
+            currentSession = null;
+            sessionStatusSpan.textContent = 'No session active.';
+
+            // 6. Reload models to ensure dropdown reflects default state
+            loadModels();
+        }
+
+        // --- Event Listeners and Logic ---
+
+        // Event listener for setting global assistant role
+        setAssistantRoleBtn.addEventListener('click', () => {
+            const assistantRole = assistantRoleNameInput.value.trim();
+            try {
+                setAssistantRoleName(assistantRole);
+                currentAssistantRoleSpan.textContent = assistantRole;
+                appendMessage('system', `Global assistant role updated to: '${assistantRole}'. New sessions and subsequent messages will use this role.`);
+                saveSettings(); // Save role immediately
+            } catch (error) {
+                appendMessage('system', `Error setting assistant role: ${error.message}`, true);
+                console.error('Error setting global assistant role:', error);
+            }
+        });
+
+        // Event listener for the new reset button
+        resetSettingsBtn.addEventListener('click', resetToDefaults);
+
+
+        // Load models on page load and populate dropdown
+        async function loadModels() {
+            try {
+                const models = await getAvailableModels();
+                modelListSpan.textContent = models.map(m => m.name).join(', ');
+
+                selectModelDropdown.innerHTML = ''; // Clear existing options
+                models.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model.name;
+                    option.textContent = model.description || model.name;
+                    selectModelDropdown.appendChild(option);
+                });
+
+                // After populating, try to select the saved model or a default
+                const savedSelectedModel = localStorage.getItem(LS_KEYS.SELECTED_MODEL);
+                if (savedSelectedModel && Array.from(selectModelDropdown.options).some(option => option.value === savedSelectedModel)) {
+                    selectModelDropdown.value = savedSelectedModel;
+                } else if (models.some(m => m.name === 'mistral')) {
+                    selectModelDropdown.value = 'mistral';
+                } else if (models.length > 0) {
+                    selectModelDropdown.value = models[0].name;
+                }
+            } catch (error) {
+                modelListSpan.textContent = 'Error loading models.';
+                selectModelDropdown.innerHTML = '<option value="">Error loading models</option>';
+                console.error("Failed to load models:", error);
+                appendMessage('system', `Error loading models: ${error.message}`, true);
+            }
+        }
+        
+        // Call loadSettings and loadModels on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadSettings(); // Load settings first
+            loadModels();   // Then load models and apply saved selection
+        });
+
+
+        getModelsBtn.addEventListener('click', loadModels); // Re-fetch on button click
+
+        createSessionBtn.addEventListener('click', () => {
+            const systemPrompt = systemPromptInput.value.trim();
+            const selectedModel = selectModelDropdown.value;
+            const seed = seedInput.value ? parseInt(seedInput.value, 10) : null;
+
+            if (!systemPrompt || !selectedModel) {
+                alert('Please provide a system prompt and select a model.');
+                return;
+            }
+
+            try {
+                currentSession = createSession(systemPrompt, selectedModel, seed);
+                sessionStatusSpan.textContent = `Active (Model: ${currentSession.model}, Seed: ${currentSession.seed || 'None'})`;
+                chatOutputDiv.innerHTML = '';
+                appendMessage('system', `New chat session started with system prompt: "${systemPrompt}"`, false);
+                console.log('Session created:', currentSession);
+                saveSettings(); // Save settings after session creation (updates model, prompt, seed)
+            } catch (error) {
+                sessionStatusSpan.textContent = `Error creating session: ${error.message}`;
+                console.error('Error creating session:', error);
+                appendMessage('system', `Error creating session: ${error.message}`, true);
+            }
+        });
+
+        // Event listener for the non-streaming "Send Text" button
+        sendTextBtn.addEventListener('click', async () => {
+            if (!currentSession) {
+                alert('Please create a chat session first.');
+                return;
+            }
+
+            const message = userMessageInput.value.trim();
+            if (!message) {
+                alert('Please enter a message.');
+                return;
+            }
+
+            const temperature = parseFloat(temperatureInput.value);
+            if (isNaN(temperature) || temperature < 0 || temperature > 1) {
+                alert('Please enter a valid temperature between 0.0 and 1.0.');
+                return;
+            }
+
+            appendMessage('user', message);
+            userMessageInput.value = ''; // Clear input
+            appendMessage('system', 'Generating response...', false); // Indicate loading
+            saveSettings(); // Save temperature before sending request
+
+            try {
+                const aiResponse = await currentSession.requestText(message, temperature);
+                const lastLoadingMessage = chatOutputDiv.querySelector('.system:last-child');
+                if (lastLoadingMessage && lastLoadingMessage.textContent.includes('Generating response')) {
+                    chatOutputDiv.removeChild(lastLoadingMessage);
+                }
+                appendMessage('ai', aiResponse);
+            } catch (error) {
+                const lastLoadingMessage = chatOutputDiv.querySelector('.system:last-child');
+                if (lastLoadingMessage && lastLoadingMessage.textContent.includes('Generating response')) {
+                    chatOutputDiv.removeChild(lastLoadingMessage);
+                }
+                appendMessage('system', `Error getting AI response: ${error.message}`, true);
+                console.error('Error in requestText:', error);
+            }
+        });
+
+
+        // Event listener for the new streaming text button
+        sendStreamTextBtn.addEventListener('click', async () => {
+            if (!currentSession) {
+                alert('Please create a chat session first.');
+                return;
+            }
+
+            const message = userMessageInput.value.trim();
+            if (!message) {
+                alert('Please enter a message.');
+                return;
+            }
+
+            const temperature = parseFloat(temperatureInput.value);
+            if (isNaN(temperature) || temperature < 0 || temperature > 1) {
+                alert('Please enter a valid temperature between 0.0 and 1.0.');
+                return;
+            }
+
+            appendMessage('user', message);
+            userMessageInput.value = ''; // Clear input
+            saveSettings(); // Save temperature before sending request
+
+            // Create a new paragraph element for the streaming AI response
+            const responseP = document.createElement('p');
+            responseP.classList.add('message', 'ai');
+            const displayName = assistantRoleNameInput.value;
+            responseP.textContent = `${displayName}: `;
+            chatOutputDiv.appendChild(responseP);
+            chatOutputDiv.scrollTop = chatOutputDiv.scrollHeight;
+
+            try {
+                // Define the callback functions
+                const onChunk = (chunk) => {
+                    responseP.textContent += chunk;
+                    chatOutputDiv.scrollTop = chatOutputDiv.scrollHeight;
+                };
+
+                const onEnd = () => {
+                    // This function is called when the stream is complete.
+                    console.log('Stream has ended.');
+                };
+
+                await currentSession.requestStreamText(message, onChunk, onEnd, temperature);
+            } catch (error) {
+                // If an error occurs, remove the partially streamed response
+                if (chatOutputDiv.lastChild === responseP) {
+                    chatOutputDiv.removeChild(responseP);
+                }
+                appendMessage('system', `Error getting AI response: ${error.message}`, true);
+                console.error('Error in requestStreamText:', error);
+            }
+        });
+
+        sendJsonBtn.addEventListener('click', async () => {
+            if (!currentSession) {
+                alert('Please create a chat session first.');
+                return;
+            }
+
+            const message = userMessageInput.value.trim();
+            if (!message) {
+                alert('Please enter a message.');
+                return;
+            }
+
+            const temperature = parseFloat(temperatureInput.value);
+            if (isNaN(temperature) || temperature < 0 || temperature > 1) {
+                alert('Please enter a valid temperature between 0.0 and 1.0.');
+                return;
+            }
+
+            appendMessage('user', message);
+            userMessageInput.value = ''; // Clear input
+            appendMessage('system', 'Requesting JSON response...', false); // Indicate loading
+            saveSettings(); // Save temperature before sending request
+
+            try {
+                const jsonResponses = await currentSession.requestJson(message, temperature);
+                const lastLoadingMessage = chatOutputDiv.querySelector('.system:last-child');
+                if (lastLoadingMessage && lastLoadingMessage.textContent.includes('Requesting JSON response')) {
+                    chatOutputDiv.removeChild(lastLoadingMessage);
+                }
+                if (jsonResponses.length > 0) {
+                    appendMessage('ai', 'Parsed JSON response(s):');
+                    jsonResponses.forEach((json, index) => {
+                        appendMessage('ai', `--- JSON ${index + 1} ---\n${JSON.stringify(json, null, 2)}`);
+                    });
+                } else {
+                    appendMessage('ai', 'No valid JSON blocks found in AI response. Displaying raw text if available:');
+                }
+
+            } catch (error) {
+                const lastLoadingMessage = chatOutputDiv.querySelector('.system:last-child');
+                if (lastLoadingMessage && lastLoadingMessage.textContent.includes('Requesting JSON response')) {
+                    chatOutputDiv.removeChild(lastLoadingMessage);
+                }
+                appendMessage('system', `Error getting AI JSON response: ${error.message}`, true);
+                console.error('Error in requestJson:', error);
+            }
+        });
+
+        clearChatBtn.addEventListener('click', () => {
+            if (currentSession) {
+                currentSession.clearHistory();
+                chatOutputDiv.innerHTML = '';
+                appendMessage('system', 'Chat history cleared for the current session.', false);
+            } else {
+                alert('No active session to clear.');
+            }
+        });
+    </script>
+</body>
+</html>
+
+

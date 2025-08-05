@@ -1,0 +1,457 @@
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Simple Raycaster (Doom-like) - Mobile</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column; /* Arrange canvas and controls vertically */
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #333;
+            -webkit-touch-callout: none; /* Disable callout on long press */
+            -webkit-user-select: none;   /* Disable text selection */
+            -khtml-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            touch-action: manipulation; /* Prevent default touch actions like double-tap zoom */
+        }
+        canvas {
+            border: 1px solid #000;
+            image-rendering: pixelated; /* Helps with pixel art look */
+            touch-action: none; /* Prevent scrolling/zooming on canvas */
+        }
+        #controls {
+            display: grid;
+            grid-template-areas:
+                ".   forward ."
+                "left  .  right"
+                ".  backward .";
+            gap: 10px;
+            margin-top: 15px;
+            padding: 10px;
+            background-color: rgba(0, 0, 0, 0.5);
+            border-radius: 10px;
+            width: fit-content;
+            touch-action: manipulation;
+        }
+        .control-button {
+            width: 70px;
+            height: 70px;
+            background-color: #555;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.2em;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent; /* Remove tap highlight */
+        }
+        .control-button:active {
+            background-color: #777;
+        }
+        #forward { grid-area: forward; }
+        #backward { grid-area: backward; }
+        #left { grid-area: left; }
+        #right { grid-area: right; }
+
+        /* Styles for mobile landscape if needed */
+        @media (orientation: landscape) {
+            body {
+                flex-direction: row; /* Arrange side-by-side in landscape */
+                justify-content: space-around;
+                align-items: center;
+            }
+            #controls {
+                margin-top: 0;
+                margin-left: 15px;
+                flex-shrink: 0; /* Prevent controls from shrinking */
+            }
+            canvas {
+                max-width: 60%; /* Adjust canvas size in landscape */
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="controls">
+        <button id="forward" class="control-button">▲</button>
+        <button id="left" class="control-button">◄</button>
+        <button id="right" class="control-button">►</button>
+        <button id="backward" class="control-button">▼</button>
+    </div>
+
+    <script>
+        const CANVAS_WIDTH = 320;
+        const CANVAS_HEIGHT = 240;
+        const FOV = Math.PI / 3;
+
+        // Player properties
+        let player = {
+            x: 1.5,
+            y: 1.5,
+            angle: Math.PI / 2, // Looking right initially
+            speed: 0.05,
+            rotationSpeed: 0.03,
+            z: 0.5 // Player height / camera z-position (e.g., 0.5 units above floor)
+        };
+
+        // Map definition (0 = empty, 1 = wall)
+        const map = [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 1, 1, 1, 0, 0, 0, 1],
+            [1, 0, 0, 1, 0, 1, 0, 0, 0, 1],
+            [1, 0, 0, 1, 1, 1, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        ];
+
+        const MAP_CELL_SIZE = 1;
+
+        let canvas = document.getElementById('gameCanvas');
+        let ctx = canvas.getContext('2d');
+        canvas.width = CANVAS_WIDTH;
+        canvas.height = CANVAS_HEIGHT;
+
+        // Texture images
+        const wallTexture = new Image();
+        const ceilingTexture = new Image();
+        const floorTexture = new Image();
+
+        let texturesLoaded = 0;
+        const totalTextures = 3;
+
+        // Offscreen canvases for floor and ceiling textures to get pixel data
+        let floorTextureCanvas = document.createElement('canvas');
+        let floorTextureCtx = floorTextureCanvas.getContext('2d');
+        let ceilingTextureCanvas = document.createElement('canvas');
+        let ceilingTextureCtx = ceilingTextureCanvas.getContext('2d');
+
+        const TEXTURE_SIZE = 512; // Your texture dimensions (512x512)
+
+        function textureLoaded() {
+            texturesLoaded++;
+            if (texturesLoaded === totalTextures) {
+                console.log("All textures loaded.");
+                // Draw textures to offscreen canvases once loaded
+                floorTextureCanvas.width = TEXTURE_SIZE;
+                floorTextureCanvas.height = TEXTURE_SIZE;
+                floorTextureCtx.drawImage(floorTexture, 0, 0);
+
+                ceilingTextureCanvas.width = TEXTURE_SIZE;
+                ceilingTextureCanvas.height = TEXTURE_SIZE;
+                ceilingTextureCtx.drawImage(ceilingTexture, 0, 0);
+
+                gameLoop(); // Start the game loop after textures are loaded
+            }
+        }
+
+        wallTexture.onload = textureLoaded;
+        ceilingTexture.onload = textureLoaded;
+        floorTexture.onload = textureLoaded;
+
+        // Ensure these paths are correct relative to your HTML file
+        wallTexture.src = 'wall_texture.png';
+        ceilingTexture.src = 'ceiling_texture.png';
+        floorTexture.src = 'floor_texture.png';
+
+        // On-screen control handling
+        let keys = {
+            'KeyW': false, // Forward
+            'KeyS': false, // Backward
+            'KeyA': false, // Turn Left
+            'KeyD': false  // Turn Right
+        };
+
+        const forwardBtn = document.getElementById('forward');
+        const backwardBtn = document.getElementById('backward');
+        const leftBtn = document.getElementById('left');
+        const rightBtn = document.getElementById('right');
+
+        function setKeyState(code, isPressed) {
+            if (keys.hasOwnProperty(code)) {
+                keys[code] = isPressed;
+            }
+        }
+
+        const controlButtons = [
+            { btn: forwardBtn, code: 'KeyW' },
+            { btn: backwardBtn, code: 'KeyS' },
+            { btn: leftBtn, code: 'KeyA' },
+            { btn: rightBtn, code: 'KeyD' }
+        ];
+
+        controlButtons.forEach(({ btn, code }) => {
+            btn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                setKeyState(code, true);
+            }, { passive: false });
+
+            btn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                setKeyState(code, false);
+            }, { passive: false });
+
+            btn.addEventListener('mousedown', () => setKeyState(code, true));
+            btn.addEventListener('mouseup', () => setKeyState(code, false));
+            btn.addEventListener('mouseleave', () => setKeyState(code, false));
+        });
+
+        function updatePlayer() {
+            let moveX = 0;
+            let moveY = 0;
+
+            if (keys['KeyW']) { // Move forward
+                moveX = player.speed * Math.cos(player.angle);
+                moveY = player.speed * Math.sin(player.angle);
+            }
+            if (keys['KeyS']) { // Move backward
+                moveX = -player.speed * Math.cos(player.angle);
+                moveY = -player.speed * Math.sin(player.angle);
+            }
+            if (keys['KeyA']) { // Turn Left
+                player.angle -= player.rotationSpeed;
+            }
+            if (keys['KeyD']) { // Turn Right
+                player.angle += player.rotationSpeed;
+            }
+
+            let newX = player.x + moveX;
+            let newY = player.y + moveY;
+
+            let mapX_newX = Math.floor(newX);
+            let mapY_newY = Math.floor(newY);
+
+            // Check if target cell for full movement is a wall
+            if (map[mapY_newY] && map[mapY_newY][mapX_newX] === 0) {
+                player.x = newX;
+                player.y = newY;
+            } else {
+                // Try moving only on X axis
+                let mapX_onlyX = Math.floor(newX);
+                let mapY_onlyX = Math.floor(player.y);
+                if (map[mapY_onlyX] && map[mapY_onlyX][mapX_onlyX] === 0) {
+                    player.x = newX;
+                }
+
+                // Try moving only on Y axis
+                let mapX_onlyY = Math.floor(player.x);
+                let mapY_onlyY = Math.floor(newY);
+                if (map[mapY_onlyY] && map[mapY_onlyY][mapX_onlyY] === 0) {
+                    player.y = newY;
+                }
+            }
+        }
+
+        function drawFloorAndCeiling() {
+            // Get pixel data from offscreen canvases once
+            const floorPixels = floorTextureCtx.getImageData(0, 0, TEXTURE_SIZE, TEXTURE_SIZE).data;
+            const ceilingPixels = ceilingTextureCtx.getImageData(0, 0, TEXTURE_SIZE, TEXTURE_SIZE).data;
+
+            const floorCeilingImageData = ctx.createImageData(CANVAS_WIDTH, CANVAS_HEIGHT);
+            const floorCeilingPixels = floorCeilingImageData.data;
+
+            const halfHeight = CANVAS_HEIGHT / 2;
+
+            for (let y = 0; y < CANVAS_HEIGHT; y++) {
+                // Current pixel on screen from the center (horizon)
+                let yScreen = y - halfHeight;
+
+                // Determine if rendering floor or ceiling
+                const isFloor = yScreen > 0;
+                const textureData = isFloor ? floorPixels : ceilingPixels;
+
+                // Calculate vertical distance from player based on yScreen and player.z (camera height)
+                let p; // Vertical projection plane distance
+                if (isFloor) {
+                    p = player.z; // Distance from camera to floor plane
+                } else {
+                    // For the ceiling, we need to consider the distance from the camera UP to the ceiling.
+                    // The camera is at player.z. The ceiling is at MAP_CELL_SIZE (or 1 in this case).
+                    // So, the distance from camera to ceiling is MAP_CELL_SIZE - player.z.
+                    p = MAP_CELL_SIZE - player.z;
+                }
+
+                // Avoid division by zero at the exact horizon
+                if (yScreen === 0) continue; // Skip the exact horizon line if it's the 0th pixel
+
+                // Corrected rowDistance calculation:
+                // Use Math.abs(yScreen) for distance calculation to prevent flipping direction for ceiling
+                const rowDistance = p * (CANVAS_HEIGHT / (2 * Math.abs(yScreen)));
+
+                // Calculate the real world X and Y coordinates of the pixel being drawn
+                for (let x = 0; x < CANVAS_WIDTH; x++) {
+                    const angle = player.angle - FOV / 2 + (x * (FOV / CANVAS_WIDTH));
+
+                    const worldX = player.x + rowDistance * Math.cos(angle);
+                    const worldY = player.y + rowDistance * Math.sin(angle);
+
+                    // Map world coordinates to texture coordinates (0 to TEXTURE_SIZE-1)
+                    let textureX = Math.floor(worldX * TEXTURE_SIZE) % TEXTURE_SIZE;
+                    let textureY = Math.floor(worldY * TEXTURE_SIZE) % TEXTURE_SIZE;
+
+                    // Handle negative texture coordinates for wrapping
+                    if (textureX < 0) textureX += TEXTURE_SIZE;
+                    if (textureY < 0) textureY += TEXTURE_SIZE;
+
+                    // Get pixel color from the texture
+                    const pixelIndex = (textureY * TEXTURE_SIZE + textureX) * 4; // *4 for RGBA
+
+                    const targetPixelIndex = (y * CANVAS_WIDTH + x) * 4;
+                    floorCeilingPixels[targetPixelIndex] = textureData[pixelIndex];         // R
+                    floorCeilingPixels[targetPixelIndex + 1] = textureData[pixelIndex + 1]; // G
+                    floorCeilingPixels[targetPixelIndex + 2] = textureData[pixelIndex + 2]; // B
+                    floorCeilingPixels[targetPixelIndex + 3] = 255;                         // A (Fully opaque)
+
+                    // Add simple distance-based shading
+                    const shade = Math.min(0.7, rowDistance / 15);
+                    floorCeilingPixels[targetPixelIndex] = Math.max(0, floorCeilingPixels[targetPixelIndex] * (1 - shade));
+                    floorCeilingPixels[targetPixelIndex + 1] = Math.max(0, floorCeilingPixels[targetPixelIndex + 1] * (1 - shade));
+                    floorCeilingPixels[targetPixelIndex + 2] = Math.max(0, floorCeilingPixels[targetPixelIndex + 2] * (1 - shade));
+                }
+            }
+            ctx.putImageData(floorCeilingImageData, 0, 0);
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT); // Clear canvas
+
+            drawFloorAndCeiling(); // Draw floor and ceiling first
+
+            const angleStep = FOV / CANVAS_WIDTH;
+
+            for (let x = 0; x < CANVAS_WIDTH; x++) {
+                const rayAngle = (player.angle - FOV / 2) + (x * angleStep);
+
+                let hit = false;
+                let dist = 0;
+                let wallX = 0;
+                let perpWallDist = 0; // Perpendicular distance for fisheye correction
+
+                // DDA variables
+                let rayDirX = Math.cos(rayAngle);
+                let rayDirY = Math.sin(rayAngle);
+                let mapX = Math.floor(player.x);
+                let mapY = Math.floor(player.y);
+
+                let sideDistX;
+                let sideDistY;
+
+                let deltaDistX = Math.abs(1 / rayDirX);
+                let deltaDistY = Math.abs(1 / rayDirY);
+
+                let stepX;
+                let stepY;
+
+                let side; // 0 for X-side, 1 for Y-side
+
+                // Calculate step and initial sideDist
+                if (rayDirX < 0) {
+                    stepX = -1;
+                    sideDistX = (player.x - mapX) * deltaDistX;
+                } else {
+                    stepX = 1;
+                    sideDistX = (mapX + 1.0 - player.x) * deltaDistX;
+                }
+                if (rayDirY < 0) {
+                    stepY = -1;
+                    sideDistY = (player.y - mapY) * deltaDistY;
+                } else {
+                    stepY = 1;
+                    sideDistY = (mapY + 1.0 - player.y) * deltaDistY;
+                }
+
+                // DDA loop
+                while (!hit && dist < 20) { // Max distance for efficiency
+                    if (sideDistX < sideDistY) {
+                        sideDistX += deltaDistX;
+                        mapX += stepX;
+                        side = 0;
+                    } else {
+                        sideDistY += deltaDistY;
+                        mapY += stepY;
+                        side = 1;
+                    }
+
+                    // Check if ray has hit a wall
+                    if (map[mapY] && map[mapY][mapX] === 1) {
+                        hit = true;
+                    }
+                    dist = side === 0 ? (sideDistX - deltaDistX) : (sideDistY - deltaDistY);
+                }
+
+                if (hit) {
+                    // Calculate perpendicular distance to avoid fisheye effect
+                    if (side === 0) {
+                        perpWallDist = (mapX - player.x + (1 - stepX) / 2) / rayDirX;
+                    } else {
+                        perpWallDist = (mapY - player.y + (1 - stepY) / 2) / rayDirY;
+                    }
+
+                    // Calculate wallX (where on the wall the texture is hit)
+                    let intersectionX;
+                    if (side === 0) { // X-side (vertical wall)
+                        intersectionX = player.y + perpWallDist * rayDirY;
+                    } else { // Y-side (horizontal wall)
+                        intersectionX = player.x + perpWallDist * rayDirX;
+                    }
+                    wallX = intersectionX - Math.floor(intersectionX);
+
+                    // Flip texture for certain sides if needed (depends on texture orientation)
+                    if (side === 0 && rayDirX > 0) wallX = 1 - wallX; // East wall
+                    if (side === 1 && rayDirY < 0) wallX = 1 - wallX; // North wall
+
+                    // Calculate wall height on screen
+                    const lineHeight = (CANVAS_HEIGHT / perpWallDist); // Base height
+
+                    // Calculate draw start and end Y coordinates for the wall slice
+                    const drawStart = Math.floor((CANVAS_HEIGHT / 2) - (lineHeight / 2));
+                    const drawEnd = Math.floor((CANVAS_HEIGHT / 2) + (lineHeight / 2));
+
+                    // Get texture slice X coordinate
+                    let textureX = Math.floor(wallX * TEXTURE_SIZE);
+                    textureX = Math.max(0, Math.min(textureX, TEXTURE_SIZE - 1));
+
+                    // Draw the wall slice
+                    ctx.drawImage(wallTexture,
+                                  textureX, 0, 1, TEXTURE_SIZE, // Source rectangle
+                                  x, drawStart, 1, Math.max(0, drawEnd - drawStart)); // Destination rectangle
+
+                    // Simple shading based on distance
+                    let shade = Math.min(0.7, perpWallDist / 15);
+                    ctx.fillStyle = `rgba(0, 0, 0, ${shade})`;
+                    ctx.fillRect(x, drawStart, 1, Math.max(0, drawEnd - drawStart));
+                }
+            }
+        }
+
+        function gameLoop() {
+            updatePlayer();
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // The game loop will start once all textures are loaded.
+    </script>
+</body>
+</html>
+
+
+

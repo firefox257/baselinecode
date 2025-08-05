@@ -1,0 +1,83 @@
+
+
+The provided JavaScript code, located at ./js/apiCalls.js, defines a module for interacting with a server-side API to perform file system operations. It uses a core makeApiCall function to handle HTTP requests and then exposes a higher-level api object with methods for specific file management tasks.
+Core API Call Function
+The makeApiCall function is the foundation for all API interactions.
+makeApiCall(method, endpoint, headers = {}, body = null)
+ * Description: This asynchronous function sends an HTTP request to the specified endpoint using the given method. It allows for custom headers and various types of request bodies.
+ * Parameters:
+   * method (string): The HTTP method to use (e.g., 'GET', 'POST', 'PUT', 'DELETE').
+   * endpoint (string): The URL path to the API endpoint on the server (e.g., '/', '/data').
+   * headers (Object, optional): An object containing custom HTTP headers to send with the request. Defaults to an empty object.
+   * body (string | Blob | File | FormData | URLSearchParams, optional): The data to send in the request body.
+     * If Blob or File, the browser automatically sets the Content-Type header (e.g., image/png).
+     * If FormData, the browser automatically sets the Content-Type to multipart/form-data.
+     * If URLSearchParams, the Content-Type is set to application/x-www-form-urlencoded.
+     * For other types (e.g., string), it defaults to text/plain.
+     * Defaults to null (no body).
+ * Returns: Promise<string | Object>: A promise that resolves to:
+   * The parsed JSON response if the Content-Type is application/json.
+   * The raw response text otherwise.
+ * Error Handling: If the HTTP response status is not OK (i.e., response.ok is false), it throws an Error with the status code and the server's error message. It also logs network or API call errors to the console.
+File System API (api object)
+The api object provides a set of convenient methods for common file system operations.
+api.ls(path)
+ * Description: Lists files and directories on the server. This function utilizes a custom X-LS-Path header to specify the path.
+ * Parameters:
+   * path (string): The path to list, relative to the server's designated file root. This can include wildcards (e.g., 'public/*.html').
+ * Returns: Promise<FileInfo[]>: A promise that resolves to an array of FileInfo objects.
+ * FileInfo Typedef:
+   /** @typedef {Object} FileInfo
+ * @property {string} name - The name of the file or directory.
+ * @property {'file' | 'directory'} type - The type of the item.
+ * @property {number} size - The size of the file in bytes (0 for directories).
+ * @property {string} modifiedTime - The ISO 8601 formatted last modified timestamp.
+ * @property {number} modifiedTimeMs - The last modified timestamp in milliseconds.
+ */
+
+ * Errors: Throws an error if path is not provided.
+api.readFile(filePath)
+ * Description: Reads the content of a specified file from the server. It uses an X-Read-File header to indicate the file to read.
+ * Parameters:
+   * filePath (string): The path to the file to read, relative to the server's file root.
+ * Returns: Promise<string>: A promise that resolves to the file's content as a string.
+ * Errors: Throws an error if filePath is not provided.
+api.saveFile(filePath, content, additionalHeaders = {})
+ * Description: Saves content to a file on the server. This function can create new files or overwrite existing ones. It's versatile, accepting either string content for text files or Blob/File objects for binary data. The X-Save-File header is used to specify the target file path.
+ * Parameters:
+   * filePath (string): The path where the file will be saved, relative to the server's file root. Directories in the path will be created if they don't exist on the server.
+   * content (string | Blob | File): The content to write to the file.
+     * For text files, use a string.
+     * For binary files (e.g., images, PDFs), use a Blob or File object.
+   * additionalHeaders (Object, optional): An object for any extra headers, which can be useful for explicitly setting Content-Type when saving binary data if the Blob's inherent type isn't sufficient or needs to be overridden. Defaults to an empty object.
+ * Returns: Promise<string>: A promise that resolves to a success message from the server.
+ * Errors: Throws an error if filePath or content is not provided.
+api.mkPath(mkPath)
+ * Description: Creates a directory path on the server, including any necessary parent directories (i.e., recursively). It uses an X-MKPATH header.
+ * Parameters:
+   * mkPath (string): The directory path to create, relative to the server's file root.
+ * Returns: Promise<string>: A promise that resolves to a success message.
+ * Errors: Throws an error if mkPath is not provided.
+api.mv(sourcePath, destinationPath)
+ * Description: Moves one or more files or directories on the server. This command supports wildcards in the sourcePath. It uses X-MV-Source and X-MV-Destination headers.
+ * Parameters:
+   * sourcePath (string): The source path(s) to move, relative to the server's file root. Can include wildcards (e.g., 'public/*.txt').
+   * destinationPath (string): The target directory for the move operation, relative to the server's file root.
+ * Returns: Promise<string>: A promise that resolves to a success message detailing the move operation.
+ * Errors: Throws an error if sourcePath or destinationPath is not provided.
+api.copy(sourcePath, destinationPath)
+ * Description: Copies one or more files or directories on the server. Similar to mv, it supports wildcards in the sourcePath. It uses X-COPY-Source and X-COPY-Destination headers.
+ * Parameters:
+   * sourcePath (string): The source path(s) to copy, relative to the server's file root. Can include wildcards (e.g., 'public/*.txt').
+   * destinationPath (string): The target directory for the copy operation, relative to the server's file root.
+ * Returns: Promise<string>: A promise that resolves to a success message detailing the copy operation.
+ * Errors: Throws an error if sourcePath or destinationPath is not provided.
+api.del(delPath)
+ * Description: Deletes files or directories from the server. This operation typically moves items to a trash/recycle bin first and then allows for permanent deletion from there. It uses an X-DEL-Path header.
+ * Parameters:
+   * delPath (string): The path(s) to delete, relative to the server's file root. Can include wildcards (e.g., 'temp/*.log').
+ * Returns: Promise<string>: A promise that resolves to a success message detailing the deletion operation.
+ * Errors: Throws an error if delPath is not provided.
+This API module provides a comprehensive and flexible way to interact with a server-side file system, abstracting away the complexities of fetch API calls and header management.
+
+

@@ -1,5 +1,8 @@
 
 
+
+
+
 // ./ux/aichat.js
 
 const API_BASE_URL = "https://text.pollinations.ai";
@@ -1930,14 +1933,5 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
-/*
-use this code as reference. 
-make a json module named chatSession.js.
-strip out all gui, we inly want the chat.
-one function will give a list of models.
-anothe function create seasion, the arguments is the system prompt and model to use, and seed number.
-the session is an object that keeps all requests and responses for historical perpoeses and is used to send back to the in the request.
-another function requestText. this is the user request which returnes the text if the response.
-another function requestJson. this returns the response a list of json responses. the json responses is in ```json   content ``` so this will need to be filtered.
 
-*/
+

@@ -1,0 +1,52 @@
+
+
+
+give code for nodejs module for ai chat using https://text.pollinations.ai/.
+one call to get the list of models. use https://text.pollinations.ai/models
+save the list of models to a cache file.
+if getting the models call fails, use the cache cache file.
+for the chat use the post. the function should include the model name, system prompt, and the prompt. and the seed, the function should be async.
+do not use get, use post with the json object. 
+return the response
+
+
+
+
+//////////
+give code for a node module api to generate images.
+use var "https://image.pollinations.ai/prompt/"+p+"?width="+w.value+"&height="+h.value+"&nologo=true&model="+model.value +"&private=true&seed="+ seed.value;
+		$q(".more").value=u;
+save iamges  make sure the function is async, parameters are width, height. always use flux as the model, alao use the seed
+the return is success or fail.
+use module https get
+
+
+//////
+
+make a html page the will render images and draw them on a canvas.
+resize the canvas to the image size 
+use var "https://image.pollinations.ai/prompt/"+p+"?width="+w.value+"&height="+h.value+"&nologo=true&model="+model.value +"&private=true&seed="+ seed.value;
+		$q(".more").value=u;	
+use  width, height. always use flux as the model, ignore the seed.
+
+
+///////
+
+make a module api to generate images.
+use var "https://image.pollinations.ai/prompt/"+p+"?width="+w.value+"&height="+h.value+"&nologo=true&model="+model.value +"&private=true&seed="+ seed.value;
+		$q(".more").value=u;
+to save iamges using the apiCalls. make sure the function is async, onputes are width, height. always use flux as the model, ignore the seed.
+the return is success or fail.
+the apiCalls use binary data no base64. 
+
+
+
+//////
+
+give a js api for ai chat using https://text.pollinations.ai/.
+one call to get the list of models. use https://text.pollinations.ai/models
+save the list of models in the browser local storage.
+if getting the models call fails, use the cache from the local storage.
+for the chat ise the post. the functionshould inclide the model name, system prompt, and the prompt. the function should be async.
+do not use get, use post with the json object. 
+return the response

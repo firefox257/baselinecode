@@ -1,5 +1,7 @@
 
 
+
+
 // ./ux/aichat.js
 
 const API_BASE_URL = "https://text.pollinations.ai";
@@ -14,6 +16,8 @@ const LOCAL_STORAGE_MESSAGES_KEY = 'aiChatMessages'; // New key for conversation
 const LOCAL_STORAGE_SELECTED_SYSTEM_PROMPT_TITLE_KEY = 'aiChatSelectedSystemPromptTitle'; // New key for selected system prompt title
 const LOCAL_STORAGE_CONVERSATION_ENABLED_KEY = 'aiChatConversationEnabled'; // New key for conversation mode setting
 const LOCAL_STORAGE_SELECTED_TTS_VOICE_KEY = 'aiChatSelectedTTSVoice'; // New key for selected TTS voice
+const LOCAL_STORAGE_SELECTED_CODE_FILTER_KEY = 'aiChatSelectedCodeFilter'; // NEW: For code filter
+
 
 class AIChat extends HTMLElement {
     constructor() {
@@ -49,6 +53,9 @@ class AIChat extends HTMLElement {
         this.microphonePermissionRequested = false; // Has user been prompted for microphone?
         this.voiceInitialized = false; // NEW: Has TTS voice been initialized and "Ready to listen" spoken?
 
+        // NEW: Code filter properties
+        this.codeFilter = 'all'; // Default filter: 'all' (show all messages)
+        this.availableCodeTypes = new Set(); // Stores unique code block types found in messages
 
         this.render();
     }
@@ -168,6 +175,15 @@ class AIChat extends HTMLElement {
 
         this.initializeSpeechRecognition(); // Initialize STT
         console.log("[AIChat] AIChat component fully connected and initialized.");
+
+        // NEW: Initialize code filter from localStorage
+        const cachedCodeFilter = localStorage.getItem(LOCAL_STORAGE_SELECTED_CODE_FILTER_KEY);
+        if (cachedCodeFilter) {
+            this.codeFilter = cachedCodeFilter;
+            console.log(`[AIChat] Loaded cached code filter: ${this.codeFilter}`);
+        }
+        this.populateCodeFilterDropdown(); // Populate and set the selected value
+        this.renderHistory(); // Re-render history with applied filter
     }
 
     disconnectedCallback() {
@@ -308,7 +324,7 @@ class AIChat extends HTMLElement {
 
     // New: Fetch system prompts from a JSON file
     async fetchSystemPrompts() {
-        const fileName = 'systemPrompts.json'; // CORRECTED TYPO: was 'systemPromp.json'
+        const fileName = 'systemPrompts.json';
         try {
             const response = await fetch(fileName); // Assumes file is in the same directory
             if (!response.ok) {
@@ -368,6 +384,12 @@ class AIChat extends HTMLElement {
         this.messages = [{ role: 'system', content: this.systemPrompt }];
         // Clear from local storage
         localStorage.removeItem(LOCAL_STORAGE_MESSAGES_KEY);
+        // Reset code types and filter
+        this.availableCodeTypes.clear();
+        this.codeFilter = 'all';
+        localStorage.setItem(LOCAL_STORAGE_SELECTED_CODE_FILTER_KEY, this.codeFilter);
+        this.populateCodeFilterDropdown();
+
         // Re-render the chat area to show it's empty
         this.renderHistory();
         console.log('[AIChat] Conversation history cleared.');
@@ -432,6 +454,9 @@ class AIChat extends HTMLElement {
         const conversationModeButton = this.shadowRoot.getElementById('conversationModeButton');
         const conversationBigButton = this.shadowRoot.getElementById('conversationBigButton');
         const exitConversationButton = this.shadowRoot.getElementById('exitConversationButton');
+
+        // NEW: Code filter dropdown
+        const codeFilterSelect = this.shadowRoot.getElementById('codeFilterSelect');
 
 
         if (sendButton) sendButton.addEventListener('click', () => this.sendMessage()); else console.error('sendButton not found!');
@@ -619,6 +644,16 @@ class AIChat extends HTMLElement {
                 this.exitConversationMode();
             });
         }
+
+        // NEW: Code filter dropdown event listener
+        if (codeFilterSelect) {
+            codeFilterSelect.addEventListener('change', (event) => {
+                this.codeFilter = event.target.value;
+                localStorage.setItem(LOCAL_STORAGE_SELECTED_CODE_FILTER_KEY, this.codeFilter);
+                console.log(`[AIChat] Code filter changed to: ${this.codeFilter}`);
+                this.renderHistory(); // Re-render chat area with new filter
+            });
+        }
     }
 
     // New: Update the state (text and class) of the big conversation button
@@ -682,25 +717,179 @@ class AIChat extends HTMLElement {
         console.log(`[AIChat] Conversation settings visibility toggled. Display: ${this.conversationEnabled ? 'visible' : 'hidden'}`);
     }
 
+    // NEW: Populate code filter dropdown
+    populateCodeFilterDropdown() {
+        const codeFilterSelect = this.shadowRoot.getElementById('codeFilterSelect');
+        if (!codeFilterSelect) {
+            console.error("Code filter select element not found!");
+            return;
+        }
+
+        // Store the current selection if it exists
+        const currentSelection = codeFilterSelect.value;
+
+        codeFilterSelect.innerHTML = ''; // Clear existing options
+
+        const addOption = (value, text) => {
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = text;
+            codeFilterSelect.appendChild(option);
+        };
+
+        addOption('all', 'Show All Messages');
+        addOption('no-code', 'No Code Messages');
+        addOption('all-code', 'All Code Messages');
+
+        // Add options for each unique code type found
+        Array.from(this.availableCodeTypes).sort().forEach(type => {
+            addOption(type, `Code: ${type.toUpperCase()}`);
+        });
+
+        // Set the dropdown to the previously selected value or default to 'all'
+        if (this.codeFilter && codeFilterSelect.querySelector(`option[value="${this.codeFilter}"]`)) {
+            codeFilterSelect.value = this.codeFilter;
+        } else {
+            codeFilterSelect.value = 'all';
+            this.codeFilter = 'all'; // Update internal state if value wasn't found
+            localStorage.setItem(LOCAL_STORAGE_SELECTED_CODE_FILTER_KEY, this.codeFilter);
+        }
+        console.log(`[AIChat] Code filter dropdown populated. Selected: ${this.codeFilter}`);
+    }
+
+
     renderHistory() {
         const rawTextOutputDiv = this.shadowRoot.getElementById('rawTextOutput');
         if (!rawTextOutputDiv) return;
 
-        // Clear existing content if it's the first render or a full refresh
-        rawTextOutputDiv.innerHTML = '';
+        rawTextOutputDiv.innerHTML = ''; // Clear existing content
 
         // Filter out the system message for display, as it's typically hidden
         const displayMessages = this.messages.filter(msg => msg.role !== 'system');
 
         displayMessages.forEach(msg => {
-            const p = document.createElement('p');
-            // When rendering history, ensure raw text by setting textContent
-            p.textContent = `${msg.role === 'user' ? 'You' : 'AI'}: ${msg.content}`;
-            rawTextOutputDiv.appendChild(p);
+            // Check if the message contains code blocks
+            const codeBlockRegex = /```(\S*)\n([\s\S]*?)```/g;
+            let match;
+            let lastIndex = 0;
+            const fragment = document.createDocumentFragment();
+            let containsCode = false; // Flag to indicate if the message contains any code block
+
+            while ((match = codeBlockRegex.exec(msg.content)) !== null) {
+                containsCode = true;
+                const [fullMatch, lang, code] = match;
+                const precedingText = msg.content.substring(lastIndex, match.index).trim();
+
+                // Add preceding text as a paragraph if it exists
+                if (precedingText) {
+                    const p = document.createElement('p');
+                    p.textContent = precedingText;
+                    fragment.appendChild(p);
+                }
+
+                // Add the code block with copy button
+                const codeBlockContainer = document.createElement('div');
+                codeBlockContainer.classList.add('code-block-container');
+
+                const header = document.createElement('div');
+                header.classList.add('code-block-header');
+                const langSpan = document.createElement('span');
+                langSpan.classList.add('code-lang');
+                langSpan.textContent = lang || 'plaintext'; // Default to 'plaintext' if no language specified
+                header.appendChild(langSpan);
+
+                const copyButton = document.createElement('button');
+                copyButton.classList.add('copy-button');
+                copyButton.innerHTML = '📋 Copy'; // Clipboard icon
+                copyButton.title = 'Copy code to clipboard';
+                copyButton.onclick = () => this.copyToClipboard(code, copyButton);
+                header.appendChild(copyButton);
+                codeBlockContainer.appendChild(header);
+
+                const pre = document.createElement('pre');
+                const codeElement = document.createElement('code');
+                codeElement.textContent = code;
+                pre.appendChild(codeElement);
+                codeBlockContainer.appendChild(pre);
+                fragment.appendChild(codeBlockContainer);
+
+                // Add language to availableCodeTypes (only for AI messages)
+                if (msg.role === 'assistant' && lang) {
+                    this.availableCodeTypes.add(lang.toLowerCase());
+                }
+
+                lastIndex = match.index + fullMatch.length;
+            }
+
+            // Add any remaining text after the last code block
+            const remainingText = msg.content.substring(lastIndex).trim();
+            if (remainingText || (!containsCode && msg.content.trim())) {
+                const p = document.createElement('p');
+                p.textContent = msg.role === 'user' ? `You: ${remainingText || msg.content}` : `AI: ${remainingText || msg.content}`;
+                fragment.appendChild(p);
+            }
+
+            // Apply filter logic
+            let shouldDisplay = false;
+            if (this.codeFilter === 'all') {
+                shouldDisplay = true;
+            } else if (this.codeFilter === 'no-code') {
+                shouldDisplay = !containsCode;
+            } else if (this.codeFilter === 'all-code') {
+                shouldDisplay = containsCode;
+            } else {
+                // Specific language filter
+                const filterLang = this.codeFilter;
+                const messageContainsFilteredCode = [...msg.content.matchAll(codeBlockRegex)].some(([_, lang]) => lang.toLowerCase() === filterLang);
+                shouldDisplay = messageContainsFilteredCode;
+            }
+
+            if (shouldDisplay) {
+                // Prepend role if message doesn't contain code and is not already prefixed.
+                // If it contains code, the individual text paragraphs and code blocks are added directly.
+                if (!containsCode) {
+                    const outerP = document.createElement('p');
+                    outerP.textContent = `${msg.role === 'user' ? 'You' : 'AI'}: ${msg.content}`;
+                    rawTextOutputDiv.appendChild(outerP);
+                } else {
+                     // Add role prefix to the *first* child of the fragment if it's a paragraph
+                    if (fragment.firstChild && fragment.firstChild.tagName === 'P') {
+                        fragment.firstChild.textContent = `${msg.role === 'user' ? 'You' : 'AI'}: ${fragment.firstChild.textContent}`;
+                    } else if (fragment.firstChild && fragment.firstChild.classList.contains('code-block-container')) {
+                         // If the first element is a code block, add a small info text above it
+                        const roleInfo = document.createElement('span');
+                        roleInfo.textContent = `${msg.role === 'user' ? 'You' : 'AI'}: `;
+                        rawTextOutputDiv.appendChild(roleInfo);
+                    }
+                    rawTextOutputDiv.appendChild(fragment);
+                }
+            }
         });
+
+        this.populateCodeFilterDropdown(); // Re-populate to update options if new types appeared
         rawTextOutputDiv.scrollTop = rawTextOutputDiv.scrollHeight;
         console.log(`[AIChat] Chat history rendered. Message count: ${displayMessages.length}`);
     }
+
+    // NEW: Copy to clipboard functionality
+    async copyToClipboard(text, button) {
+        try {
+            await navigator.clipboard.writeText(text);
+            console.log('[AIChat] Code copied to clipboard!');
+            const originalText = button.innerHTML;
+            button.innerHTML = '✅ Copied!';
+            setTimeout(() => {
+                button.innerHTML = originalText;
+            }, 2000);
+        } catch (err) {
+            console.error('[AIChat] Failed to copy text: ', err);
+            button.innerHTML = '❌ Failed!';
+            setTimeout(() => {
+                button.innerHTML = '📋 Copy';
+            }, 2000);
+        }
+    }
+
 
     // New: TTS Functionality
     async loadTTSVoices() {
@@ -1327,7 +1516,9 @@ class AIChat extends HTMLElement {
 
             // Create a new paragraph for the AI's streamed response
             const aiResponseParagraph = document.createElement('p');
-            aiResponseParagraph.textContent = 'AI: '; // Start AI response paragraph using textContent
+            // This will hold the text content that is NOT part of a code block during streaming
+            // We'll replace it with the parsed HTML content when renderHistory is called at the end
+            aiResponseParagraph.textContent = 'AI: ';
             rawTextOutputDiv.appendChild(aiResponseParagraph);
             rawTextOutputDiv.scrollTop = rawTextOutputDiv.scrollHeight;
 
@@ -1375,7 +1566,7 @@ class AIChat extends HTMLElement {
                                 fullResponse += content;
                                 this.speechBuffer += content; // Add to TTS buffer
 
-                                // Update the display with the full streamed content
+                                // Temporarily update the display with raw fullResponse, will be re-rendered as HTML later
                                 aiResponseParagraph.textContent = 'AI: ' + fullResponse;
                                 rawTextOutputDiv.scrollTop = rawTextOutputDiv.scrollHeight;
 
@@ -1444,7 +1635,9 @@ class AIChat extends HTMLElement {
             this.messages.push({ role: 'assistant', content: fullResponse });
             // Save updated history (this will be cleared on next page load if localStorage.removeItem is active)
             localStorage.setItem(LOCAL_STORAGE_MESSAGES_KEY, JSON.stringify(this.messages));
-            this.renderHistory(); // Final render to ensure proper formatting and update scroll
+
+            // Final render to parse and display fullResponse with code blocks and copy buttons
+            this.renderHistory();
             console.log(`[AIChat] Full AI response received and added to history: "${fullResponse.substring(0, 50)}..."`);
 
 
@@ -1560,7 +1753,7 @@ class AIChat extends HTMLElement {
                     flex-shrink: 0; /* Prevent icon button from shrinking */
                 }
 
-                #modelSelect, #systemPromptSelect { /* Apply same style to both selects */
+                #modelSelect, #systemPromptSelect, #codeFilterSelect { /* Apply same style to all selects */
                     flex-grow: 1; /* Allow the select to take up available space */
                     min-width: 0; /* Allow the select to shrink below its intrinsic width */
                     overflow: hidden; /* Hide overflowing text in select itself */
@@ -1699,6 +1892,57 @@ class AIChat extends HTMLElement {
                 .chat-area p:last-child {
                     margin-bottom: 0;
                 }
+
+                /* NEW: Code Block Styling */
+                .code-block-container {
+                    background-color: #f4f4f4; /* Light grey background for code blocks */
+                    border: 1px solid #e1e1e1;
+                    border-radius: 5px;
+                    margin: 10px 0; /* Margin around code blocks */
+                    overflow: hidden; /* Contains the pre and scrollbar */
+                }
+                .code-block-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    background-color: #e9e9e9;
+                    padding: 5px 10px;
+                    border-bottom: 1px solid #e1e1e1;
+                    font-size: 0.8em;
+                    color: #555;
+                }
+                .code-lang {
+                    font-weight: bold;
+                    text-transform: uppercase;
+                }
+                .code-block-container pre {
+                    margin: 0; /* Remove default pre margin */
+                    padding: 10px;
+                    overflow-x: auto; /* Horizontal scroll for long code lines */
+                    font-size: 0.9em;
+                    line-height: 1.3;
+                    white-space: pre-wrap; /* Ensure wrapping within pre */
+                    word-break: break-all; /* Allow breaking long words */
+                }
+                .code-block-container code {
+                    display: block; /* Ensures code takes up full pre width */
+                }
+                .copy-button {
+                    background-color: #007bff;
+                    color: white;
+                    border: none;
+                    border-radius: 3px;
+                    padding: 3px 8px;
+                    font-size: 0.8em;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    gap: 5px;
+                }
+                .copy-button:hover {
+                    background-color: #0056b3;
+                }
+
 
                 .input-area-wrapper {
                     display: flex;
@@ -1846,6 +2090,7 @@ class AIChat extends HTMLElement {
                         <select id="modelSelect"></select>
                     </div>
                     <div>
+                        <select id="codeFilterSelect" title="Filter messages by code type"></select>
                         <button id="conversationModeButton" class="icon-button" title="Enter Conversation Mode" style="display: none;">🗣️</button>
                         <button id="clearChatButton" class="icon-button" title="Clear Conversation">🗑️</button>
                     </div>
@@ -1930,14 +2175,4 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
-/*
-use this code as reference. 
-make a json module named chatSession.js.
-strip out all gui, we inly want the chat.
-one function will give a list of models.
-anothe function create seasion, the arguments is the system prompt and model to use, and seed number.
-the session is an object that keeps all requests and responses for historical perpoeses and is used to send back to the in the request.
-another function requestText. this is the user request which returnes the text if the response.
-another function requestJson. this returns the response a list of json responses. the json responses is in ```json   content ``` so this will need to be filtered.
 
-*/

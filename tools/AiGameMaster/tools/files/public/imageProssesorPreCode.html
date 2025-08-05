@@ -1,0 +1,297 @@
+
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image to Canvas Renderer and Server Save (Uint8Array & Base64)</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 20px;
+        }
+        .controls {
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap; /* Added for wrapping controls */
+            gap: 10px;
+            align-items: center;
+            max-width: 900px; /* Optional: Constrain width on wide screens */
+            justify-content: center; /* Center items when they wrap */
+        }
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        canvas {
+            border: 1px solid #ccc;
+            margin-top: 20px;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            margin-bottom: 20px;
+        }
+        #saveStatus {
+            margin-top: 10px;
+            font-weight: bold;
+            color: green;
+        }
+        #saveStatus.error {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+    <h1>Image to Canvas Renderer and Server Save (Uint8Array & Base64)</h1>
+
+    <div class="controls">
+        <div class="control-group">
+            <label for="prompt">Prompt:</label>
+            <input type="text" id="prompt" value="a majestic mountain range" size="30">
+        </div>
+
+        <div class="control-group">
+            <label for="width">Width:</label>
+            <input type="number" id="width" value="600" min="1">
+        </div>
+
+        <div class="control-group">
+            <label for="height">Height:</label>
+            <input type="number" id="height" value="400" min="1">
+        </div>
+
+        <div class="control-group">
+            <label for="seed">Seed:</label>
+            <input type="number" id="seed" value="" placeholder="Random" min="0">
+        </div>
+
+        <div class="control-group">
+            <label for="scaleX">Scale X:</label>
+            <input type="number" id="scaleX" value="1" min="0.1" step="0.1">
+        </div>
+
+        <div class="control-group">
+            <label for="scaleY">Scale Y:</label>
+            <input type="number" id="scaleY" value="1" min="0.1" step="0.1">
+        </div>
+
+        <div class="control-group">
+            <label for="imageFormat">Format:</label>
+            <select id="imageFormat">
+                <option value="png">PNG</option>
+                <option value="jpeg">JPEG</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label for="jpegQuality">JPEG Quality (0-1):</label>
+            <input type="number" id="jpegQuality" value="0.9" min="0.1" max="1" step="0.05">
+        </div>
+
+        <div class="control-group">
+            <label for="pngCompressionLevel">PNG Comp. Level (0-9):</label>
+            <input type="number" id="pngCompressionLevel" value="6" min="0" max="9" step="1">
+        </div>
+
+        <div class="control-group">
+            <label for="saveFileName">Save As:</label>
+            <input type="text" id="saveFileName" value="generated_image.png">
+        </div>
+
+        <button id="loadImageBtn">Load Image and Draw on Canvas</button>
+    </div>
+
+    <div id="saveStatus"></div>
+
+    <h2>Original Image (from Base64)</h2>
+    <img id="displayImage" src="" alt="Generated Image" style="display: none;">
+
+    <h2>Image on Canvas</h2>
+    <canvas id="imageCanvas"></canvas>
+
+    <script type="module">
+        // Import the api object from apiCalls.js
+        import { api } from './js/apiCalls.js'; // Ensure this path is correct for your project structure
+
+        const $q = (selector) => document.querySelector(selector);
+
+        const promptInput = $q("#prompt");
+        const widthInput = $q("#width");
+        const heightInput = $q("#height");
+        const seedInput = $q("#seed");
+        const scaleXInput = $q("#scaleX");
+        const scaleYInput = $q("#scaleY");
+        const imageFormatInput = $q("#imageFormat");
+        const jpegQualityInput = $q("#jpegQuality");
+        const pngCompressionLevelInput = $q("#pngCompressionLevel");
+        const saveFileNameInput = $q("#saveFileName");
+        const loadImageBtn = $q("#loadImageBtn");
+        const displayImage = $q("#displayImage");
+        const imageCanvas = $q("#imageCanvas");
+        const ctx = imageCanvas.getContext("2d");
+        const saveStatus = $q("#saveStatus");
+
+        let currentLoadedImage = null;
+
+        function uint8ToBase64(uint8Array) {
+            let binary = '';
+            const len = uint8Array.byteLength;
+            for (let i = 0; i < len; i++) {
+                binary += String.fromCharCode(uint8Array[i]);
+            }
+            return btoa(binary);
+        }
+
+        async function drawAndSaveCanvas() {
+            if (!currentLoadedImage) {
+                saveStatus.textContent = "No image loaded to draw and save. Click 'Load Image and Draw on Canvas' first.";
+                saveStatus.className = "error";
+                return;
+            }
+
+            const pValue = promptInput.value;
+            const scaleX = parseFloat(scaleXInput.value);
+            const scaleY = parseFloat(scaleYInput.value);
+            const format = imageFormatInput.value;
+            const jpegQuality = parseFloat(jpegQualityInput.value);
+            const pngCompressionLevel = parseInt(pngCompressionLevelInput.value);
+            
+            const mimeType = format === 'png' ? 'image/png' : 'image/jpeg';
+            const defaultFileNameExtension = format === 'png' ? '.png' : '.jpeg';
+            let fileName = saveFileNameInput.value;
+            if (!fileName.endsWith(defaultFileNameExtension)) {
+                 fileName = fileName.split('.')[0] + defaultFileNameExtension;
+                 saveFileNameInput.value = fileName;
+            }
+
+            saveStatus.textContent = "Drawing on canvas with scaling. Saving to server...";
+
+            const scaledWidth = currentLoadedImage.naturalWidth * scaleX;
+            const scaledHeight = currentLoadedImage.naturalHeight * scaleY;
+
+            imageCanvas.width = scaledWidth;
+            imageCanvas.height = scaledHeight;
+            
+            ctx.clearRect(0, 0, imageCanvas.width, imageCanvas.height);
+            ctx.drawImage(currentLoadedImage, 0, 0, scaledWidth, scaledHeight);
+            
+            saveStatus.textContent = "Image drawn on canvas with scaling. Saving to server...";
+
+            imageCanvas.toBlob(async (blob) => {
+                if (blob) {
+                    try {
+                        const headersToSend = {
+                            'Content-Type': mimeType,
+                            'X-Image-Prompt': pValue
+                        };
+
+                        // IMPORTANT NOTE ON PNG COMPRESSION:
+                        // The native canvas.toBlob('image/png', quality) does NOT
+                        // use the 'quality' parameter to control zlib compression levels
+                        // or perform lossy optimizations. The browser determines the best
+                        // lossless compression for PNG. For true "compression" beyond
+                        // dimension reduction (e.g., color quantization or advanced lossless),
+                        // a client-side library (like 'browser-image-compression') or
+                        // server-side processing is typically required.
+                        console.log(`Attempting to save as ${format}. ` + 
+                                    (format === 'jpeg' ? `JPEG Quality: ${jpegQuality}` : `PNG Compression Level (informational, not directly used by native toBlob): ${pngCompressionLevel}`));
+
+                        const response = await api.saveFile(fileName, blob, headersToSend);
+                        saveStatus.textContent = `Image saved successfully as "${fileName}"! Server response: ${response}`;
+                        saveStatus.className = "";
+                    } catch (error) {
+                        console.error("Error saving canvas image:", error);
+                        saveStatus.textContent = `Error saving image: ${error.message}`;
+                        saveStatus.className = "error";
+                    }
+                } else {
+                    saveStatus.textContent = "Error: Could not create Blob from canvas.";
+                    saveStatus.className = "error";
+                }
+            }, mimeType, format === 'jpeg' ? jpegQuality : undefined); // Pass quality ONLY for JPEG
+        }
+
+
+        loadImageBtn.addEventListener("click", async () => {
+            const pValue = promptInput.value;
+            const pEncoded = encodeURIComponent(pValue);
+            const w = parseInt(widthInput.value);
+            const h = parseInt(heightInput.value);
+            const seed = seedInput.value ? parseInt(seedInput.value) : '';
+            const model = "flux";
+
+            const imageUrl = `https://image.pollinations.ai/prompt/${pEncoded}?width=${w}&height=${h}&nologo=true&model=${model}&private=true&seed=${seed}`;
+
+            saveStatus.textContent = "Fetching image...";
+            saveStatus.className = "";
+
+            try {
+                const response = await fetch(imageUrl);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const arrayBuffer = await response.arrayBuffer();
+                const uint8Array = new Uint8Array(arrayBuffer);
+
+                const format = imageFormatInput.value;
+                const mimeType = format === 'png' ? 'image/png' : 'image/jpeg';
+                const base64Image = `data:${mimeType};base64,${uint8ToBase64(uint8Array)}`;
+
+                displayImage.src = base64Image;
+                displayImage.style.display = "block";
+
+                saveStatus.textContent = "Image loaded from Base64.";
+
+                const img = new Image();
+                img.src = base64Image;
+
+                img.onload = () => {
+                    currentLoadedImage = img;
+                    drawAndSaveCanvas(); // Draw and save only after image is loaded
+                };
+
+                img.onerror = () => {
+                    console.error("Error loading image for canvas from Base64.");
+                    saveStatus.textContent = "Error loading image for canvas.";
+                    saveStatus.className = "error";
+                    currentLoadedImage = null;
+                };
+
+            } catch (error) {
+                console.error("Error fetching or processing image:", error);
+                alert(`Failed to load or process image: ${error.message}`);
+                displayImage.style.display = "none";
+                ctx.clearRect(0, 0, imageCanvas.width, imageCanvas.height);
+                saveStatus.textContent = `Failed to load image: ${error.message}`;
+                saveStatus.className = "error";
+                currentLoadedImage = null;
+            }
+        });
+
+        // Removed event listeners that triggered drawAndSaveCanvas or loadImageBtn.click() on input change.
+        // Now, these actions are explicitly tied to the loadImageBtn click.
+
+        // The image format change listener only updates the filename suggestion
+        imageFormatInput.addEventListener('change', () => {
+            const currentFileName = saveFileNameInput.value;
+            const newExtension = imageFormatInput.value === 'png' ? '.png' : '.jpeg';
+            const baseName = currentFileName.includes('.') ? currentFileName.split('.')[0] : currentFileName;
+            saveFileNameInput.value = baseName + newExtension;
+        });
+
+        // Initial load removed - user must click the button
+        // loadImageBtn.click(); 
+    </script>
+</body>
+</html>
+
