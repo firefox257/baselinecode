@@ -1,0 +1,10 @@
+
+
+
+Create a module called commandAi.
+the module is a step by step processor to process json objects and call functions that pass that json to that function.
+
+
+
+
+

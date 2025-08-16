@@ -1,0 +1,21 @@
+
+
+
+add in cag union where union can take in 2 or more arguments. 
+difference with 2 arguments.
+intersection with 2 arguments
+do not change the imports.
+
+=================
+give html code with module that does a CSG like openscad.
+use the full page. the top will have 4 unicode symbole buttons,3d view, code view, load, save. the load and save are stubbed in for now.
+The code view will use the textCode module. 
+this is the part where the csg code is writen in js. 
+in the code will have a return of an array of 3d objects to draw on the 3d view.
+override the save function the text code to trigger to run the code and get the returned array 3d objects.
+the 3d view will show what has ben processed.
+write code for sphere object, cube object abd cylinder object.
+sphere will have an object of arguments {r: for radius, d: for diamter, fn: number of faces}
+cylinder will have {d:for diameter for both ends., dt: for diamter for top, db: for diametr bottom, fn: for the number of faces on the round part}
+cube will have [number width, number length, number height}
+use the provided html reference and text code.

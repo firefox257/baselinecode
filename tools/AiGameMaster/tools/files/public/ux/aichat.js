@@ -1,10 +1,9 @@
 
 
-
-
 // ./ux/aichat.js
 
 import { createSession } from '../js/chatSession.js';
+import { systemPrompts } from '../js/systemPrompts.js';
 
 const API_BASE_URL = "https://text.pollinations.ai";
 const MODELS_URL = `${API_BASE_URL}/models`;
@@ -28,6 +27,8 @@ class AIChat extends HTMLElement {
         this.systemPrompts = {};
         this.currentSystemPromptTitle = "";
         this.onCloseCallback = null;
+        this.onSaveCallback = null;
+        this.onOpenCallback = null;
         this.chatTitle = null;
 
         this.currentStreamReader = null;
@@ -46,7 +47,7 @@ class AIChat extends HTMLElement {
             this.currentModel = cachedModel;
         }
 
-        await this.fetchSystemPrompts();
+        this.fetchSystemPrompts();
 
         const systemInput = this.shadowRoot.getElementById('systemInput');
         const systemPromptSelect = this.shadowRoot.getElementById('systemPromptSelect');
@@ -106,7 +107,7 @@ class AIChat extends HTMLElement {
     }
 
     static get observedAttributes() {
-        return ['title', 'onclose'];
+        return ['title', 'onclose', 'onsave', 'onopen'];
     }
 
     attributeChangedCallback(name, oldValue, newValue) {
@@ -120,8 +121,23 @@ class AIChat extends HTMLElement {
                 console.error(`Error parsing onClose attribute: ${e}`);
                 this.onCloseCallback = null;
             }
-            this.updateCloseButtonVisibility();
+        } else if (name === 'onsave') {
+            try {
+                this.onSaveCallback = window[newValue] || new Function(newValue);
+            } catch (e) {
+                console.error(`Error parsing onSave attribute: ${e}`);
+                this.onSaveCallback = null;
+            }
+        } else if (name === 'onopen') {
+            try {
+                this.onOpenCallback = window[newValue] || new Function(newValue);
+            } catch (e) {
+                console.error(`Error parsing onOpen attribute: ${e}`);
+                this.onOpenCallback = null;
+            }
         }
+        this.updateCloseButtonVisibility();
+        this.updateSaveLoadButtonVisibility();
     }
 
     applyDynamicProperties() {
@@ -136,7 +152,24 @@ class AIChat extends HTMLElement {
                 this.onCloseCallback = null;
             }
         }
+        if (this.hasAttribute('onsave')) {
+            try {
+                this.onSaveCallback = window[this.getAttribute('onsave')] || new Function(this.getAttribute('onsave'));
+            } catch (e) {
+                console.error(`Error parsing onSave attribute: ${e}`);
+                this.onSaveCallback = null;
+            }
+        }
+        if (this.hasAttribute('onopen')) {
+            try {
+                this.onOpenCallback = window[this.getAttribute('onopen')] || new Function(this.getAttribute('onopen'));
+            } catch (e) {
+                console.error(`Error parsing onOpen attribute: ${e}`);
+                this.onOpenCallback = null;
+            }
+        }
         this.updateCloseButtonVisibility();
+        this.updateSaveLoadButtonVisibility();
     }
 
     updateTitleBar() {
@@ -156,6 +189,17 @@ class AIChat extends HTMLElement {
         const closeButton = this.shadowRoot.getElementById('closeButton');
         if (closeButton) {
             closeButton.style.display = this.onCloseCallback ? 'block' : 'none';
+        }
+    }
+
+    updateSaveLoadButtonVisibility() {
+        const saveButton = this.shadowRoot.getElementById('saveChatButton');
+        const loadButton = this.shadowRoot.getElementById('loadChatButton');
+        if (saveButton) {
+            saveButton.style.display = this.onSaveCallback ? 'block' : 'none';
+        }
+        if (loadButton) {
+            loadButton.style.display = this.onOpenCallback ? 'block' : 'none';
         }
     }
 
@@ -215,20 +259,9 @@ class AIChat extends HTMLElement {
         modelSelect.value = this.currentModel;
     }
 
-    async fetchSystemPrompts() {
-        const fileName = 'systemPrompts.json';
-        try {
-            const response = await fetch(fileName);
-            if (!response.ok) {
-                this.systemPrompts = {};
-                return;
-            }
-            this.systemPrompts = await response.json();
-            this.populateSystemPromptDropdown();
-        } catch (error) {
-            console.error(`[AIChat] Error fetching system prompts from ${fileName}:`, error);
-            this.systemPrompts = {};
-        }
+    fetchSystemPrompts() {
+        this.systemPrompts = systemPrompts;
+        this.populateSystemPromptDropdown();
     }
 
     populateSystemPromptDropdown() {
@@ -299,8 +332,11 @@ class AIChat extends HTMLElement {
         const systemInputContainer = this.shadowRoot.getElementById('systemInputContainer');
         const systemInput = this.shadowRoot.getElementById('systemInput');
         const textInputDiv = this.shadowRoot.getElementById('textInput');
-
         const codeFilterSelect = this.shadowRoot.getElementById('codeFilterSelect');
+
+        // New buttons
+        const saveChatButton = this.shadowRoot.getElementById('saveChatButton');
+        const loadChatButton = this.shadowRoot.getElementById('loadChatButton');
 
         if (sendButton) sendButton.addEventListener('click', () => this.sendMessage());
         if (modelSelect) {
@@ -372,6 +408,65 @@ class AIChat extends HTMLElement {
                 this.renderHistory();
             });
         }
+
+        // New event listeners for Save and Load buttons
+        if (saveChatButton) {
+            saveChatButton.addEventListener('click', () => {
+                if (this.onSaveCallback) {
+                    const chatData = {
+                        model: this.currentModel,
+                        history: this.messages
+                    };
+                    this.onSaveCallback(chatData);
+                }
+            });
+        }
+
+        if (loadChatButton) {
+            loadChatButton.addEventListener('click', async () => {
+                if (this.onOpenCallback) {
+                    try {
+                        const chatData = await this.onOpenCallback();
+                        if (chatData && chatData.model && chatData.history) {
+                            this.loadConversation(chatData.model, chatData.history);
+                        } else {
+                            console.error('[AIChat] onOpenCallback did not return valid chat data.');
+                        }
+                    } catch (e) {
+                        console.error('[AIChat] Error loading conversation:', e);
+                    }
+                }
+            });
+        }
+    }
+
+    // New method to load a conversation from an external source
+    loadConversation(model, history) {
+        this.stopAIChatResponse();
+        this.currentModel = model;
+        this.messages = history;
+        localStorage.setItem(LOCAL_STORAGE_SELECTED_MODEL_KEY, this.currentModel);
+        localStorage.setItem(LOCAL_STORAGE_MESSAGES_KEY, JSON.stringify(this.messages));
+
+        // Update the UI to reflect the loaded data
+        this.shadowRoot.getElementById('modelSelect').value = this.currentModel;
+        const systemMessage = history.find(msg => msg.role === 'system');
+        if (systemMessage) {
+            this.systemPrompt = systemMessage.content;
+            this.shadowRoot.getElementById('systemInput').textContent = this.systemPrompt;
+            const systemPromptSelect = this.shadowRoot.getElementById('systemPromptSelect');
+            const foundTitle = Object.keys(this.systemPrompts).find(key => this.systemPrompts[key] === this.systemPrompt);
+            if (foundTitle) {
+                this.currentSystemPromptTitle = foundTitle;
+                systemPromptSelect.value = foundTitle;
+            } else {
+                this.currentSystemPromptTitle = "custom";
+                systemPromptSelect.value = "custom";
+            }
+        }
+        
+        this.chatSession = createSession(this.systemPrompt, this.currentModel, history);
+        this.renderHistory();
     }
 
     populateCodeFilterDropdown() {
@@ -624,111 +719,97 @@ class AIChat extends HTMLElement {
                     width: 100%;
                     height: 100%;
                 }
-                .section {
-                    padding: 8px 10px;
-                    border-bottom: 1px solid #eee;
-                }
-                .section:last-of-type {
-                    border-bottom: none;
-                }
                 .title-bar {
                     display: flex;
                     align-items: center;
                     justify-content: space-between;
                     font-weight: bold;
-                    white-space: nowrap;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
                     flex-shrink: 0;
-                    padding-bottom: 5px;
+                    padding: 5px 10px;
+                }
+                .title-content {
+                    flex-grow: 1;
+                    flex-shrink: 1;
+                    min-width: 0;
+                    overflow: hidden;
+                    white-space: nowrap;
+                    text-overflow: ellipsis;
                 }
                 .title-text {
-                    overflow: hidden;
-                    text-overflow: clip;
-                    white-space: nowrap;
+                    /* This span is now inside .title-content and no longer needs flex properties */
+                    font-size: 1em; /* or inherit */
                 }
                 .top-menu {
                     display: flex;
+                    align-items: center;
                     justify-content: space-between;
-                    align-items: center;
                     flex-shrink: 0;
+                    padding: 5px 10px;
                 }
-                .top-menu > div {
+                .top-menu-group {
                     display: flex;
-                    gap: 8px;
-                    flex-grow: 1;
-                    min-width: 0;
                     align-items: center;
+                    gap: 5px;
                 }
-                .top-menu button, .top-menu select {
-                    padding: 6px 10px;
-                    border: 1px solid #ddd;
-                    border-radius: 4px;
-                    background-color: #fff;
-                    cursor: pointer;
+                .top-menu select {
+                    padding: 4px;
+                    border: none;
+                    background-color: transparent;
                     font-family: inherit;
-                    font-size: 0.9em;
+                    font-size: 0.85em;
                     color: #333;
                     box-sizing: border-box;
+                    max-width: 150px;
+                    border-left: 1px solid #ddd;
+                    border-right: 1px solid #ddd;
+                    padding-left: 8px;
+                    padding-right: 8px;
                 }
-                .top-menu button:hover, .top-menu select:hover {
-                    background-color: #e9e9e9;
-                }
-                .top-menu .icon-button {
-                    font-size: 1.1em;
+                .top-menu-group .button {
+                    font-size: 0.9em;
+                    padding: 4px 8px;
                     flex-shrink: 0;
-                }
-                #modelSelect, #systemPromptSelect, #codeFilterSelect {
-                    flex-grow: 1;
-                    min-width: 0;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    white-space: nowrap;
                 }
                 #systemInputContainer {
                     display: none;
-                    padding-top: 10px;
-                    padding-bottom: 5px;
+                    padding: 5px 10px;
                 }
                 .input-group {
-                    margin-bottom: 8px;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    margin-bottom: 5px;
+                }
+                .input-group:last-of-type {
+                    margin-bottom: 0;
                 }
                 .input-group label {
-                    display: block;
-                    margin-bottom: 4px;
-                    font-weight: bold;
-                    font-size: 0.85em;
+                    font-weight: normal;
+                    font-size: 0.8em;
                     color: #555;
+                    white-space: nowrap;
+                    flex-shrink: 0;
                 }
-                .input-group input[type="number"], .input-group input[type="text"] {
-                    width: calc(100% - 2px);
-                    padding: 8px;
+                .input-group input[type="number"], .input-group select {
+                    flex-grow: 1;
+                    width: auto;
+                    padding: 4px;
                     border: 1px solid #ddd;
-                    border-radius: 4px;
+                    border-radius: 2px;
                     font-size: 0.9em;
                     box-sizing: border-box;
                     font-family: inherit;
                     color: #333;
                 }
-                .input-group select {
-                    width: calc(100% - 2px);
-                    padding: 8px;
-                    border: 1px solid #ddd;
-                    border-radius: 4px;
-                    font-size: 0.9em;
-                    box-sizing: border-box;
-                    font-family: inherit;
-                    color: #333;
-                }
-                #textInput, #systemInput {
+                #systemInput {
                     flex-grow: 1;
                     border: 1px solid #ddd;
                     background-color: #fff;
                     padding: 8px;
                     min-height: 30px;
-                    max-height: 120px;
+                    max-height: 100px;
                     overflow-y: auto;
-                    border-radius: 4px;
+                    border-radius: 2px;
                     cursor: text;
                     font-family: inherit;
                     font-size: 0.95em;
@@ -737,11 +818,27 @@ class AIChat extends HTMLElement {
                     color: #333;
                     margin: 0;
                 }
+                #textInput {
+                    flex-grow: 1;
+                    padding: 8px;
+                    min-height: 30px;
+                    max-height: 100px;
+                    overflow-y: auto;
+                    cursor: text;
+                    font-family: inherit;
+                    font-size: 0.95em;
+                    line-height: 1.4;
+                    box-sizing: border-box;
+                    color: #333;
+                    margin: 0;
+                    border: 1px solid #ddd;
+                    border-radius: 2px;
+                    background-color: #fff;
+                }
                 #textInput[contenteditable="true"]:focus,
                 #systemInput[contenteditable="true"]:focus {
                     outline: none;
                     border-color: #007bff;
-                    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
                 }
                 #textInput:empty:before, #systemInput:empty:before {
                     content: attr(placeholder);
@@ -760,7 +857,6 @@ class AIChat extends HTMLElement {
                     box-sizing: border-box;
                     padding: 10px;
                     border: none;
-                    border-radius: 0;
                     outline: none;
                 }
                 .chat-area p {
@@ -774,8 +870,8 @@ class AIChat extends HTMLElement {
                 .code-block-container {
                     background-color: #f4f4f4;
                     border: 1px solid #e1e1e1;
-                    border-radius: 5px;
-                    margin: 10px 0;
+                    border-radius: 3px;
+                    margin: 8px 0;
                     overflow: hidden;
                 }
                 .code-block-header {
@@ -783,7 +879,7 @@ class AIChat extends HTMLElement {
                     justify-content: space-between;
                     align-items: center;
                     background-color: #e9e9e9;
-                    padding: 5px 10px;
+                    padding: 3px 8px;
                     border-bottom: 1px solid #e1e1e1;
                     font-size: 0.8em;
                     color: #555;
@@ -794,7 +890,7 @@ class AIChat extends HTMLElement {
                 }
                 .code-block-container pre {
                     margin: 0;
-                    padding: 10px;
+                    padding: 8px;
                     overflow-x: auto;
                     font-size: 0.9em;
                     line-height: 1.3;
@@ -812,9 +908,6 @@ class AIChat extends HTMLElement {
                     padding: 3px 8px;
                     font-size: 0.8em;
                     cursor: pointer;
-                    display: flex;
-                    align-items: center;
-                    gap: 5px;
                 }
                 .copy-button:hover {
                     background-color: #0056b3;
@@ -824,7 +917,7 @@ class AIChat extends HTMLElement {
                     align-items: flex-end;
                     gap: 8px;
                     flex-shrink: 0;
-                    padding-top: 8px;
+                    padding: 8px 10px;
                 }
                 #sendButton {
                     padding: 8px 14px;
@@ -847,30 +940,50 @@ class AIChat extends HTMLElement {
                     cursor: pointer;
                     color: #888;
                     padding: 0;
+                    flex-shrink: 0;
+                    margin-left: 10px;
                 }
                 .close-button:hover {
                     color: #333;
                 }
+                .button {
+                    padding: 4px 8px;
+                    border: 1px solid #ddd;
+                    border-radius: 4px;
+                    background-color: #fff;
+                    cursor: pointer;
+                    font-family: inherit;
+                    font-size: 0.85em;
+                    color: #333;
+                }
+                .button:hover {
+                    background-color: #e9e9e9;
+                }
+                .button.save-button, .button.load-button {
+                    display: none; /* Initially hidden */
+                }
             </style>
 
-            <div id="mainChatTool" style="display: flex;">
-                <div class="title-bar section" style="display: none;">
-                    <span class="title-text"></span>
+            <div id="mainChatTool">
+                <div class="title-bar" style="display: none;">
+                    <div class="title-content">
+                        <span class="title-text"></span>
+                    </div>
                     <button id="closeButton" class="close-button" style="display: none;">✖</button>
                 </div>
 
-                <div class="top-menu section">
-                    <div>
-                        <button id="systemPromptButton" class="icon-button" title="Toggle System Prompt">⚙️</button>
-                        <select id="modelSelect"></select>
+                <div class="top-menu">
+                    <div class="top-menu-group">
+                        <select id="modelSelect" title="Select AI Model"></select>
+                        <button id="systemPromptButton" class="button" title="Toggle System Prompt">⚙️</button>
                     </div>
-                    <div>
+                    <div class="top-menu-group">
                         <select id="codeFilterSelect" title="Filter messages by code type"></select>
-                        <button id="clearChatButton" class="icon-button" title="Clear Conversation">🗑️</button>
+                        <button id="clearChatButton" class="button" title="Clear Conversation">🗑️</button>
                     </div>
                 </div>
 
-                <div id="systemInputContainer" class="section">
+                <div id="systemInputContainer">
                     <div class="input-group">
                         <label for="systemPromptSelect">System Prompt:</label>
                         <select id="systemPromptSelect"></select>
@@ -879,8 +992,12 @@ class AIChat extends HTMLElement {
                         <div id="systemInput" contenteditable="true" placeholder="You are a helpful AI assistant."></div>
                     </div>
                     <div class="input-group">
-                        <label for="temperatureInput">Temperature (0.0 - 1.0):</label>
+                        <label for="temperatureInput">Temperature:</label>
                         <input type="number" id="temperatureInput" value="0.7" min="0" max="1" step="0.1">
+                    </div>
+                    <div class="input-group">
+                        <button id="saveChatButton" class="button save-button">💾 Save Chat</button>
+                        <button id="loadChatButton" class="button load-button">📂 Load Chat</button>
                     </div>
                 </div>
 
@@ -888,7 +1005,7 @@ class AIChat extends HTMLElement {
                     Loading AI Chat...
                 </div>
 
-                <div class="input-area-wrapper section">
+                <div class="input-area-wrapper">
                     <div id="textInput" contenteditable="true" placeholder="Enter your prompt here..."></div>
                     <button id="sendButton">➤</button>
                 </div>
@@ -921,6 +1038,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('ai-chat').forEach(chatElement => {
     });
 });
+
 
 
 

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIChat Component Test Page</title>
+    <style>
+        /*
+         * Global Styles for a responsive layout
+         */
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            box-sizing: border-box;
+            /* Allow vertical scrolling for the page itself */
+            overflow-y: auto;
+        }
+
+        /* The container now takes up the full width and height of the viewport */
+        .chat-container {
+            width: 100vw;
+            height: 100vh;
+            border-bottom: 1px solid #ccc; /* Add a separator between stacked chats */
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            background-color: white;
+            overflow: hidden; /* Hide any content that exceeds the chat container */
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-container:last-of-type {
+            border-bottom: none; /* No separator for the last chat */
+        }
+
+        h2 {
+            text-align: center;
+            color: #333;
+            margin: 10px;
+        }
+
+        /* The aichat component will fill its parent container */
+        ai-chat {
+            flex-grow: 1;
+            /* Ensure the component itself takes up the available space */
+        }
+    </style>
+</head>
+<body>
+
+    <div class="chat-container">
+        <h2>AIChat (Events Not Defined)</h2>
+        <ai-chat title="Chat Without Events"></ai-chat>
+    </div>
+
+    <div class="chat-container">
+        <h2>AIChat (Events Defined)</h2>
+        <ai-chat 
+            title="Chat With Events"
+            onsave="handleSaveEvent"
+            onopen="handleOpenEvent"
+            onclose="handleCloseEvent">
+        </ai-chat>
+    </div>
+
+    <script type="module" src="./ux/aichat.js"></script>
+
+    <script>
+        // These functions must be in the global scope (window object) to be accessed by the web component
+        window.handleSaveEvent = (data) => {
+            console.log('✅ onsave event triggered!');
+            console.log('Model:', data.model);
+            console.log('History:', data.history);
+            alert('Chat saved! Check the console for details.');
+        };
+
+        window.handleOpenEvent = async () => {
+            console.log('⏳ onopen event triggered!');
+            alert('Loading chat data... (Simulated)');
+
+            // Simulate a delay for fetching data
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            // Return a simulated JSON object with chat history
+            const simulatedData = {
+                model: 'mistral',
+                history: [
+                    { role: 'system', content: 'You are a helpful AI assistant. You specialize in web development.' },
+                    { role: 'user', content: 'Hello, what is a web component?' },
+                    { role: 'assistant', content: 'A web component is a set of web platform APIs that allow you to create reusable custom elements with encapsulated functionality. They are based on three main technologies: Custom Elements, Shadow DOM, and HTML Templates.' }
+                ]
+            };
+
+            console.log('✅ Data loaded:', simulatedData);
+            return simulatedData;
+        };
+        
+        // This is the new function for the onclose event
+        window.handleCloseEvent = () => {
+            console.log('❌ onclose event triggered!');
+            alert('The chat component has been closed!');
+        };
+
+        // This is a placeholder for the chatSession.js file if you don't have a real one
+        function createSession(systemPrompt, model, history = []) {
+            console.log('Chat session created with:', { systemPrompt, model, history });
+            let messages = history.length > 0 ? history : [{ role: 'system', content: systemPrompt }];
+            
+            return {
+                getHistory: () => messages,
+                requestStreamText: async (prompt, onChunk, onEnd, temperature) => {
+                    const userMessage = { role: 'user', content: prompt };
+                    messages.push(userMessage);
+
+                    const simulatedResponse = "This is a simulated response to your request.";
+                    onChunk(simulatedResponse);
+                    
+                    messages.push({ role: 'assistant', content: simulatedResponse });
+                    onEnd();
+                }
+            };
+        }
+    </script>
+</body>
+</html>

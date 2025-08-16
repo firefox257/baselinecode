@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MATRIX - SYSTEM ACCESS</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Courier New', monospace;
+        }
+        
+        body {
+            background-color: #000;
+            color: #00ff41;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow-x: hidden;
+            position: relative;
+            padding: 20px;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 400px;
+            padding: 30px;
+            background: rgba(0, 15, 0, 0.7);
+            border: 1px solid #00ff41;
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.3);
+            position: relative;
+            z-index: 10;
+            backdrop-filter: blur(5px);
+            margin-top: 20px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            border-top: 1px solid rgba(0, 255, 65, 0.3);
+            border-left: 1px solid rgba(0, 255, 65, 0.3);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            position: relative;
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+            text-shadow: 0 0 10px #00ff41;
+            animation: glow 1.5s infinite alternate;
+        }
+        
+        .header p {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+        
+        .input-group {
+            margin-bottom: 20px;
+            position: relative;
+        }
+        
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            letter-spacing: 1px;
+        }
+        
+        .input-group input {
+            width: 100%;
+            padding: 12px 15px;
+            background: rgba(0, 20, 0, 0.5);
+            border: 1px solid #00ff41;
+            color: #00ff41;
+            font-size: 16px;
+            outline: none;
+            transition: all 0.3s;
+            border-radius: 2px;
+        }
+        
+        .input-group input:focus {
+            box-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+            border-color: #00ff41;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 12px;
+            background: rgba(0, 30, 0, 0.8);
+            border: 1px solid #00ff41;
+            color: #00ff41;
+            font-size: 16px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+            border-radius: 2px;
+        }
+        
+        .btn:hover {
+            background: rgba(0, 50, 0, 0.9);
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.7);
+        }
+        
+        .btn::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 65, 0.2), transparent);
+            transition: 0.5s;
+        }
+        
+        .btn:hover::after {
+            left: 100%;
+        }
+        
+        .status {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 14px;
+            min-height: 20px;
+        }
+        
+        .glitch {
+            position: relative;
+        }
+        
+        .glitch::before,
+        .glitch::after {
+            content: attr(data-text);
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .glitch::before {
+            left: 2px;
+            text-shadow: -2px 0 #ff00c1;
+            clip: rect(44px, 450px, 56px, 0);
+            animation: glitch-anim 5s infinite linear alternate-reverse;
+        }
+        
+        .glitch::after {
+            left: -2px;
+            text-shadow: -2px 2px #00fff9;
+            clip: rect(44px, 450px, 56px, 0);
+            animation: glitch-anim2 5s infinite linear alternate-reverse;
+        }
+        
+        @keyframes glitch-anim {
+            0% { clip: rect(42px, 9999px, 44px, 0); }
+            5% { clip: rect(12px, 9999px, 59px, 0); }
+            10% { clip: rect(48px, 9999px, 29px, 0); }
+            15% { clip: rect(42px, 9999px, 73px, 0); }
+            20% { clip: rect(63px, 9999px, 27px, 0); }
+            25% { clip: rect(34px, 9999px, 55px, 0); }
+            30% { clip: rect(86px, 9999px, 73px, 0); }
+            35% { clip: rect(20px, 9999px, 20px, 0); }
+            40% { clip: rect(26px, 9999px, 60px, 0); }
+            45% { clip: rect(25px, 9999px, 66px, 0); }
+            50% { clip: rect(57px, 9999px, 86px, 0); }
+            55% { clip: rect(73px, 9999px, 73px, 0); }
+            60% { clip: rect(67px, 9999px, 66px, 0); }
+            65% { clip: rect(82px, 9999px, 54px, 0); }
+            70% { clip: rect(20px, 9999px, 34px, 0); }
+            75% { clip: rect(25px, 9999px, 27px, 0); }
+            80% { clip: rect(25px, 9999px, 63px, 0); }
+            85% { clip: rect(15px, 9999px, 73px, 0); }
+            90% { clip: rect(52px, 9999px, 30px, 0); }
+            95% { clip: rect(30px, 9999px, 66px, 0); }
+            100% { clip: rect(72px, 9999px, 45px, 0); }
+        }
+        
+        @keyframes glitch-anim2 {
+            0% { clip: rect(65px, 9999px, 100px, 0); }
+            5% { clip: rect(14px, 9999px, 64px, 0); }
+            10% { clip: rect(79px, 9999px, 83px, 0); }
+            15% { clip: rect(14px, 9999px, 60px, 0); }
+            20% { clip: rect(37px, 9999px, 100px, 0); }
+            25% { clip: rect(83px, 9999px, 23px, 0); }
+            30% { clip: rect(44px, 9999px, 56px, 0); }
+            35% { clip: rect(23px, 9999px, 70px, 0); }
+            40% { clip: rect(12px, 9999px, 28px, 0); }
+            45% { clip: rect(29px, 9999px, 78px, 0); }
+            50% { clip: rect(67px, 9999px, 100px, 0); }
+            55% { clip: rect(60px, 9999px, 23px, 0); }
+            60% { clip: rect(14px, 9999px, 49px, 0); }
+            65% { clip: rect(67px, 9999px, 30px, 0); }
+            70% { clip: rect(34px, 9999px, 36px, 0); }
+            75% { clip: rect(87px, 9999px, 55px, 0); }
+            80% { clip: rect(44px, 9999px, 66px, 0); }
+            85% { clip: rect(72px, 9999px, 30px, 0); }
+            90% { clip: rect(36px, 9999px, 68px, 0); }
+            95% { clip: rect(13px, 9999px, 39px, 0); }
+            100% { clip: rect(53px, 9999px, 39px, 0); }
+        }
+        
+        @keyframes glow {
+            from { text-shadow: 0 0 5px #00ff41; }
+            to { text-shadow: 0 0 20px #00ff41, 0 0 30px #00ff41; }
+        }
+        
+        .scan-line {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 5px;
+            background: rgba(0, 255, 65, 0.3);
+            box-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+            animation: scan 4s linear infinite;
+            z-index: 5;
+        }
+        
+        @keyframes scan {
+            0% { top: 0; }
+            100% { top: 100%; }
+        }
+        
+        .matrix-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+        
+        .matrix-char {
+            position: absolute;
+            top: -20px;
+            color: #00ff41;
+            font-size: 16px;
+            opacity: 0;
+            animation: fall linear infinite;
+            text-shadow: 0 0 5px rgba(0, 255, 65, 0.7);
+            transition: opacity 0.5s ease;
+        }
+        
+        .matrix-char.strobe {
+            animation: strobe 0.1s infinite;
+            text-shadow: 0 0 15px #00ff41, 0 0 25px #00ff41;
+        }
+        
+        .matrix-char.glitter {
+            animation: glitter 0.5s infinite;
+            text-shadow: 0 0 10px #00ff41, 0 0 20px #00ff41;
+        }
+        
+        .matrix-char.glitch {
+            animation: glitch 0.3s infinite;
+            color: #ff0040;
+            text-shadow: 0 0 10px #ff0040;
+        }
+        
+        @keyframes fall {
+            to { 
+                transform: translateY(105vh); 
+                opacity: 0;
+            }
+        }
+        
+        @keyframes strobe {
+            0% { opacity: 0.3; }
+            25% { opacity: 1; }
+            50% { opacity: 0.3; }
+            75% { opacity: 1; }
+            100% { opacity: 0.3; }
+        }
+        
+        @keyframes glitter {
+            0% { opacity: 0.7; }
+            50% { opacity: 1; }
+            100% { opacity: 0.7; }
+        }
+        
+        @keyframes glitch {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(-2px); }
+            50% { transform: translateX(2px); }
+            75% { transform: translateX(-2px); }
+            100% { transform: translateX(0); }
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 12px;
+            opacity: 0.6;
+            padding: 10px;
+        }
+        
+        .error {
+            color: #ff0040;
+            animation: pulse 0.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 0.5; }
+            50% { opacity: 1; }
+            100% { opacity: 0.5; }
+        }
+        
+        /* Mobile responsiveness */
+        @media (max-width: 480px) {
+            .container {
+                padding: 20px;
+                margin-top: 10px;
+                margin-bottom: 10px;
+            }
+            
+            .header h1 {
+                font-size: 20px;
+            }
+            
+            .header p {
+                font-size: 12px;
+            }
+            
+            .input-group input {
+                font-size: 16px;
+                padding: 10px 12px;
+            }
+            
+            .btn {
+                font-size: 14px;
+                padding: 10px;
+            }
+            
+            .status {
+                font-size: 12px;
+            }
+            
+            .matrix-char {
+                font-size: 14px;
+            }
+        }
+        
+        @media (max-width: 320px) {
+            .container {
+                padding: 15px;
+            }
+            
+            .header h1 {
+                font-size: 18px;
+            }
+            
+            .input-group label {
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="matrix-bg" id="matrix"></div>
+    <div class="scan-line"></div>
+    
+    <div class="container">
+        <div class="header">
+            <h1 class="glitch" data-text="MATRIX ACCESS">MATRIX ACCESS</h1>
+            <p>SYSTEM AUTHENTICATION REQUIRED</p>
+        </div>
+        
+        <form id="loginForm">
+            <div class="input-group">
+                <label for="username">USER ID</label>
+                <input type="text" id="username" placeholder="ENTER USER IDENTIFICATION" required>
+            </div>
+            
+            <div class="input-group">
+                <label for="password">ACCESS CODE</label>
+                <input type="password" id="password" placeholder="ENTER SECURITY CREDENTIALS" required>
+            </div>
+            
+            <button type="submit" class="btn">INITIATE ACCESS</button>
+        </form>
+        
+        <div class="status" id="statusMessage"></div>
+        
+        <div class="footer">
+            <p>SECURITY PROTOCOL: AES-256 ENCRYPTION | ACCESS LOGGED</p>
+        </div>
+    </div>
+
+    <script>
+        // Expanded Matrix characters including more symbols
+        const matrixChars = [
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+            'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 
+            'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 
+            'U', 'V', 'W', 'X', 'Y', 'Z',
+            'α', 'β', 'γ', 'δ', 'ε', 'ζ', 'η', 'θ', 'ι', 'κ',
+            'λ', 'μ', 'ν', 'ξ', 'ο', 'π', 'ρ', 'σ', 'τ', 'υ',
+            'φ', 'χ', 'ψ', 'ω', 'Ω', '∑', '∏', '∫', '∂', '∞',
+            '≈', '≠', '≤', '≥', '±', '×', '÷', '√', '∝', '∞',
+            '∠', '∧', '∨', '∩', '∪', '∈', '∉', '⊂', '⊃', '⊄',
+            '⊅', '⊆', '⊇', '⊕', '⊗', '⊥', '⋅', '⌈', '⌉', '⌊',
+            '⌋', '⟨', '⟩', '◊', '♠', '♣', '♥', '♦', '♪', '♫',
+            '←', '→', '↑', '↓', '↔', '↕', '↖', '↗', '↘', '↙',
+            '°', '′', '″', '‴', '⁀', '⁁', '⁂', '⁃', '⁄', '⁅',
+            '⁆', '⁇', '⁈', '⁉', '⁊', '⁋', '⁌', '⁍', '⁎', '⁏',
+            '⁐', '⁑', '⁒', '⁓', '⁔', '⁕', '⁖', '⁗', '⁘', '⁙',
+            '⁚', '⁛', '⁜', '⁝', '⁞', '⸀', '⸁', '⸂', '⸃', '⸄',
+            '⸅', '⸆', '⸇', '⸈', '⸉', '⸊', '⸋', '⸌', '⸍', '⸎',
+            '⸏', '⸐', '⸑', '⸒', '⸓', '⸔', '⸕', '⸖', '⸗', '⸘',
+            '⸙', '⸚', '⸛', '⸜', '⸝', '⸞', '⸟', '⸠', '⸡', '⸢',
+            '⸣', '⸤', '⸥', '⸦', '⸧', '⸨', '⸩', '⸪', '⸫', '⸬',
+            '⸭', '⸮', 'ⸯ', '⸰', '⸱', '⸲', '⸳', '⸴', '⸵', '⸶',
+            '⸷', '⸸', '⸹', '⸺', '⸻', '⸼', '⸽', '⸾', '⸿', '⹀',
+            '⹁', '⹂', '⹄', '⹄', '⹅', '⹆', '⹇', '⹈', '⹉', '⹊',
+            '⹋', '⹌', '⹍', '⹎', '⹏', '⹐', '⹑', '⹒', '⹓', '⹔',
+            '⹕', '⹖', '⹗', '⹘', '⹙', '⹚', '⹛', '⹜', '⹝', '⹞',
+            '⹟', '⹠', '⹡', '⹢', '⹣', '⹤', '⹥', '⹦', '⹧', '⹨',
+            '⹩', '⹪', '⹫', '⹬', '⹭', '⹮', '⹯', '⹰', '⹱', '⹲',
+            '⹳', '⹴', '⹵', '⹶', '⹷', '⹸', '⹹', '⹺', '⹻', '⹼',
+            '⹽', '⹾', '⹿', '⺀', '⺁', '⺂', '⺃', '⺄', '⺅', '⺆',
+            '⺇', '⺈', '⺉', '⺊', '⺋', '⺌', '⺍', '⺎', '⺏', '⺐',
+            '⺑', '⺒', '⺓', '⺔', '⺕', '⺖', '⺗', '⺘', '⺙', '⺚',
+            '⺛', '⺜', '⺝', '⺞', '⺟', '⺠', '⺡', '⺢', '⺣', '⺤',
+            '⺥', '⺦', '⺧', '⺨', '⺩', '⺪', '⺫', '⺬', '⺭', '⺮',
+            '⺯', '⺰', '⺱', '⺲', '⺳', '⺴', '⺵', '⺶', '⺷', '⺸',
+            '⺹', '⺺', '⺻', '⺼', '⺽', '⺾', '⺿', '⻀', '⻁', '⻂',
+            '⻃', '⻄', '⻅', '⻆', '⻇', '⻈', '⻉', '⻊', '⻋', '⻌',
+            '⻍', '⻎', '⻏', '⻐', '⻑', '⻒', '⻓', '⻔', '⻕', '⻖',
+            '⻗', '⻘', '⻙', '⻚', '⻛', '⻜', '⻝', '⻞', '⻟', '⻠',
+            '⻡', '⻢', '⻣', '⻤', '⻥', '⻦', '⻧', '⻨', '⻩', '⻪',
+            '⻫', '⻬', '⻭', '⻮', '⻯', '⻰', '⻱', '⻲', '⻳', '⻴',
+            '⻵', '⻶', '⻷', '⻸', '⻹', '⻺', '⻻', '⻼', '⻽', '⻾',
+            '⻿', '⿀', '⿁', '⿂', '⿃', '⿄', '⿅', '⿆', '⿇', '⿈',
+            '⿉', '⿊', '⿋', '⿌', '⿍', '⿎', '⿏', '⿐', '⿑', '⿒',
+            '⿓', '⿔', '⿕', '⿖', '⿗', '⿘', '⿙', '⿚', '⿛', '⿜',
+            '⿝', '⿞', '⿟', '⿠', '⿡', '⿢', '⿣', '⿤', '⿥', '⿦',
+            '⿧', '⿨', '⿩', '⿪', '⿫', '⿬', '⿭', '⿮', '⿯', '⿰',
+            '⿱', '⿲', '⿳', '⿴', '⿵', '⿶', '⿷', '⿸', '⿹', '⿺',
+            '⿻', '⿼', '⿽', '⿾', '⿿'
+        ];
+        
+        const matrix = document.getElementById('matrix');
+        const fontSize = 16;
+        let columns = Math.floor(window.innerWidth / fontSize);
+        
+        // Create initial characters with higher density
+        for (let i = 0; i < columns * 2; i++) {
+            createChar(i % columns);
+        }
+        
+        function createChar(columnIndex) {
+            const char = document.createElement('div');
+            char.className = 'matrix-char';
+            char.style.left = `${columnIndex * fontSize}px`;
+            char.style.animationDuration = `${Math.random() * 5 + 5}s`;
+            char.style.animationDelay = `${Math.random() * 5}s`;
+            char.textContent = matrixChars[Math.floor(Math.random() * matrixChars.length)];
+            
+            // Start with low opacity and fade in
+            char.style.opacity = '0';
+            
+            // Apply fade-in effect
+            setTimeout(() => {
+                char.style.opacity = '0.7';
+            }, 100);
+            
+            matrix.appendChild(char);
+            
+            // Randomly apply effects
+            if (Math.random() > 0.6) {
+                // Apply strobe effect (more frequent)
+                char.classList.add('strobe');
+                // Remove after random time
+                setTimeout(() => {
+                    if (char.parentNode) {
+                        char.classList.remove('strobe');
+                    }
+                }, Math.random() * 2000 + 500);
+            }
+            
+            if (Math.random() > 0.7) {
+                // Apply glitter effect
+                char.classList.add('glitter');
+                // Remove after random time
+                setTimeout(() => {
+                    if (char.parentNode) {
+                        char.classList.remove('glitter');
+                    }
+                }, Math.random() * 3000 + 1000);
+            }
+            
+            if (Math.random() > 0.8) {
+                // Apply glitch effect
+                char.classList.add('glitch');
+                // Remove after random time
+                setTimeout(() => {
+                    if (char.parentNode) {
+                        char.classList.remove('glitch');
+                    }
+                }, Math.random() * 2000 + 500);
+            }
+            
+            // Remove character after animation completes
+            setTimeout(() => {
+                if (char.parentNode) {
+                    char.parentNode.removeChild(char);
+                }
+            }, 10000);
+            
+            // Create new character after a delay
+            setTimeout(() => {
+                if (char.parentNode) {
+                    createChar(columnIndex);
+                }
+            }, 10000);
+        }
+        
+        // Handle form submission
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const status = document.getElementById('statusMessage');
+            
+            // Simple validation
+            if (username.trim() === '' || password.trim() === '') {
+                status.innerHTML = '<span class="error">ERROR: ACCESS CREDENTIALS REQUIRED</span>';
+                return;
+            }
+            
+            // Simulate authentication process
+            status.innerHTML = 'AUTHENTICATING...';
+            
+            setTimeout(() => {
+                if (username === 'admin' && password === 'hackers123') {
+                    status.innerHTML = '<span style="color: #00ff41;">ACCESS GRANTED</span>';
+                    // Simulate successful login
+                    setTimeout(() => {
+                        status.innerHTML = '<span style="color: #00ff41;">ACCESSING SYSTEM...</span>';
+                        setTimeout(() => {
+                            status.innerHTML = '<span style="color: #00ff41;">SYSTEM ACCESS COMPLETE</span>';
+                        }, 1500);
+                    }, 1500);
+                } else {
+                    status.innerHTML = '<span class="error">ACCESS DENIED: INVALID CREDENTIALS</span>';
+                }
+            }, 1000);
+        });
+        
+        // Add random glitch effect to header periodically
+        setInterval(() => {
+            const header = document.querySelector('.header h1');
+            header.classList.add('glitch');
+            setTimeout(() => {
+                header.classList.remove('glitch');
+            }, 300);
+        }, 5000);
+        
+        // Adjust matrix effect on resize
+        window.addEventListener('resize', function() {
+            // Clear existing characters
+            while (matrix.firstChild) {
+                matrix.removeChild(matrix.firstChild);
+            }
+            
+            // Recreate characters with higher density
+            columns = Math.floor(window.innerWidth / fontSize);
+            for (let i = 0; i < columns * 2; i++) {
+                createChar(i % columns);
+            }
+        });
+        
+        // Add more characters for better effect
+        setInterval(() => {
+            if (matrix.children.length < columns * 2.5) {
+                for (let i = 0; i < 10; i++) {
+                    const randomColumn = Math.floor(Math.random() * columns);
+                    createChar(randomColumn);
+                }
+            }
+        }, 500);
+        
+        // Ensure matrix effect continues running with high density
+        setInterval(() => {
+            const charsCount = matrix.children.length;
+            if (charsCount < columns * 2) {
+                for (let i = 0; i < 5; i++) {
+                    const randomColumn = Math.floor(Math.random() * columns);
+                    createChar(randomColumn);
+                }
+            }
+        }, 300);
+    </script>
+</body>
+</html>

@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>saveFile.js Test Page</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 2em;
+            background-color: #f0f2f5;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2em;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1, h2 {
+            color: #333;
+        }
+
+        button {
+            padding: 10px 15px;
+            font-size: 1em;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        .save-dialog-container {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            height: 500px;
+            position: relative;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>saveFile.js Module Test</h1>
+        <p>This page tests two methods of using the `saveFile.js` module: a programmatic approach and a declarative approach using the `<savefile>` custom element.</p>
+
+        ---
+
+        <h2>1. Programmatic Creation</h2>
+        <p>This section now includes a canvas with a drawn string. Click the button below to save the canvas as a PNG image.</p>
+        <canvas id="my-canvas" width="400" height="200" style="border: 1px solid #ccc;"></canvas>
+        <br>
+        <button id="show-dialog-btn">Save Canvas as PNG</button>
+        <div id="programmatic-container" class="save-dialog-container"></div>
+
+        ---
+
+        <h2>2. Declarative Usage</h2>
+        <p>This save dialog is created directly from a `<savefile>` custom HTML element. You can interact with it below.</p>
+        <div id="declarative-container" class="save-dialog-container">
+            <savefile 
+                id="my-declarative-save"
+                onsave="console.log('File saved via declarative element:', event.detail.fileName)"
+                oncancel="console.log('Save cancelled on declarative element')"
+            ></savefile>
+        </div>
+    </div>
+
+    <script type="module">
+        import { createSaveFile } from './ux/saveFile.js';
+
+        // --- Helper function to convert Base64 to Uint8Array ---
+        function base64ToUint8Array(base64String) {
+            // Remove the data URI part "data:image/png;base64,"
+            const base64 = base64String.split(',')[1];
+            
+            // Use atob() to decode the Base64 string to a binary string
+            const binaryString = atob(base64);
+            
+            // Create a Uint8Array with the correct size
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            
+            // Iterate over the binary string and populate the Uint8Array
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            
+            return bytes;
+        }
+
+        // --- Mock API for testing purposes ---
+        window.api = {
+            ls: async (path) => {
+                console.log(`Mock API: listing files for path "${path}"`);
+                const mockFiles = [
+                    { name: 'folder1', type: 'directory' },
+                    { name: 'document.txt', type: 'file' },
+                    { name: 'image.png', type: 'file' },
+                    { name: 'test_file.json', type: 'file' }
+                ];
+                await new Promise(resolve => setTimeout(resolve, 500));
+                if (!path.endsWith('*')) {
+                    const fileName = path.split('/').pop();
+                    if (mockFiles.some(f => f.name === fileName)) {
+                        return [{ name: fileName, type: 'file' }];
+                    }
+                    return [];
+                }
+                return mockFiles;
+            },
+            saveFile: async (path, contents, headers) => {
+                console.log('Mock API: saving file');
+                console.log(`Path: ${path}`);
+                console.log(`Headers:`, headers);
+
+                // Now, the contents passed to this function should *already be* the Uint8Array
+                if (contents instanceof Uint8Array) {
+                    console.log('Received raw binary data (Uint8Array).');
+                    console.log(`Byte length of the raw data: ${contents.byteLength}`);
+                    // In a real application, you would send this array to the backend
+                    // e.g., via a Blob or FormData.
+                } else {
+                    console.log('Received data is not a Uint8Array:', contents);
+                    console.log('Type:', typeof contents);
+                }
+
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                console.log('File saved successfully!');
+            }
+        };
+
+        // --- Canvas Setup ---
+        const canvas = document.getElementById('my-canvas');
+        const ctx = canvas.getContext('2d');
+
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.font = '24px Arial';
+        ctx.fillStyle = 'black';
+        ctx.textAlign = 'center';
+        ctx.fillText('Hello, Canvas!', canvas.width / 2, canvas.height / 2);
+
+        // --- Test Case 1: Programmatic Creation ---
+        const showDialogBtn = document.getElementById('show-dialog-btn');
+        const programmaticContainer = document.getElementById('programmatic-container');
+
+        showDialogBtn.addEventListener('click', () => {
+            const saveDialog = createSaveFile();
+            
+            // Get the image data from the canvas as a PNG data URL
+            const imageDataUrl = canvas.toDataURL('image/png');
+            
+            // Convert the Base64 data URL to a Uint8Array *before* passing it
+            const rawImageData = base64ToUint8Array(imageDataUrl);
+
+            // Now, set the saveDialog's contents to the raw binary data
+            saveDialog.contents = rawImageData;
+            saveDialog.defaultFileName = 'canvas-image.png';
+
+            saveDialog.onsave = (event) => {
+                console.log('File saved programmatically! Details:', event.detail);
+                alert(`Canvas image saved: ${event.detail.fileName}`);
+                programmaticContainer.innerHTML = '';
+            };
+
+            saveDialog.oncancel = () => {
+                console.log('Programmatic save cancelled.');
+                programmaticContainer.innerHTML = '';
+            };
+
+            programmaticContainer.appendChild(saveDialog);
+        });
+
+        // --- Test Case 2: Declarative Usage ---
+        const declarativeSaveElement = document.getElementById('my-declarative-save');
+        if (declarativeSaveElement) {
+            declarativeSaveElement.addEventListener('save', (event) => {
+                console.log('Declarative save event caught:', event.detail);
+                alert(`File saved via declarative tag: ${event.detail.fileName}`);
+            });
+            declarativeSaveElement.addEventListener('cancel', () => {
+                console.log('Declarative cancel event caught.');
+            });
+            declarativeSaveElement.contents = 'This content is for the declarative save.';
+        }
+    </script>
+</body>
+</html>

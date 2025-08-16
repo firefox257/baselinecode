@@ -1,0 +1,567 @@
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SPACE REAPER | COSMIC HARBOR</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Orbitron', 'Exo 2', sans-serif;
+        }
+
+        body {
+            background: linear-gradient(125deg, #0c0c2b, #1a0a2e, #0a0a20);
+            color: #00e5ff;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            overflow-x: hidden;
+            position: relative;
+            padding: 20px;
+        }
+
+        /* Cosmic background */
+        #cosmic {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 450px;
+            padding: 20px 0;
+            position: relative;
+            z-index: 1;
+        }
+
+        .login-box {
+            background: rgba(10, 5, 30, 0.85);
+            border: 1px solid #4a00e0;
+            border-radius: 10px;
+            padding: 35px 25px;
+            box-shadow: 0 0 30px rgba(74, 0, 224, 0.5);
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: blur(5px);
+            margin-bottom: 30px;
+        }
+
+        .login-box::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(74, 0, 224, 0.3), transparent);
+            transition: 0.5s;
+        }
+
+        .login-box:hover::before {
+            left: 100%;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            letter-spacing: 3px;
+            margin-bottom: 10px;
+            text-shadow: 0 0 15px #00e5ff, 0 0 25px #4a00e0;
+            background: linear-gradient(to right, #00e5ff, #8a2be2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header p {
+            font-size: 14px;
+            color: #a0a0ff;
+            letter-spacing: 1px;
+        }
+
+        .input-group {
+            margin-bottom: 25px;
+            position: relative;
+        }
+
+        .input-group i {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #00e5ff;
+            font-size: 18px;
+        }
+
+        input {
+            width: 100%;
+            padding: 15px 15px 15px 45px;
+            background: rgba(20, 10, 50, 0.7);
+            border: 1px solid #4a00e0;
+            border-radius: 5px;
+            color: #00e5ff;
+            font-size: 16px;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        input:focus {
+            border-color: #00e5ff;
+            box-shadow: 0 0 15px rgba(0, 229, 255, 0.5);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(45deg, #4a00e0, #8a2be2);
+            border: 1px solid #00e5ff;
+            border-radius: 5px;
+            color: #ffffff;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            transition: all 0.3s;
+            margin-top: 10px;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+        .btn:hover {
+            background: linear-gradient(45deg, #8a2be2, #4a00e0);
+            box-shadow: 0 0 20px rgba(0, 229, 255, 0.8);
+            transform: translateY(-2px);
+        }
+
+        .footer {
+            margin-top: 25px;
+            text-align: center;
+            font-size: 13px;
+            color: #a0a0ff;
+        }
+
+        .footer a {
+            color: #00e5ff;
+            text-decoration: none;
+            margin: 0 8px;
+            transition: all 0.3s;
+            display: inline-block;
+            margin-bottom: 8px;
+        }
+
+        .footer a:hover {
+            text-shadow: 0 0 10px #00e5ff;
+            text-decoration: underline;
+        }
+
+        .status {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 15px;
+            height: 25px;
+            font-weight: bold;
+        }
+
+        .success {
+            color: #00ff9d;
+            text-shadow: 0 0 10px #00ff9d;
+        }
+
+        .error {
+            color: #ff0055;
+            text-shadow: 0 0 10px #ff0055;
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        .logo i {
+            font-size: 50px;
+            color: #00e5ff;
+            text-shadow: 0 0 15px #00e5ff, 0 0 25px #4a00e0;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        .galaxy-title {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 10px;
+        }
+
+        .galaxy-title i {
+            margin: 0 10px;
+            color: #8a2be2;
+            text-shadow: 0 0 10px #8a2be2;
+            font-size: 20px;
+        }
+
+        .harvest-status {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+            padding: 12px;
+            background: rgba(20, 10, 50, 0.5);
+            border-radius: 5px;
+            border: 1px solid #4a00e0;
+        }
+
+        .harvest-item {
+            text-align: center;
+            flex: 1;
+        }
+
+        .harvest-item .value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #00e5ff;
+        }
+
+        .harvest-item .label {
+            font-size: 11px;
+            color: #a0a0ff;
+            margin-top: 5px;
+        }
+
+        .ship-id {
+            text-align: center;
+            font-size: 13px;
+            color: #a0a0ff;
+            margin-top: 15px;
+            letter-spacing: 1px;
+        }
+
+        .ship-id span {
+            color: #00e5ff;
+            font-weight: bold;
+        }
+
+        .instructions {
+            background: rgba(20, 10, 50, 0.5);
+            border: 1px solid #4a00e0;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 25px;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .instructions h3 {
+            color: #00e5ff;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .instructions ul {
+            padding-left: 20px;
+        }
+
+        .instructions li {
+            margin-bottom: 8px;
+        }
+
+        /* Mobile-specific adjustments */
+        @media (max-width: 480px) {
+            body {
+                padding: 15px;
+            }
+            
+            .login-box {
+                padding: 25px 20px;
+            }
+            
+            .header h1 {
+                font-size: 24px;
+            }
+            
+            .header p {
+                font-size: 12px;
+            }
+            
+            .galaxy-title i {
+                font-size: 16px;
+            }
+            
+            input {
+                padding: 12px 12px 12px 40px;
+                font-size: 14px;
+            }
+            
+            .input-group i {
+                font-size: 16px;
+                left: 12px;
+            }
+            
+            .btn {
+                font-size: 14px;
+                padding: 12px;
+            }
+            
+            .footer {
+                font-size: 11px;
+            }
+            
+            .footer a {
+                margin: 0 5px;
+            }
+            
+            .harvest-item .value {
+                font-size: 16px;
+            }
+            
+            .harvest-item .label {
+                font-size: 10px;
+            }
+            
+            .ship-id {
+                font-size: 12px;
+            }
+            
+            .instructions {
+                font-size: 11px;
+                padding: 12px;
+            }
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@300;400;600&family=Orbitron:wght@400;600;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <canvas id="cosmic"></canvas>
+    
+    <div class="container">
+        <div class="login-box">
+            <div class="logo">
+                <i class="fas fa-space-shuttle"></i>
+            </div>
+            
+            <div class="header">
+                <div class="galaxy-title">
+                    <i class="fas fa-infinity"></i>
+                    <h1>SPACE REAPER</h1>
+                    <i class="fas fa-infinity"></i>
+                </div>
+                <p>COSMIC HARBOR ACCESS PORTAL</p>
+            </div>
+            
+            <div class="ship-id">SHIP ID: <span>REAPER-77-X42</span></div>
+            
+            <form id="loginForm">
+                <div class="input-group">
+                    <i class="fas fa-user-astronaut"></i>
+                    <input type="text" id="username" placeholder="PILOT IDENTIFICATION" required autocomplete="off">
+                </div>
+                
+                <div class="input-group">
+                    <i class="fas fa-lock"></i>
+                    <input type="password" id="password" placeholder="ACCESS CODE" required>
+                </div>
+                
+                <button type="submit" class="btn">INITIATE DOCKING SEQUENCE</button>
+                
+                <div class="status" id="status"></div>
+                
+                <div class="harvest-status">
+                    <div class="harvest-item">
+                        <div class="value">87%</div>
+                        <div class="label">FUEL LEVEL</div>
+                    </div>
+                    <div class="harvest-item">
+                        <div class="value">3.2T</div>
+                        <div class="label">RESOURCES</div>
+                    </div>
+                    <div class="harvest-item">
+                        <div class="value">42LY</div>
+                        <div class="label">DISTANCE</div>
+                    </div>
+                </div>
+            </form>
+            
+            <div class="instructions">
+                <h3>SPACE REAPER PROTOCOLS</h3>
+                <ul>
+                    <li>All harvesting operations must be logged in the cosmic ledger</li>
+                    <li>Galactic permits required for resource extraction</li>
+                    <li>Quantum encryption keys updated weekly</li>
+                    <li>Emergency protocols: NEBULA-7 protocol for hostile encounters</li>
+                </ul>
+            </div>
+            
+            <div class="footer">
+                <p>DEEP SPACE HARBORING AUTHORITY</p>
+                <p>
+                    <a href="#">GALACTIC MAP</a> | 
+                    <a href="#">RESOURCE INDEX</a> | 
+                    <a href="#">NAVIGATION</a>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Cosmic background effect
+        const canvas = document.getElementById('cosmic');
+        const ctx = canvas.getContext('2d');
+        
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = Math.max(window.innerHeight, document.body.scrollHeight);
+        }
+        
+        resizeCanvas();
+        
+        // Stars
+        const stars = [];
+        const starCount = 200;
+        
+        for(let i = 0; i < starCount; i++) {
+            stars.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                size: Math.random() * 2,
+                speed: Math.random() * 0.5 + 0.1,
+                brightness: Math.random() * 0.5 + 0.5
+            });
+        }
+        
+        // Nebulas
+        const nebulas = [];
+        const nebulaCount = 4;
+        
+        for(let i = 0; i < nebulaCount; i++) {
+            nebulas.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                radius: Math.random() * 100 + 50,
+                color: `hsl(${Math.random() * 60 + 240}, 70%, 50%)`,
+                speed: Math.random() * 0.2 + 0.05
+            });
+        }
+        
+        function drawCosmic() {
+            // Clear canvas with a transparent overlay for trail effect
+            ctx.fillStyle = 'rgba(10, 5, 30, 0.1)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw nebulas
+            nebulas.forEach(nebula => {
+                const gradient = ctx.createRadialGradient(
+                    nebula.x, nebula.y, 0,
+                    nebula.x, nebula.y, nebula.radius
+                );
+                gradient.addColorStop(0, nebula.color);
+                gradient.addColorStop(1, 'transparent');
+                
+                ctx.beginPath();
+                ctx.arc(nebula.x, nebula.y, nebula.radius, 0, Math.PI * 2);
+                ctx.fillStyle = gradient;
+                ctx.fill();
+                
+                // Move nebula
+                nebula.x += nebula.speed;
+                if(nebula.x > canvas.width + nebula.radius) {
+                    nebula.x = -nebula.radius;
+                    nebula.y = Math.random() * canvas.height;
+                }
+            });
+            
+            // Draw stars
+            stars.forEach(star => {
+                ctx.beginPath();
+                ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 255, ${star.brightness})`;
+                ctx.fill();
+                
+                // Twinkle effect
+                if(Math.random() > 0.99) {
+                    star.brightness = Math.random() * 0.5 + 0.5;
+                }
+                
+                // Move star
+                star.y += star.speed;
+                if(star.y > canvas.height) {
+                    star.y = 0;
+                    star.x = Math.random() * canvas.width;
+                }
+            });
+        }
+        
+        function animate() {
+            drawCosmic();
+            requestAnimationFrame(animate);
+        }
+        
+        animate();
+        
+        // Handle form submission
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const status = document.getElementById('status');
+            
+            // Simple validation
+            if(username === '' || password === '') {
+                status.textContent = 'ERROR: ALL FIELDS REQUIRED';
+                status.className = 'status error';
+                return;
+            }
+            
+            // Simulate login process
+            status.textContent = 'VERIFYING PILOT CREDENTIALS...';
+            status.className = 'status';
+            
+            setTimeout(() => {
+                if(username === 'reaper' && password === 'harvest') {
+                    status.textContent = 'DOCKING APPROVED - WELCOME SPACE REAPER';
+                    status.className = 'status success';
+                    
+                    // Add success effect
+                    document.querySelector('.login-box').style.boxShadow = '0 0 40px rgba(0, 229, 255, 0.8)';
+                    
+                    // Redirect after delay
+                    setTimeout(() => {
+                        alert('Access granted to the Cosmic Harbor. Prepare for resource harvesting operations.');
+                    }, 2000);
+                } else {
+                    status.textContent = 'ACCESS DENIED: INVALID CREDENTIALS';
+                    status.className = 'status error';
+                }
+            }, 2500);
+        });
+        
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            resizeCanvas();
+        });
+        
+        // Handle scroll to update canvas height
+        window.addEventListener('scroll', function() {
+            resizeCanvas();
+        });
+    </script>
+</body>
+</html>

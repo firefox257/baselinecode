@@ -1,0 +1,310 @@
+
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Space Reaper — Login</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --bg-dark:#03020a;
+    --accent:#7afcff;
+    --accent-2:#8b5cff;
+    --txt: rgba(255,255,255,0.94);
+  }
+
+  html,body{
+    height:100%;
+    margin:0;
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    background: var(--bg-dark);
+    color:var(--txt);
+    -webkit-font-smoothing:antialiased;
+    -moz-osx-font-smoothing:grayscale;
+  }
+
+  .scene{
+    position:relative;
+    height:100vh;
+    width:100%;
+    overflow:hidden;
+    display:grid;
+    place-items:center;
+  }
+
+  /* base layers order: nebula (1) -> stars (2) -> scanlines (3) -> reaper (15) -> glows (16) -> panel (30) */
+  .bg-layer { position:absolute; inset:0; pointer-events:none; }
+
+  .nebula{ z-index:1;
+    background:
+      radial-gradient(800px 400px at 10% 20%, rgba(139,92,255,0.12), transparent 20%),
+      radial-gradient(700px 400px at 80% 30%, rgba(122,252,255,0.08), transparent 20%),
+      radial-gradient(500px 300px at 50% 80%, rgba(200,100,255,0.05), transparent 20%),
+      linear-gradient(180deg, rgba(0,0,10,0.6), rgba(0,0,0,0.65));
+    mix-blend-mode:screen; filter: blur(28px) saturate(120%); transform: scale(1.02);
+    animation: nebulaShift 18s ease-in-out infinite alternate; opacity:0.95;
+  }
+  @keyframes nebulaShift { 0%{ transform: scale(1.02) translateY(0) rotate(0deg); } 100%{ transform: scale(1.08) translateY(-20px) rotate(1.2deg); } }
+
+  #stars { z-index:2; position:absolute; inset:0; width:100%; height:100%; mix-blend-mode:screen; opacity:0.95; filter: drop-shadow(0 0 2px rgba(122,252,255,0.06)); }
+
+  .scanlines{ z-index:3; background-image: linear-gradient(rgba(255,255,255,0.01) 1px, transparent 1px); background-size: 100% 14px; opacity:0.06; mix-blend-mode:overlay; }
+
+  /* Reaper SVG now sits above background but below the panel content */
+  .reaper-svg{
+    z-index:15;
+    position:absolute;
+    right:-6%;
+    top:6%;
+    width:60vmax;
+    height:60vmax;
+    opacity:0.95;
+    transform: rotate(-12deg);
+    pointer-events:none;
+    mix-blend-mode:screen; /* helps it blend through translucent panel */
+    filter: contrast(120%);
+  }
+
+  /* Glow animation */
+  .glow-outline { animation: pulseGlow 4s ease-in-out infinite; }
+  @keyframes pulseGlow { 0%,100%{ opacity:0.85 } 50%{ opacity:1 } }
+
+  /* Foreground panel: semi-transparent so silhouette shows through */
+  .login-panel{
+    position:relative;
+    z-index:30;
+    width:380px;
+    max-width:92%;
+    padding:28px 26px;
+    border-radius:14px;
+    background: linear-gradient(180deg, rgba(6,10,16,0.48), rgba(6,10,16,0.36)); /* semi-transparent */
+    box-shadow: 0 10px 30px rgba(2,3,8,0.6), inset 0 1px 0 rgba(255,255,255,0.02);
+    backdrop-filter: blur(10px) saturate(140%); /* stronger blur so content stays readable */
+    border: 1px solid rgba(125,255,255,0.06);
+    color:var(--txt);
+  }
+
+  .brand{ display:flex; gap:12px; align-items:center; margin-bottom:10px; }
+  .brand .logo{
+    width:56px; height:56px; border-radius:10px; display:grid; place-items:center;
+    background: linear-gradient(135deg,var(--accent), var(--accent-2)); color:#041018;
+    font-family: "Orbitron", sans-serif; font-weight:700; font-size:20px;
+  }
+  .brand h1{ font-family:"Orbitron",sans-serif; font-size:18px; margin:0; letter-spacing:0.6px; }
+  .brand p{ margin:0; font-size:12px; opacity:0.85; }
+
+  .login-panel form{ display:flex; flex-direction:column; gap:12px; margin-top:8px; }
+  .input {
+    background: rgba(255,255,255,0.02);
+    padding:12px 14px; border-radius:10px; border:1px solid rgba(255,255,255,0.03);
+    color:var(--txt); outline:none; transition: box-shadow .15s ease, transform .06s ease;
+  }
+  .input::placeholder { color: rgba(255,255,255,0.28); }
+  .input:focus{
+    box-shadow: 0 8px 30px rgba(122,252,255,0.06), 0 0 18px rgba(139,92,255,0.03);
+    transform: translateY(-1px); border-color: rgba(122,252,255,0.18);
+  }
+
+  .row { display:flex; gap:8px; align-items:center; justify-content:space-between; }
+
+  .btn {
+    margin-top:6px; padding:12px 14px; border-radius:10px; border:none; cursor:pointer;
+    font-weight:600; letter-spacing:0.4px;
+    background: linear-gradient(90deg, rgba(122,252,255,0.12), rgba(139,92,255,0.12));
+    color:var(--accent); box-shadow: 0 8px 30px rgba(122,252,255,0.04);
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .btn:hover{ transform: translateY(-2px); box-shadow: 0 14px 40px rgba(122,252,255,0.06); }
+  .hint{ font-size:12px; opacity:0.78; margin-top:4px; }
+
+  .alt { margin-top:12px; display:flex; justify-content:space-between; align-items:center; font-size:13px; opacity:0.9; }
+  .link{ color:var(--accent); text-decoration:none; font-weight:600; font-size:13px; }
+
+  .glow {
+    position:absolute; width:12px;height:12px; border-radius:50%;
+    background: radial-gradient(circle, rgba(122,252,255,1) 0%, rgba(122,252,255,0.12) 40%, transparent 60%);
+    filter: blur(6px); opacity:0.14; mix-blend-mode:screen; animation: floaty 8s linear infinite; pointer-events:none;
+  }
+  @keyframes floaty{ 0%{ transform: translateY(0) translateX(0) scale(0.9) } 50%{ transform: translateY(-30px) translateX(18px) scale(1.1) } 100%{ transform: translateY(0) translateX(0) scale(0.95) } }
+
+  @media (max-width:520px){
+    .reaper-svg{ right:-18%; top:-6%; width:100vmax; height:100vmax; transform: rotate(-12deg) scale(0.95); } /* keep visible on small screens */
+    .login-panel{ width:92%; padding:20px; border-radius:12px; }
+  }
+
+  .panel-title { font-size:12px; opacity:0.9; margin-bottom:6px; font-weight:700; letter-spacing:0.6px; color:#dfefff;}
+  .panel-sub { font-size:11px; opacity:0.78; margin-bottom:8px;}
+</style>
+</head>
+<body>
+  <div class="scene">
+    <!-- Background layers -->
+    <div class="bg-layer nebula" aria-hidden="true"></div>
+    <canvas id="stars" class="bg-layer" aria-hidden="true"></canvas>
+    <div class="bg-layer scanlines" aria-hidden="true"></div>
+
+    <!-- Reaper SVG placed above the background but below the panel (z-index:15) -->
+    <svg class="reaper-svg" viewBox="0 0 1200 1200" aria-hidden="true">
+      <defs>
+        <linearGradient id="reaperFill" x1="0" x2="1">
+          <stop offset="0" stop-color="#7afcff" stop-opacity="0.55"/>
+          <stop offset="1" stop-color="#8b5cff" stop-opacity="0.45"/>
+        </linearGradient>
+        <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="6" result="blur1" />
+          <feMerge>
+            <feMergeNode in="blur1"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+
+      <g transform="translate(60,30)">
+        <!-- Outline stroke (glowing) -->
+        <path class="glow-outline" d="M600 60c-130 0-260 50-340 140-110 120-110 300-40 460
+                 36 86 90 156 170 220 52 44 110 82 210 82 100 0 158-38 210-82
+                 80-64 134-134 170-220 70-160 70-340-40-460C860 110 730 60 600 60z"
+              fill="none"
+              stroke="url(#reaperFill)"
+              stroke-width="8"
+              filter="url(#glow)"
+              opacity="0.95" />
+        <path class="glow-outline" d="M260 160c60-40 160-100 460-60"
+              stroke="url(#reaperFill)"
+              stroke-width="6"
+              fill="none"
+              filter="url(#glow)"
+              opacity="0.95" />
+        <!-- Main filled silhouette (ghostly) -->
+        <path d="M600 60c-130 0-260 50-340 140-110 120-110 300-40 460
+                 36 86 90 156 170 220 52 44 110 82 210 82 100 0 158-38 210-82
+                 80-64 134-134 170-220 70-160 70-340-40-460C860 110 730 60 600 60z"
+              fill="url(#reaperFill)"
+              opacity="0.22"/>
+        <path d="M600 220c-70 0-128 56-128 125 0 69 58 125 128 125s128-56 128-125c0-69-58-125-128-125z"
+              fill="url(#reaperFill)"
+              opacity="0.28"/>
+      </g>
+    </svg>
+
+    <!-- little ambient glows -->
+    <div class="glow" style="left:6%; top:22%; animation-duration:9s; z-index:16;"></div>
+    <div class="glow" style="left:24%; top:76%; animation-duration:6.5s; z-index:16;"></div>
+    <div class="glow" style="left:72%; top:18%; animation-duration:10s; z-index:16;"></div>
+
+    <!-- Foreground login panel -->
+    <div class="login-panel" role="main" aria-labelledby="loginTitle">
+      <div class="brand">
+        <div class="logo">SR</div>
+        <div>
+          <h1 id="loginTitle">Space Reaper</h1>
+          <p>Futuristic access terminal</p>
+        </div>
+      </div>
+
+      <div class="panel-title">Authenticate</div>
+      <div class="panel-sub">Enter your credentials to access the void.</div>
+
+      <form id="loginForm" onsubmit="handleLogin(event)">
+        <input class="input" id="username" name="username" type="text" placeholder="Identity handle / alias" required autocomplete="username" />
+        <input class="input" id="password" name="password" type="password" placeholder="Passcode" required autocomplete="current-password" />
+        <div class="row">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;opacity:0.9;">
+            <input type="checkbox" id="remember" /> <span style="font-weight:600;">Remember?</span>
+          </label>
+          <a class="link" href="#" onclick="event.preventDefault(); alert('Password recovery not configured.');">Recover</a>
+        </div>
+
+        <button type="submit" class="btn">Enter the Abyss</button>
+        <div class="hint">By logging in you accept the <a class="link" href="#" onclick="event.preventDefault(); alert('Terms placeholder');">protocol terms</a>.</div>
+
+        <div class="alt">
+          <div style="opacity:0.8;font-size:12px;">Status: <strong style="color:var(--accent)">Ready</strong></div>
+          <div style="opacity:0.8;font-size:12px;">v1.0</div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+<script>
+/* ---------- Stars generator (canvas) ---------- */
+(function(){
+  const c = document.getElementById('stars');
+  const ctx = c.getContext('2d');
+  let w = c.width = innerWidth;
+  let h = c.height = innerHeight;
+  const stars = [];
+  const count = Math.floor((w*h)/8000);
+
+  function rand(min, max){ return Math.random() * (max - min) + min; }
+
+  for(let i=0;i<count;i++){
+    stars.push({
+      x: Math.random() * w,
+      y: Math.random() * h,
+      r: Math.random()*1.6 + 0.2,
+      a: Math.random()*0.95 + 0.05,
+      twinkle: Math.random()*0.02 + 0.005,
+      vy: rand(-0.02,0.02)
+    });
+  }
+
+  function resize(){
+    w = c.width = innerWidth;
+    h = c.height = innerHeight;
+  }
+  addEventListener('resize', resize);
+
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    for(let s of stars){
+      s.a += (Math.random()-0.5) * s.twinkle;
+      if(s.a < 0.03) s.a = 0.03;
+      if(s.a > 1) s.a = 1;
+      s.x += s.vy*1.5;
+      if(s.x < -10) s.x = w+10;
+      if(s.x > w+10) s.x = -10;
+      const g = ctx.createRadialGradient(s.x,s.y,0,s.x,s.y,s.r*6);
+      g.addColorStop(0, `rgba(122,252,255,${s.a*0.9})`);
+      g.addColorStop(0.2, `rgba(122,252,255,${s.a*0.25})`);
+      g.addColorStop(1, `rgba(122,252,255,0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(s.x,s.y,s.r*6,0,Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = `rgba(255,255,255,${s.a})`;
+      ctx.beginPath();
+      ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+      ctx.fill();
+    }
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+/* ---------- Login handler (demo) ---------- */
+function handleLogin(e){
+  e.preventDefault();
+  const u = document.getElementById('username').value.trim();
+  if(!u){ alert('Enter your alias.'); return; }
+  const btn = e.target.querySelector('.btn');
+  btn.disabled = true;
+  btn.textContent = 'Probing void...';
+  setTimeout(()=>{
+    btn.textContent = 'Welcome, ' + (u || 'Reaper');
+    btn.style.background = 'linear-gradient(90deg, rgba(122,252,255,0.18), rgba(139,92,255,0.18))';
+    setTimeout(()=> {
+      alert('Demo login — integrate with your backend.');
+      btn.disabled = false;
+      btn.textContent = 'Enter the Abyss';
+    }, 800);
+  }, 1300);
+}
+</script>
+</body>
+</html>
+

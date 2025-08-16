@@ -1,0 +1,357 @@
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>CSG Editor - Mobile</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Segoe UI', sans-serif;
+      background: #1e1e1e;
+      color: white;
+    }
+
+    #toolbar {
+      display: flex;
+      background: #2c3e50;
+      color: white;
+      padding: 10px 0;
+      gap: 16px;
+      justify-content: center;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      z-index: 10;
+      position: relative;
+    }
+
+    #toolbar button {
+      background: #3498db;
+      color: white;
+      border: none;
+      padding: 8px 12px;
+      font-size: 1.4em;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+
+    #toolbar button:active {
+      transform: scale(0.95);
+    }
+
+    #toolbar button:hover {
+      background: #2980b9;
+    }
+
+    #main-container {
+      width: 100%;
+      height: calc(100vh - 70px);
+      position: relative;
+    }
+
+    #code-panel, #view-panel {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      display: none;
+      background: white;
+    }
+
+    #code-panel {
+      background: #1e1e1e;
+      color: #f8f8f8;
+    }
+
+    #three-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+  </style>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./build/three.module.js",
+        "three/addons/": "./jsm/",
+        "three-mesh-bvh": "./js/meshBVH.js",
+        "three-bvh-csg": "./js/bvhCSG.js"
+      }
+    }
+  </script>
+</head>
+<body>
+
+  <div id="toolbar">
+    <button id="btn-3d" title="3D View">&#x1F5BC;</button>
+    <button id="btn-code" title="Code Editor">&#x1F4BB;</button>
+    <button id="btn-load" title="Load Project">&#x1F4E5;</button>
+    <button id="btn-save" title="Run Code">&#x1F4BE;</button>
+  </div>
+
+  <div id="main-container">
+    <div id="code-panel">
+      <textcode id="csg-code" title="CSG Script" onsave="runCSGCode(this);">
+// Edit and save to update!
+return difference(
+  sphere({ r: 2 }),
+  cube([2, 2, 2]).translate([1.5, 0, 0]),
+  cylinder({ d: 2, h: 3 }).translate([0, 1.5, 0])
+);
+      </textcode>
+    </div>
+
+    <div id="view-panel">
+      <canvas id="three-canvas"></canvas>
+    </div>
+  </div>
+
+  <script type="module" src="/ux/textCode.js"></script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { Brush, Evaluator, ADDITION, SUBTRACTION, INTERSECTION } from 'three-bvh-csg';
+
+    // --- DOM Elements ---
+    const codePanel = document.getElementById('code-panel');
+    const viewPanel = document.getElementById('view-panel');
+    const btn3D = document.getElementById('btn-3d');
+    const btnCode = document.getElementById('btn-code');
+    const btnSave = document.getElementById('btn-save');
+    const btnLoad = document.getElementById('btn-load');
+
+    // --- Three.js Setup ---
+    const canvas = document.getElementById('three-canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setClearColor(0x1e1e1e);
+    const scene = new THREE.Scene();
+    scene.add(new THREE.GridHelper(10, 10, 0x555555, 0x555555));
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(5, 5, 5);
+    camera.lookAt(0, 0, 0);
+    const controls = new OrbitControls(camera, canvas);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.1;
+    const light = new THREE.DirectionalLight(0xffffff, 1);
+    light.position.set(1, 2, 3).multiplyScalar(5);
+    scene.add(light);
+    const ambient = new THREE.AmbientLight(0xffffff, 0.4);
+    scene.add(ambient);
+    function resizeRenderer() {
+      const width = window.innerWidth;
+      const height = window.innerHeight - 70;
+      renderer.setSize(width, height);
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+    }
+    window.addEventListener('resize', resizeRenderer);
+    resizeRenderer();
+
+    // --- CSG Shape Primitives ---
+    function sphere({ r, d, fn } = {}) {
+      if (d !== undefined) r = d / 2;
+      r = r || 1;
+      fn = fn || 32;
+      const geom = new THREE.SphereGeometry(r, fn, fn);
+      const mesh = new THREE.Mesh(geom, new THREE.MeshPhongMaterial({ color: 0x009688 }));
+      return mesh;
+    }
+    function cube([w = 1, l = 1, h = 1] = [1, 1, 1]) {
+      const geom = new THREE.BoxGeometry(w, l, h);
+      const mesh = new THREE.Mesh(geom, new THREE.MeshPhongMaterial({ color: 0xff9800 }));
+      return mesh;
+    }
+    function cylinder({ d, dt, db, h, fn } = {}) {
+      if (d !== undefined) dt = db = d;
+      dt = dt || 1;
+      db = db || 1;
+      h = h || 1;
+      fn = fn || 16;
+      const geom = new THREE.CylinderGeometry(db, dt, h, fn);
+      const mesh = new THREE.Mesh(geom, new THREE.MeshPhongMaterial({ color: 0x2196f3 }));
+      return mesh;
+    }
+
+    // Add transform methods to the THREE.Object3D prototype and ensure the matrix is updated
+    THREE.Object3D.prototype.translate = function ([x, y, z]) {
+		
+      this.position.set(x, y, z);
+      this.updateMatrix(true); // This ensures the local matrix is updated
+      return this;
+    };
+    THREE.Object3D.prototype.rotate = function ([x, y, z]) {
+      this.rotation.set(x, y, z);
+      this.updateMatrix(true);
+      return this;
+    };
+    THREE.Object3D.prototype.scale = function ([x, y, z]) {
+      this.scale.set(x, y, z);
+      this.updateMatrix(true);
+      return this;
+    };
+
+    // === CSG Evaluator ===
+    const csgEvaluator = new Evaluator();
+    csgEvaluator.useGroups = true;
+
+    // === Multi-Argument CSG Operations ===
+    function union(...meshes) {
+      if (meshes.length === 0) return null;
+      if (meshes.length === 1) return meshes[0];
+      let result = meshes[0];
+      for (let i = 1; i < meshes.length; i++) {
+        // IMPORTANT: Update world matrices before converting to Brush
+        result.updateMatrixWorld(true);
+        meshes[i].updateMatrixWorld(true);
+        const brushA = new Brush(result.geometry, result.material, result.matrixWorld);
+        const brushB = new Brush(meshes[i].geometry, meshes[i].material, meshes[i].matrixWorld);
+        result = csgEvaluator.evaluate(brushA, brushB, ADDITION);
+      }
+      return result;
+    }
+    function difference(mainMesh, ...subMeshes) {
+      if (!mainMesh || subMeshes.length === 0) throw new Error('Difference: need base and one or more subtrahends');
+      let result = mainMesh;
+      for (const sub of subMeshes) {
+        // IMPORTANT: Update world matrices before converting to Brush
+        result.updateMatrixWorld(true);
+        sub.updateMatrixWorld(true);
+        const brushA = new Brush(result.geometry, result.material, result.matrixWorld);
+        const brushB = new Brush(sub.geometry, sub.material, sub.matrixWorld);
+        result = csgEvaluator.evaluate(brushA, brushB, SUBTRACTION);
+      }
+      return result;
+    }
+    function intersect(...meshes) {
+      if (meshes.length < 2) throw new Error('Intersect requires at least 2 meshes');
+      let result = meshes[0];
+      for (let i = 1; i < meshes.length; i++) {
+        // IMPORTANT: Update world matrices before converting to Brush
+        result.updateMatrixWorld(true);
+        meshes[i].updateMatrixWorld(true);
+        const brushA = new Brush(result.geometry, result.material, result.matrixWorld);
+        const brushB = new Brush(meshes[i].geometry, meshes[i].material, meshes[i].matrixWorld);
+        result = csgEvaluator.evaluate(brushA, brushB, INTERSECTION);
+      }
+      return result;
+    }
+
+    // Make functions globally available
+    window.sphere = sphere;
+    window.cube = cube;
+    window.cylinder = cylinder;
+    window.union = union;
+    window.difference = difference;
+    window.intersect = intersect;
+
+    // --- View Management ---
+    function showView(id) {
+      codePanel.style.display = 'none';
+      viewPanel.style.display = 'none';
+      btn3D.style.backgroundColor = '#3498db';
+      btnCode.style.backgroundColor = '#3498db';
+      if (id === '3d') {
+        viewPanel.style.display = 'block';
+        btn3D.style.backgroundColor = '#e74c3c';
+      } else if (id === 'code') {
+        codePanel.style.display = 'block';
+        btnCode.style.backgroundColor = '#e74c3c';
+      }
+    }
+    btn3D.addEventListener('click', () => showView('3d'));
+    btnCode.addEventListener('click', () => showView('code'));
+    btnLoad.addEventListener('click', () => {
+      alert('Load: Not implemented yet.');
+    });
+    btnSave.addEventListener('click', () => {
+      const editor = document.querySelector('#csg-code');
+      if (editor) editor.dispatchEvent(new Event('save', { bubbles: true }));
+    });
+
+    // --- CSG Execution ---
+    let currentObjects = [];
+    function runCSGCode(editor) {
+      currentObjects.forEach(obj => {
+        scene.remove(obj);
+      });
+      currentObjects = [];
+      try {
+        const code = editor.value;
+        const script = new Function('sphere', 'cube', 'cylinder', 'union', 'difference', 'intersect', `
+          ${code}
+        `);
+        const result = script(sphere, cube, cylinder, union, difference, intersect);
+        if (Array.isArray(result)) {
+          result.forEach(obj => {
+            if (obj && obj.isObject3D) {
+              scene.add(obj);
+              currentObjects.push(obj);
+            }
+          });
+        } else if (result && result.isObject3D) {
+          scene.add(result);
+          currentObjects.push(result);
+        }
+        console.log('CSG executed:', result);
+      } catch (err) {
+        console.error('CSG Error:', err);
+        alert('CSG Error:\n' + err.message);
+      }
+    }
+
+    // --- Listen for 'save' event from textCode editor ---
+    document.addEventListener('save', function (e) {
+      const editor = e.target;
+      if (editor && editor.id === 'csg-code') {
+        runCSGCode(editor);
+      }
+    });
+
+    // Optional: Ctrl+S support
+    window.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        const editor = document.querySelector('#csg-code');
+        if (editor) runCSGCode(editor);
+      }
+    });
+
+    // --- Animation Loop ---
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // Show 3D view by default
+    showView('3d');
+    
+    // Auto-run initial code
+    setTimeout(() => {
+      const editor = document.querySelector('#csg-code');
+      if (editor) runCSGCode(editor);
+    }, 50);
+
+    // Define confirmClose for onclose
+    window.confirmClose = function () {
+      if (confirm('Close editor?')) {
+        showView('3d');
+      }
+    };
+  </script>
+
+</body>
+</html>
+

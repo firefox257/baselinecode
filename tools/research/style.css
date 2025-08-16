@@ -1,0 +1,149 @@
+
+
+/* General Body and Container Styling */
+body {
+    font-family: 'Orbitron', sans-serif;
+    color: #c0c0c0;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background-color: #0d0d1a; /* Fallback color for browsers without canvas support or during load */
+    position: relative; /* Needed for positioning the canvas */
+    overflow: hidden; /* Hide any overflow from the animation */
+}
+
+/* Canvas Styling */
+#starfield {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1; /* Pushes the canvas behind all other content */
+}
+
+/* This overlay is crucial for readability and to enhance the warp effect */
+body::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 20, 0.7); /* Darker overlay */
+    z-index: 0; /* Puts the overlay above the canvas but behind the login box */
+}
+
+/* Login Box Styling */
+.container {
+    position: relative;
+    z-index: 1; /* Ensures the login box is on top of everything */
+    padding: 20px;
+}
+
+.login-box {
+    background: rgba(18, 18, 30, 0.9);
+    border: 1px solid #4a4a6b;
+    border-radius: 12px;
+    box-shadow: 0 0 25px rgba(50, 100, 255, 0.3);
+    padding: 40px;
+    width: 350px;
+    text-align: center;
+    backdrop-filter: blur(5px);
+}
+
+.logo-text {
+    font-family: 'Cinzel', serif;
+    font-size: 2.5rem;
+    color: #e0e0ff;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 5px;
+    text-shadow: 0 0 10px #3264ff;
+}
+
+.subtitle {
+    font-size: 1rem;
+    color: #99aaff;
+    margin-bottom: 30px;
+}
+
+.input-group {
+    margin-bottom: 20px;
+    text-align: left;
+}
+
+.input-group label {
+    display: block;
+    margin-bottom: 8px;
+    color: #a0a0c0;
+    font-weight: 700;
+}
+
+.input-group input {
+    width: 100%;
+    padding: 12px;
+    background: #15152a;
+    border: 1px solid #3d3d5a;
+    border-radius: 8px;
+    color: #e0e0ff;
+    font-size: 1rem;
+    box-sizing: border-box;
+    transition: all 0.3s ease;
+}
+
+.input-group input::placeholder {
+    color: #5a5a7a;
+}
+
+.input-group input:focus {
+    outline: none;
+    border-color: #5a8aff;
+    box-shadow: 0 0 8px rgba(90, 138, 255, 0.5);
+}
+
+.login-btn {
+    width: 100%;
+    padding: 15px;
+    background-color: #3264ff;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.login-btn:hover {
+    background-color: #5a8aff;
+    transform: translateY(-2px);
+}
+
+.login-btn:active {
+    transform: translateY(0);
+}
+
+.links {
+    margin-top: 25px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.9rem;
+}
+
+.links a {
+    color: #88aaff;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.links a:hover {
+    color: #c0c0ff;
+    text-decoration: underline;
+}
+

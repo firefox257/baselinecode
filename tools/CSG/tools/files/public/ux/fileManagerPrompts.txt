@@ -1,0 +1,28 @@
+
+
+
+
+html js create a module for for file manager that can be imported.
+
+It will have a special tag <filemanager> in html.
+on load all <filemanager> will be replaced with the file
+manager ux. for any dom added will be detected to see if it is the <filemanager> tag and create the file mnager.
+the file manager will span out in what ever container.
+use mono space font the same style referenced in tetCodeUiDoc.txt
+the file manager will use the apiCalls referenced in the apiCallsDoc.txt.
+the file path will start at /
+the file will list all the files one each line.
+each list will have a unicode directory icon or a unicode file icon for directories/files.
+the next column will list the name.
+the next column will list the size of the file.
+the next colum will be a check box for selection.
+if the directory is clicked on then refreah the screen with that directory contents, make sure ti have a unicode up directoy to can go up one directory at the very begining.
+if a file is clicked on then an onopen event is called.
+onopen will function like onclick oninput type events, this can be done as an attribute in the tag or done with js on the dom.
+on top will have a menu , copy , cut , paste, delete unicode icons. this does the function of what ever is selected.
+on delete do a popup confermation on the delete before deleting. all functiins will have a pop up saying it was successful.
+onopen will send an event with the file object info gathered from the apiCall
+the styles for the menu is like how textCode.js is done
+
+
+

@@ -1,0 +1,47 @@
+
+
+
+for the apiCalls lets add some security.
+for every call , get the directory and read #secure.json file.
+This json will say if the files/directories in the directiry is readable, writable, delete, createDir, createFile with the following object description in the #secure.json
+{
+	"read":true,
+	"write":true,
+	"delete":true,
+	"createDir": true,
+	"createFile":true
+}
+
+If the #secure.json does not exist then we assume that everything is allowed.
+One trick part is the path has to do multipule checks on each part with in the path. if one does not allow a particular part then throw an error for it's access.
+
+
+================
+This is a module that runs on a rowser and makes api calls to the server.
+location is at ./js/apiCalls.js
+Reference this code no response required.
+
+=========
+This is a module that runs on a rowser and makes api calls to the server.
+location is at ./js/apiCalls.js
+webserver.js has added COPY option header.
+Add to tye apCalls.js to include COPY option header for the module export. 
+
+
+
+=============
+This is a module that runs on a rowser and makes api calls to the server.
+location is at ./js/apiCalls.js
+Make text documentation of all the api calls nd how to st it up.
+
+
+
+
+==========
+
+This is a module that runs on a rowser and makes api calls to the server.
+location is at ./js/apiCalls.js
+
+
+
+
