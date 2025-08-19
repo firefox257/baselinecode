@@ -1,0 +1,145 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Font to 3D Text Converter</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: sans-serif; background-color: #f0f0f0; }
+        #info { position: absolute; top: 10px; left: 10px; background: rgba(255, 255, 255, 0.8); padding: 10px; border-radius: 5px; }
+        #canvas { display: block; }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h1>Font to 3D Text</h1>
+        <p>This demo uses a TTF font file to generate 3D text.</p>
+        <p>
+            <label for="text-input">Text:</label>
+            <input type="text" id="text-input" value="Hello, Three.js!" />
+        </p>
+    </div>
+    <canvas id="canvas"></canvas>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.159.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.159.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { FontLoader } from 'three/addons/loaders/FontLoader.js';
+        import { TTFLoader } from 'three/addons/loaders/TTFLoader.js';
+
+        // --- Three.js Setup ---
+        const canvas = document.getElementById('canvas');
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xf0f0f0);
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 25;
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        // --- Lighting ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+        const pointLight = new THREE.PointLight(0xffffff, 0.5);
+        camera.add(pointLight);
+        scene.add(camera);
+
+        // --- Global Variables ---
+        const textInput = document.getElementById('text-input');
+        let currentMesh = null;
+        const textMaterial = new THREE.MeshStandardMaterial({ color: 0x0000ff, roughness: 0.5, metalness: 0.8 });
+
+        // --- Main Functions ---
+        function loadFontAndGenerate3DText() {
+            const ttfLoader = new TTFLoader();
+            const fontURL = 'https://threejs.org/examples/fonts/gentilis_regular.ttf';
+
+            ttfLoader.load(
+                fontURL,
+                (json) => {
+                    const font = new FontLoader().parse(json);
+                    generate3DText(textInput.value, font);
+                },
+                undefined,
+                (error) => {
+                    console.error('An error happened while loading the font:', error);
+                }
+            );
+        }
+
+        function generate3DText(text, font) {
+            // Remove old mesh from the scene if it exists
+            if (currentMesh) {
+                scene.remove(currentMesh);
+                currentMesh.geometry.dispose();
+                currentMesh = null;
+            }
+
+            if (!text) return;
+
+            // Define the extrusion settings
+            const extrudeSettings = {
+                steps: 2,
+                depth: 2,
+                bevelEnabled: true,
+                bevelThickness: 0.5,
+                bevelSize: 0.25,
+                bevelOffset: 0,
+                bevelSegments: 2
+            };
+
+            // Get the shapes (2D paths) for the text
+            const shapes = font.generateShapes(text, 10);
+            const geometry = new THREE.ExtrudeGeometry(shapes, extrudeSettings);
+            geometry.computeBoundingBox();
+
+            // Create the 3D mesh
+            currentMesh = new THREE.Mesh(geometry, textMaterial);
+            
+            // Center the text
+            const boundingBox = geometry.boundingBox;
+            const size = new THREE.Vector3();
+            boundingBox.getSize(size);
+            const center = new THREE.Vector3();
+            boundingBox.getCenter(center);
+            currentMesh.position.set(-center.x, -center.y, -center.z);
+
+            scene.add(currentMesh);
+        }
+
+        // --- Event Listeners ---
+        textInput.addEventListener('input', generate3DText);
+        window.addEventListener('resize', onWindowResize);
+
+        // --- Helper Functions ---
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // --- Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // Initial setup
+        onWindowResize();
+        loadFontAndGenerate3DText();
+        animate();
+    </script>
+</body>
+</html>
+

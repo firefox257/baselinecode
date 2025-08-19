@@ -1,207 +1,174 @@
+/*
+for the apiCalls lets add some security.
+at 
+{
+	"public/test/":
+	{
+	"read":true,
+	"write":true,
+	"delete":true,
+	"createDir": true,
+	"createFile":true
+	}
+}
+
+If the #secure.json does not exist then we assume that everything is allowed.
 
 
-// ./js/apiCalls.js
+
+
+*/
+
+/*
+do not remove!!!
+location is at ./js/apiCalls.js
+*/
+
+
+/** @typedef {Object} FileInfo
+ * @property {string} name - The name of the file or directory.
+ * @property {'file' | 'directory'} type - The type of the item.
+ * @property {number} size - The size of the file in bytes (0 for directories).
+ * @property {string} modifiedTime - The ISO 8601 formatted last modified timestamp.
+ * @property {number} modifiedTimeMs - The last modified timestamp in milliseconds.
+ */
 
 /**
- * A basic API module for interacting with the webserver's file system endpoints.
- * This is designed to be imported as an ES Module.
+ * Makes an API call to the server with custom headers.
+ * @param {string} method - The HTTP method (GET, POST, PUT, DELETE).
+ * @param {string} endpoint - The path to the endpoint on the server (e.g., '/').
+ * @param {Object} [headers={}] - Custom headers for the request.
+ * @param {string} [body=null] - The request body for POST/PUT requests.
+ * @returns {Promise<string | Object>} - The response text or parsed JSON.
  */
-export const api = {
-    /**
-     * Lists files and directories in a given path.
-     * @param {string} lsPath The path to list, relative to the server's root. Can include wildcards.
-     * @returns {Promise<Array<Object>>} An array of file and directory info objects.
-     */
-    async ls(lsPath) {
-        try {
-            const response = await fetch('/', {
-                method: 'GET',
-                headers: {
-                    'X-LS-Path': lsPath
-                }
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Server returned error: ${errorText}`);
-            }
-
-            const data = await response.json();
-            return data;
-        } catch (error) {
-            console.error('LS API Call Failed:', error);
-            throw error;
+async function makeApiCall(method, endpoint, headers = {}, body = null) {
+    const options = {
+        method: method,
+        headers: {
+            'Content-Type': 'text/plain', // Default for most of our custom API calls
+            ...headers
         }
-    },
+    };
 
-    /**
-     * Reads the content of a specific file.
-     * @param {string} filePath The path to the file to read.
-     * @returns {Promise<string>} The content of the file as a string.
-     */
-    async readFile(filePath) {
-        try {
-            const response = await fetch('/', {
-                method: 'GET',
-                headers: {
-                    'X-Read-File': filePath
-                }
-            });
+    if (body !== null) {
+        options.body = body;
+    }
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Server returned error: ${errorText}`);
-            }
+    try {
+        const response = await fetch(endpoint, options);
 
-            // Return the raw text content of the file
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`API Error ${response.status}: ${errorText}`);
+        }
+
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            return await response.json();
+        } else {
             return await response.text();
-        } catch (error) {
-            console.error('READFILE API Call Failed:', error);
-            throw error;
         }
+    } catch (error) {
+        console.error("Network or API call error:", error);
+        throw error;
+    }
+}
+
+const api = {
+    /**
+     * Lists files and directories on the server.
+     * @param {string} path - The path to list, relative to the server's 'files' root. Can include wildcards (e.g., 'public/*.html').
+     * @returns {Promise<FileInfo[]>} - A promise that resolves to an array of file/directory information.
+     */
+    ls: async (path) => {
+        if (!path) {
+            throw new Error("LS: Path is required.");
+        }
+        return makeApiCall('GET', '/', { 'X-LS-Path': path });
     },
 
     /**
-     * Saves content to a specified file path.
-     * @param {string} filePath The path to save the file to.
-     * @param {string|Blob|ArrayBuffer} content The content to be saved.
-     * @returns {Promise<string>} A success message from the server.
+     * Reads the content of a file.
+     * @param {string} filePath - The path to the file to read, relative to the server's 'files' root.
+     * @returns {Promise<string>} - A promise that resolves to the file's content as a string.
      */
-    async saveFile(filePath, content) {
-        try {
-            // The content should be sent as a Blob or other streamable object.
-            // This is the most reliable way to ensure the browser sends a proper body.
-            const blob = new Blob([content], { type: 'text/plain' });
-
-            const response = await fetch('/', {
-                method: 'PUT', // Use PUT for creating/updating a resource
-                headers: {
-                    'X-Save-File': filePath,
-                    // Note: fetch will automatically set the 'Content-Type' and 'Content-Length'
-                    // headers correctly for a Blob, which is ideal.
-                },
-                body: blob // Pass the Blob as the request body
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Server returned error: ${errorText}`);
-            }
-
-            return await response.text();
-        } catch (error) {
-            console.error('SAVEFILE API Call Failed:', error);
-            throw error;
+    readFile: async (filePath) => {
+        if (!filePath) {
+            throw new Error("ReadFile: File path is required.");
         }
+        return makeApiCall('GET', '/', { 'X-Read-File': filePath });
     },
 
     /**
-     * Creates a new directory path.
-     * @param {string} newPath The directory path to create.
-     * @returns {Promise<string>} A success message.
+     * Saves content to a file. Creates or overwrites the file.
+     * @param {string} filePath - The path where the file will be saved, relative to the server's 'files' root. Directories in the path will be created if they don't exist.
+     * @param {string} content - The content to write to the file.
+     * @returns {Promise<string>} - A promise that resolves to a success message.
      */
-    async mkpath(newPath) {
-        try {
-            const response = await fetch('/', {
-                method: 'POST',
-                headers: {
-                    'X-MKPATH': newPath
-                }
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Server returned error: ${errorText}`);
-            }
-
-            return await response.text();
-        } catch (error) {
-            console.error('MKPATH API Call Failed:', error);
-            throw error;
+    saveFile: async (filePath, content) => {
+        if (!filePath || content === undefined) {
+            throw new Error("SaveFile: File path and content are required.");
         }
+        return makeApiCall('POST', '/', { 'X-Save-File': filePath }, content);
     },
 
     /**
-     * Moves a file or directory.
-     * @param {string} sourcePath The path of the item to move.
-     * @param {string} destinationPath The destination path.
-     * @returns {Promise<string>} A success message.
+     * Creates a directory path recursively.
+     * @param {string} mkPath - The directory path to create, relative to the server's 'files' root.
+     * @returns {Promise<string>} - A promise that resolves to a success message.
      */
-    async mv(sourcePath, destinationPath) {
-        try {
-            const response = await fetch('/', {
-                method: 'POST',
-                headers: {
-                    'X-MV-Source': sourcePath,
-                    'X-MV-Destination': destinationPath
-                }
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Server returned error: ${errorText}`);
-            }
-
-            return await response.text();
-        } catch (error) {
-            console.error('MV API Call Failed:', error);
-            throw error;
+    mkPath: async (mkPath) => {
+        if (!mkPath) {
+            throw new Error("MkPath: Path to create is required.");
         }
+        return makeApiCall('POST', '/', { 'X-MKPATH': mkPath });
     },
 
     /**
-     * Copies a file or directory.
-     * @param {string} sourcePath The path of the item to copy.
-     * @param {string} destinationPath The destination path.
-     * @returns {Promise<string>} A success message.
+     * Moves a file or directory (or multiple using wildcards) to a new destination.
+     * @param {string} sourcePath - The source path(s) to move, relative to the server's 'files' root. Can include wildcards (e.g., 'public/*.txt').
+     * @param {string} destinationPath - The destination directory, relative to the server's 'files' root.
+     * @returns {Promise<string>} - A promise that resolves to a success message detailing the move operation.
      */
-    async copy(sourcePath, destinationPath) {
-        try {
-            const response = await fetch('/', {
-                method: 'POST',
-                headers: {
-                    'X-COPY-Source': sourcePath,
-                    'X-COPY-Destination': destinationPath
-                }
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Server returned error: ${errorText}`);
-            }
-
-            return await response.text();
-        } catch (error) {
-            console.error('COPY API Call Failed:', error);
-            throw error;
+    mv: async (sourcePath, destinationPath) => {
+        if (!sourcePath || !destinationPath) {
+            throw new Error("MV: Source and destination paths are required.");
         }
+        return makeApiCall('POST', '/', {
+            'X-MV-Source': sourcePath,
+            'X-MV-Destination': destinationPath
+        });
     },
 
     /**
-     * Deletes a file or directory.
-     * @param {string} delPath The path of the item to delete.
-     * @returns {Promise<string>} A success message.
+     * Copies a file or directory (or multiple using wildcards) to a new destination.
+     * @param {string} sourcePath - The source path(s) to copy, relative to the server's 'files' root. Can include wildcards (e.g., 'public/*.txt').
+     * @param {string} destinationPath - The destination directory, relative to the server's 'files' root.
+     * @returns {Promise<string>} - A promise that resolves to a success message detailing the copy operation.
      */
-    async del(delPath) {
-        try {
-            const response = await fetch('/', {
-                method: 'DELETE',
-                headers: {
-                    'X-DEL-Path': delPath
-                }
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Server returned error: ${errorText}`);
-            }
-
-            return await response.text();
-        } catch (error) {
-            console.error('DEL API Call Failed:', error);
-            throw error;
+    copy: async (sourcePath, destinationPath) => {
+        if (!sourcePath || !destinationPath) {
+            throw new Error("COPY: Source and destination paths are required.");
         }
+        return makeApiCall('POST', '/', {
+            'X-COPY-Source': sourcePath,
+            'X-COPY-Destination': destinationPath
+        });
     },
+
+    /**
+     * Deletes files or directories. Moves to trash first if not already in trash, then permanently deletes from trash.
+     * @param {string} delPath - The path(s) to delete, relative to the server's 'files' root. Can include wildcards (e.g., 'temp/*.log').
+     * @returns {Promise<string>} - A promise that resolves to a success message detailing the deletion operation.
+     */
+    del: async (delPath) => {
+        if (!delPath) {
+            throw new Error("DEL: Path to delete is required.");
+        }
+        return makeApiCall('DELETE', '/', { 'X-DEL-Path': delPath });
+    }
 };
+
+export { api };
 
 

@@ -1,5 +1,7 @@
 
 
+
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -659,91 +661,95 @@ return cube([40, 50, 60]);
     btn3D.addEventListener('click', () => showView('3d'));
     btnCode.addEventListener('click', () => showView('code'));
     btnSettings.addEventListener('click', () => showView('settings'));
+    
+    let filePickerState = {
+      isShowing: false,
+      mode: null
+    };
+    
+    let filePicker = null;
 
-    // --- File Picker functions (updated to set buttonText) ---
-    function showLoadCodePicker() {
-        const dialogWrapper = createfilePicker();
-        const pickerInstance = dialogWrapper.querySelector('.file-picker-container-wrapper');
+    const showFilePicker = (mode) => {
+        if (filePickerState.isShowing) {
+            return;
+        }
         
-        pickerInstance['dom.buttonText'] = 'Load Code';
-        
-        pickerInstance.onfilepick = async (event, filePath) => {
-            try {
-                const editor = document.querySelector('#csg-code');
+        if (!filePicker) {
+            filePicker = createfilePicker();
+            filePicker.style.position = 'fixed';
+            filePicker.style.top = '50%';
+            filePicker.style.left = '50%';
+            filePicker.style.transform = 'translate(-50%, -50%)';
+            filePicker.style.width = '80%';
+            filePicker.style.height = '80%';
+            filePicker.style.maxWidth = '600px';
+            filePicker.style.maxHeight = '800px';
+            filePicker.style.zIndex = '9999';
+            filePicker.addEventListener('filepick', handleFilePick);
+            filePicker.addEventListener('cancel', handleFileCancel);
+        }
+
+        filePickerState.isShowing = true;
+        filePickerState.mode = mode;
+        document.body.appendChild(filePicker);
+    };
+
+    const hideFilePicker = () => {
+        if (filePickerState.isShowing) {
+            document.body.removeChild(filePicker);
+            filePickerState.isShowing = false;
+            filePickerState.mode = null;
+        }
+    };
+    
+    const handleFilePick = async (event) => {
+        const filePath = event.detail.filePath;
+        const editor = document.querySelector('#csg-code');
+        const mode = filePickerState.mode;
+
+        if (!filePath) {
+            alert('File path is missing.');
+            return;
+        }
+
+        try {
+            if (mode === 'load') {
                 const fileContent = await api.readFile(filePath);
                 editor.value = fileContent;
                 alert(`Code loaded successfully from: ${filePath}`);
                 runCSGCode(editor);
-            } catch (error) {
-                alert(`Failed to load code: ${error.message}`);
-            }
-            document.body.removeChild(dialogWrapper);
-        };
-        
-        pickerInstance.oncancel = () => {
-            alert('Load operation cancelled.');
-            document.body.removeChild(dialogWrapper);
-        };
-        
-        document.body.appendChild(dialogWrapper);
-    }
-
-    function showSaveCodePicker() {
-        const dialogWrapper = createfilePicker();
-        const pickerInstance = dialogWrapper.querySelector('.file-picker-container-wrapper');
-        
-        pickerInstance['dom.buttonText'] = 'Save Code';
-        
-        pickerInstance.onfilepick = async (event, filePath) => {
-            try {
-                const codeContent = document.querySelector('#csg-code').value;
+            } else if (mode === 'save-code') {
+                const codeContent = editor.value;
                 await api.saveFile(filePath, codeContent);
                 alert(`Code saved successfully to: ${filePath}`);
-            } catch (error) {
-                alert(`Failed to save code: ${error.message}`);
-            }
-            document.body.removeChild(dialogWrapper);
-        };
-        
-        pickerInstance.oncancel = () => {
-            alert('Save operation cancelled.');
-            document.body.removeChild(dialogWrapper);
-        };
-        
-        document.body.appendChild(dialogWrapper);
-    }
-
-    function showSaveStlPicker(stlContent) {
-        const dialogWrapper = createfilePicker();
-        const pickerInstance = dialogWrapper.querySelector('.file-picker-container-wrapper');
-        
-        pickerInstance['dom.buttonText'] = 'Save STL';
-        
-        pickerInstance.onfilepick = async (event, filePath) => {
-            try {
+            } else if (mode === 'save-stl') {
                 let finalPath = filePath;
                 if (!finalPath.toLowerCase().endsWith('.stl')) {
                     finalPath += '.stl';
                 }
-                await api.saveFile(finalPath, stlContent, { 'Content-Type': 'text/plain' });
+                const stlContent = filePickerState.data;
+                // Saving as a string (text) with correct headers
+                await api.saveFile(finalPath, stlContent, {'Content-Type': 'text/plain'});
                 alert(`STL file saved successfully to: ${finalPath}`);
-            } catch (error) {
-                alert(`Failed to save STL file: ${error.message}`);
             }
-            document.body.removeChild(dialogWrapper);
-        };
-        
-        pickerInstance.oncancel = () => {
-            alert('Export operation cancelled.');
-            document.body.removeChild(dialogWrapper);
-        };
-        
-        document.body.appendChild(dialogWrapper);
-    }
+        } catch (error) {
+            console.error(`${mode} failed:`, error);
+            alert(`Failed to ${mode} file: ${error.message}`);
+        } finally {
+            hideFilePicker();
+        }
+    };
+
+    const handleFileCancel = () => {
+        alert('File operation cancelled.');
+        hideFilePicker();
+    };
+
+    btnLoad.addEventListener('click', () => showFilePicker('load'));
     
     const exporter = new STLExporter();
-
-    function exportSTL() {
+    
+    async function exportSTL() {
         if (currentObjects.length === 0) {
             alert('No objects to export!');
             return;
@@ -756,15 +762,17 @@ return cube([40, 50, 60]);
             }
         });
 
+        // Export as a text-based string
         const stlString = exporter.parse(exportGroup, { binary: false });
-        showSaveStlPicker(stlString);
+
+        filePickerState.data = stlString;
+        showFilePicker('save-stl');
     }
 
-    btnLoad.addEventListener('click', () => showLoadCodePicker());
-    
     btnSave.addEventListener('click', () => {
         if (codePanel.style.display === 'block') {
-            showSaveCodePicker();
+            // Updated logic to save code
+            showFilePicker('save-code');
         } else {
             exportSTL();
         }
@@ -830,7 +838,8 @@ return cube([40, 50, 60]);
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         if (codePanel.style.display === 'block') {
-            showSaveCodePicker();
+            // Updated logic for keyboard shortcut
+            showFilePicker('save-code');
         } else if (viewPanel.style.display === 'block') {
             exportSTL();
         }

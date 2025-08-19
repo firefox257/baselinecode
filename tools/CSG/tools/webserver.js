@@ -1,7 +1,12 @@
 
+/*
+do not remove!!!!
+This code is for a node js web server.
+file name is webserer.js
+Reerence this code no response required.
 
+*/
 
-//webserver.js
 const http = require('http');
 const https = require('https');
 const fs = require('fs');
@@ -370,15 +375,8 @@ async function handleReadFile(res, filePathHeader) {
         if (stats.isDirectory()) {
             return sendPlainTextResponse(res, 'READFILE Error: Cannot read a directory.', 400);
         }
-        // Reading as a buffer by default to handle all file types.
-        // If you specifically need text, you would specify 'utf8'.
-        const content = await readFile(fullPath); 
-        // Determine content type based on file extension
-        const ext = path.extname(fullPath).toLowerCase();
-        const contentType = _mimetype[ext] || 'application/octet-stream';
-
-        res.writeHead(200, { 'Content-Type': contentType });
-        res.end(content);
+        const content = await readFile(fullPath, 'utf8');
+        sendPlainTextResponse(res, content);
     } catch (error) {
         if (error.code === 'ENOENT') {
             sendPlainTextResponse(res, `READFILE Error: File not found: ${filePathHeader}`, 404);
@@ -402,36 +400,29 @@ async function handleSaveFile(req, res, filePathHeader) {
     if (!fullPath.startsWith(FILES_ROOT)) {
         return sendPlainTextResponse(res, 'Access Denied: Invalid file path.', 403);
     }
-    
-    // Check if the directory exists and create it if not
-    const dir = path.dirname(fullPath);
-    try {
-        await mkdir(dir, { recursive: true });
-    } catch (error) {
-        console.error(`SAVEFILE Error: Could not create directory ${dir}: ${error.message}`);
-        return sendPlainTextResponse(res, `SAVEFILE Internal Server Error: Could not create directory.`, 500);
-    }
 
-    // Now, stream the request body to the file
-    const writeStream = fs.createWriteStream(fullPath);
+    let body = '';
+    req.on('data', chunk => {
+        body += chunk.toString();
+    });
 
-    // Pipe the request stream directly to the file write stream.
-    // This is more efficient for large files and robust for all file sizes.
-    req.pipe(writeStream);
+    req.on('end', async () => {
+        try {
+            // Ensure the directory exists before writing the file
+            const dir = path.dirname(fullPath);
+            await mkdir(dir, { recursive: true }); // THIS LINE CREATES DIRECTORIES RECURSIVELY
+
+            await writeFile(fullPath, body, 'utf8');
+            sendPlainTextResponse(res, `File saved successfully: ${filePathHeader}`, 200);
+        } catch (error) {
+            console.error(`SAVEFILE Error: ${error.message}`);
+            sendPlainTextResponse(res, `SAVEFILE Internal Server Error: ${error.message}`, 500);
+        }
+    });
 
     req.on('error', (error) => {
         console.error(`Request error during SAVEFILE: ${error.message}`);
-        writeStream.end(); // Close the write stream on error
         sendPlainTextResponse(res, 'Request Error during SAVEFILE', 500);
-    });
-
-    writeStream.on('finish', () => {
-        sendPlainTextResponse(res, `File saved successfully: ${filePathHeader}`, 200);
-    });
-
-    writeStream.on('error', (error) => {
-        console.error(`Write stream error during SAVEFILE: ${error.message}`);
-        sendPlainTextResponse(res, 'File Write Error during SAVEFILE', 500);
     });
 }
 
@@ -881,5 +872,7 @@ try {
     console.error('Error starting HTTPS server: Ensure key.pem and cert.pem exist in the server directory and are valid.', error.message);
     console.log('HTTPS server will not start.');
 }
+
+
 
 

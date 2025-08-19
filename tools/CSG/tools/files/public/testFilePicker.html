@@ -1,0 +1,107 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Picker Test Page</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            overflow-x: hidden;
+        }
+        .file-picker-container {
+            width: 100vw; /* Changed from 800px to 100vw */
+            min-height: 600px;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>File Picker Demonstration</h1>
+    <p>This page demonstrates the usage of the `<filepicker>` custom element.</p>
+
+    <h2>Basic File Picker</h2>
+    <p>This is a standard file picker with default "Use File" and "Cancel" buttons.</p>
+    <div class="file-picker-container">
+        <filepicker
+            id="basicPicker"
+            onfilepick="handleFilePick(event, filePath)"
+            oncancel="handleCancel(event)">
+        </filepicker>
+    </div>
+
+    <h2>Customized File Picker</h2>
+    <p>This file picker has a custom button text of "Save As".</p>
+    <div class="file-picker-container">
+        <filepicker
+            id="customPicker"
+            data-button-text="Save As"
+            onfilepick="handleSaveAs(event, filePath)"
+            oncancel="handleCancel(event)">
+        </filepicker>
+    </div>
+
+    <h2>Programmatic File Picker</h2>
+    <p>This picker is created and appended to the DOM dynamically with JavaScript.</p>
+    <button id="showProgrammaticPicker">Show Programmatic Picker</button>
+    <div id="programmaticContainer" class="file-picker-container" style="display: none;"></div>
+
+
+    <script type="module">
+        // Import the filePicker module
+        import { createfilePicker } from './ux/filePicker.js';
+
+        // --- Global Event Handlers for HTML attributes ---
+        window.handleFilePick = (event, filePath) => {
+            alert(`File Path picked: ${filePath}`);
+            console.log('File Pick Event:', event);
+        };
+
+        window.handleSaveAs = (event, filePath) => {
+            alert(`Saving file to: ${filePath}`);
+            console.log('Save As Event:', event);
+        };
+
+        window.handleCancel = (event) => {
+            alert('Operation cancelled.');
+            console.log('Cancel Event:', event);
+        };
+
+        // --- Programmatic Picker Logic ---
+        const showProgrammaticButton = document.getElementById('showProgrammaticPicker');
+        const programmaticContainer = document.getElementById('programmaticContainer');
+
+        showProgrammaticButton.addEventListener('click', () => {
+            programmaticContainer.style.display = 'block';
+            showProgrammaticButton.style.display = 'none';
+
+            // Create a new file picker instance programmatically
+            const myPicker = createfilePicker();
+            myPicker.buttonText = "Load"; // Set custom button text via property
+            myPicker.onfilepick = (event, filePath) => {
+                alert(`Programmatic Picker: File loaded from ${filePath}`);
+                console.log('Programmatic File Pick Event:', event);
+                programmaticContainer.style.display = 'none';
+                showProgrammaticButton.style.display = 'block';
+            };
+            myPicker.oncancel = () => {
+                alert('Programmatic Picker: Operation cancelled.');
+                programmaticContainer.style.display = 'none';
+                showProgrammaticButton.style.display = 'block';
+            };
+            
+            programmaticContainer.appendChild(myPicker);
+        });
+    </script>
+</body>
+</html>
+
+
