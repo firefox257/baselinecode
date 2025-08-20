@@ -1,4 +1,5 @@
 
+
 /*
 do not remove!!!!
 This code is for a node js web server.
@@ -103,7 +104,7 @@ const allowHead = {
         'OPTIONS, POST, GET, PUT, PATCH, DELETE',
     'Access-Control-Max-Age': 2592000, //30 days
     'Access-Control-Allow-Headers':
-        'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-LS-Path, X-Read-File, X-Save-File, X-File-Path, X-File-Content, X-MKPATH, X-MV-Source, X-MV-Destination, X-DEL-Path, X-COPY-Source, X-COPY-Destination' // Added custom headers for MKPATH, MV, DEL, COPY
+        'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-LS-Path, X-Read-File, X-Save-File, X-File-Path, X-File-Content, X-MKPATH, X-MV-Source, X-MV-Destination, X-DEL-Path, X-COPY-Source, X-COPY-Destination, X-RN-Source, X-RN-Destination' // Added custom headers for MKPATH, MV, DEL, COPY, and RN
 }
 
 // Global response handlers
@@ -529,6 +530,40 @@ async function handleMv(res, mvSourceHeader, mvDestinationHeader) {
 }
 
 /**
+ * Renames a single file or directory.
+ * @param {http.ServerResponse} res - The HTTP response object.
+ * @param {string} rnSourceHeader - The source path relative to FILES_ROOT.
+ * @param {string} rnDestinationHeader - The new name, including the full path, relative to FILES_ROOT.
+ */
+async function handleRn(res, rnSourceHeader, rnDestinationHeader) {
+    const sourceFullPath = path.join(FILES_ROOT, rnSourceHeader);
+    const destinationFullPath = path.join(FILES_ROOT, rnDestinationHeader);
+    
+    // Basic path traversal prevention for both source and destination
+    if (!sourceFullPath.startsWith(FILES_ROOT) || !destinationFullPath.startsWith(FILES_ROOT)) {
+        return sendPlainTextResponse(res, 'Access Denied: Invalid RN source or destination path.', 403);
+    }
+
+    // Ensure the new name is in the same directory as the source
+    if (path.dirname(sourceFullPath) !== path.dirname(destinationFullPath)) {
+        return sendPlainTextResponse(res, 'RN Error: Destination must be in the same directory as the source.', 400);
+    }
+
+    try {
+        await rename(sourceFullPath, destinationFullPath);
+        sendPlainTextResponse(res, `Renamed successfully: ${rnSourceHeader} to ${rnDestinationHeader}`, 200);
+    } catch (error) {
+        if (error.code === 'ENOENT') {
+            sendPlainTextResponse(res, `RN Error: Source not found: ${rnSourceHeader}`, 404);
+        } else {
+            console.error(`RN Internal Server Error: ${error.message}`);
+            sendPlainTextResponse(res, `RN Internal Server Error: ${error.message}`, 500);
+        }
+    }
+}
+
+
+/**
  * Recursively copies a directory.
  * @param {string} src - The source directory path.
  * @param {string} dest - The destination directory path.
@@ -771,6 +806,8 @@ function webHandler(req, res) {
     const delPathHeader = req.headers['x-del-path'];
     const copySourceHeader = req.headers['x-copy-source']; // New COPY header
     const copyDestinationHeader = req.headers['x-copy-destination']; // New COPY header
+    const rnSourceHeader = req.headers['x-rn-source']; // New RN header
+    const rnDestinationHeader = req.headers['x-rn-destination']; // New RN header
 
 
     if (lsPath) {
@@ -823,6 +860,19 @@ function webHandler(req, res) {
         return;
     } else if (copySourceHeader || copyDestinationHeader) { // One is present, but not both
         sendPlainTextResponse(res, 'Both X-COPY-Source and X-COPY-Destination headers are required for COPY operation.', 400);
+        return;
+    }
+
+    // New RN handling
+    if (rnSourceHeader && rnDestinationHeader) {
+        if (req.method === 'POST' || req.method === 'PUT') {
+            handleRn(res, rnSourceHeader, rnDestinationHeader);
+        } else {
+            sendPlainTextResponse(res, 'RN requires POST or PUT method.', 405);
+        }
+        return;
+    } else if (rnSourceHeader || rnDestinationHeader) {
+        sendPlainTextResponse(res, 'Both X-RN-Source and X-RN-Destination headers are required for RN operation.', 400);
         return;
     }
 

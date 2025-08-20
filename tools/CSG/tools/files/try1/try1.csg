@@ -1,0 +1,10 @@
+[
+  {
+    "title": "CSG Script",
+    "content": "// Edit and save to update!\n/*\nreturn floor(\n\tdifference(\n\t\tcolor(0x0000ffff,sphere({ r: 20, fn:100 })),\n\t\ttranslate([15, 0, 0], cube([20, 20, 20])),\n\t\ttranslate([0, 0, 15], cylinder({ r: 20, h: 30 , fn:100}))\n\t)\n);\n*/\nreturn cube([40, 50, 60]);"
+  },
+  {
+    "title": "notes",
+    "content": "\n\n\nhere 1\n\n\n"
+  }
+]

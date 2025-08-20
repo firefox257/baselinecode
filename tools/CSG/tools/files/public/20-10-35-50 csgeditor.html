@@ -1,5 +1,6 @@
 
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -126,27 +127,6 @@
       height: 100%;
       display: block;
     }
-    
-    .modal-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.7);
-        display: none;
-        justify-content: center;
-        align-items: center;
-        z-index: 10000;
-    }
-    
-    .modal-content {
-        background: #282c34;
-        width: 100%;
-        height: 100%;
-        max-width: 100%;
-        max-height: 100%;
-    }
   </style>
 
   <script type="importmap">
@@ -207,50 +187,17 @@ return cube([40, 50, 60]);
     </div>
   </div>
 
-  <div id="load-code-modal" class="modal-overlay">
-    <div class="modal-content">
-        <filepicker 
-            id="load-picker" 
-            useFileButtonText="Load Code"
-            onfilepick="handleLoadFile(event, filePath, 'csg-code')"
-            oncancel="closeModal('load-code-modal')">
-        </filepicker>
-    </div>
-  </div>
-
-  <div id="save-code-modal" class="modal-overlay">
-    <div class="modal-content">
-        <filepicker 
-            id="save-picker" 
-            useFileButtonText="Save Code"
-            onfilepick="handleSaveFile(event, filePath, 'csg-code')"
-            oncancel="closeModal('save-code-modal')">
-        </filepicker>
-    </div>
-  </div>
-
-  <div id="save-stl-modal" class="modal-overlay">
-    <div class="modal-content">
-        <filepicker 
-            id="save-stl-picker" 
-            useFileButtonText="Save STL"
-            onfilepick="handleSaveStl(event, filePath)"
-            oncancel="closeModal('save-stl-modal')">
-        </filepicker>
-    </div>
-  </div>
-
   <script type="module" src="/ux/textCode.js"></script>
-  <script type="module" src="/ux/filePicker.js"></script>
 
   <script type="module">
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     import { Brush, Evaluator, ADDITION, SUBTRACTION, INTERSECTION } from 'three-bvh-csg';
     import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
+    import { createfilePicker } from '/ux/filePicker.js';
     import { api } from '/js/apiCalls.js';
     import { STLExporter } from 'three/addons/exporters/STLExporter.js';
-
+    
     // --- Default & Stored Settings ---
     const DEFAULT_SETTINGS = {
         plateWidth: 220,
@@ -272,9 +219,6 @@ return cube([40, 50, 60]);
     const lengthInput = document.getElementById('length-input');
     const gridSizeInput = document.getElementById('grid-size-input');
     const saveSettingsBtn = document.getElementById('save-settings-btn');
-    const loadCodeModal = document.getElementById('load-code-modal');
-    const saveCodeModal = document.getElementById('save-code-modal');
-    const saveStlModal = document.getElementById('save-stl-modal');
 
     // --- Three.js Setup ---
     const canvas = document.getElementById('three-canvas');
@@ -717,60 +661,87 @@ return cube([40, 50, 60]);
     btnCode.addEventListener('click', () => showView('code'));
     btnSettings.addEventListener('click', () => showView('settings'));
 
-    // --- Modal Functions ---
-    window.openModal = (id) => {
-        document.getElementById(id).style.display = 'flex';
-    };
-
-    window.closeModal = (id) => {
-        document.getElementById(id).style.display = 'none';
-    };
-
-    // --- File Picker Callbacks (now global) ---
-    window.handleLoadFile = async (event, filePath) => {
-        try {
-            const editor = document.querySelector('#csg-code');
-            const fileContent = await api.readFile(filePath);
-            const loadedValues = JSON.parse(fileContent);
-            editor.values = loadedValues;
-            editor.setAttribute('active', '0');
-            runCSGCode(editor);
-        } catch (error) {
-            alert(`Failed to load code: ${error.message}`);
-        }
-        closeModal('load-code-modal');
-    };
-
-    window.handleSaveFile = async (event, filePath) => {
-        try {
-            const codeContent = document.querySelector('#csg-code').values;
-            const codeContentString = JSON.stringify(codeContent, null, 2);
-            await api.saveFile(filePath, codeContentString);
-            alert(`Code saved successfully to: ${filePath}`);
-        } catch (error) {
-            alert(`Failed to save code: ${error.message}`);
-        }
-        closeModal('save-code-modal');
-    };
-
-    window.handleSaveStl = async (event, filePath) => {
-        try {
-            let finalPath = filePath;
-            if (!finalPath.toLowerCase().endsWith('.stl')) {
-                finalPath += '.stl';
+    // --- File Picker functions (updated to set buttonText) ---
+    function showLoadCodePicker() {
+        const dialogWrapper = createfilePicker();
+        const pickerInstance = dialogWrapper.querySelector('.file-picker-container-wrapper');
+        
+        pickerInstance['dom.buttonText'] = 'Load Code';
+        
+        pickerInstance.onfilepick = async (event, filePath) => {
+            try {
+                const editor = document.querySelector('#csg-code');
+                const fileContent = await api.readFile(filePath);
+                editor.value = fileContent;
+                alert(`Code loaded successfully from: ${filePath}`);
+                runCSGCode(editor);
+            } catch (error) {
+                alert(`Failed to load code: ${error.message}`);
             }
-            const stlContent = window.stlToSave;
-            if (!stlContent) {
-                throw new Error("No STL content to save. Generate a model first.");
-            }
-            await api.saveFile(finalPath, stlContent, { 'Content-Type': 'text/plain' });
-            alert(`STL file saved successfully to: ${finalPath}`);
-        } catch (error) {
-            alert(`Failed to save STL file: ${error.message}`);
-        }
-        closeModal('save-stl-modal');
-    };
+            document.body.removeChild(dialogWrapper);
+        };
+        
+        pickerInstance.oncancel = () => {
+            alert('Load operation cancelled.');
+            document.body.removeChild(dialogWrapper);
+        };
+        
+        document.body.appendChild(dialogWrapper);
+    }
 
+    function showSaveCodePicker() {
+        const dialogWrapper = createfilePicker();
+        const pickerInstance = dialogWrapper.querySelector('.file-picker-container-wrapper');
+        
+        pickerInstance['dom.buttonText'] = 'Save Code';
+        
+        pickerInstance.onfilepick = async (event, filePath) => {
+            try {
+                const codeContent = document.querySelector('#csg-code').value;
+                await api.saveFile(filePath, codeContent);
+                alert(`Code saved successfully to: ${filePath}`);
+            } catch (error) {
+                alert(`Failed to save code: ${error.message}`);
+            }
+            document.body.removeChild(dialogWrapper);
+        };
+        
+        pickerInstance.oncancel = () => {
+            alert('Save operation cancelled.');
+            document.body.removeChild(dialogWrapper);
+        };
+        
+        document.body.appendChild(dialogWrapper);
+    }
+
+    function showSaveStlPicker(stlContent) {
+        const dialogWrapper = createfilePicker();
+        const pickerInstance = dialogWrapper.querySelector('.file-picker-container-wrapper');
+        
+        pickerInstance['dom.buttonText'] = 'Save STL';
+        
+        pickerInstance.onfilepick = async (event, filePath) => {
+            try {
+                let finalPath = filePath;
+                if (!finalPath.toLowerCase().endsWith('.stl')) {
+                    finalPath += '.stl';
+                }
+                await api.saveFile(finalPath, stlContent, { 'Content-Type': 'text/plain' });
+                alert(`STL file saved successfully to: ${finalPath}`);
+            } catch (error) {
+                alert(`Failed to save STL file: ${error.message}`);
+            }
+            document.body.removeChild(dialogWrapper);
+        };
+        
+        pickerInstance.oncancel = () => {
+            alert('Export operation cancelled.');
+            document.body.removeChild(dialogWrapper);
+        };
+        
+        document.body.appendChild(dialogWrapper);
+    }
+    
     const exporter = new STLExporter();
 
     function exportSTL() {
@@ -778,21 +749,23 @@ return cube([40, 50, 60]);
             alert('No objects to export!');
             return;
         }
+
         const exportGroup = new THREE.Group();
         currentObjects.forEach(obj => {
             if (obj.isMesh || obj instanceof Brush) {
                 exportGroup.add(obj.clone());
             }
         });
-        window.stlToSave = exporter.parse(exportGroup, { binary: false });
-        openModal('save-stl-modal');
+
+        const stlString = exporter.parse(exportGroup, { binary: false });
+        showSaveStlPicker(stlString);
     }
 
-    btnLoad.addEventListener('click', () => openModal('load-code-modal'));
+    btnLoad.addEventListener('click', () => showLoadCodePicker());
     
     btnSave.addEventListener('click', () => {
         if (codePanel.style.display === 'block') {
-            openModal('save-code-modal');
+            showSaveCodePicker();
         } else {
             exportSTL();
         }
@@ -829,29 +802,17 @@ return cube([40, 50, 60]);
           ${code}
         `);
         const result = script(sphere, cube, cylinder, union, difference, intersect, translate, rotate, scale, color, floor, convexHull, align, line3d, linePaths3d);
-
-        // --- NEW LOGIC TO HANDLE ALL RETURN TYPES ---
-        if (result instanceof THREE.Object3D || result instanceof Brush) {
-          scene.add(result);
-          currentObjects.push(result);
-        } else if (Array.isArray(result)) {
+        if (Array.isArray(result)) {
           result.forEach(obj => {
-            if (obj instanceof THREE.Object3D || obj instanceof Brush) {
+            if (obj && (obj.isObject3D || obj instanceof Brush)) {
               scene.add(obj);
               currentObjects.push(obj);
             }
           });
-        } else if (typeof result === 'object' && result !== null) {
-          for (const key in result) {
-            const item = result[key];
-            if (item && item.data && (item.data instanceof THREE.Object3D || item.data instanceof Brush) && item.show === true) {
-              scene.add(item.data);
-              currentObjects.push(item.data);
-            }
-          }
+        } else if (result && (result.isObject3D || result instanceof Brush)) {
+          scene.add(result);
+          currentObjects.push(result);
         }
-        // --- END OF NEW LOGIC ---
-
         console.log('CSG executed:', result);
       } catch (err) {
         console.error('CSG Error:', err);
@@ -871,7 +832,7 @@ return cube([40, 50, 60]);
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         if (codePanel.style.display === 'block') {
-            openModal('save-code-modal');
+            showSaveCodePicker();
         } else if (viewPanel.style.display === 'block') {
             exportSTL();
         }
@@ -908,15 +869,7 @@ return cube([40, 50, 60]);
 
         const editor = document.querySelector('#csg-code');
         const savedCode = localStorage.getItem('csg-editor-code');
-        if (savedCode) {
-            try {
-                const loadedValues = JSON.parse(savedCode);
-                editor.values = loadedValues;
-                editor.setAttribute('active', '0');
-            } catch (e) {
-                editor.value = savedCode;
-            }
-        }
+        if (savedCode) editor.value = savedCode;
         runCSGCode(editor);
     }, 100);
 
@@ -928,5 +881,4 @@ return cube([40, 50, 60]);
   </script>
 </body>
 </html>
-
 

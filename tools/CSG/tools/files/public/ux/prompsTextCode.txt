@@ -1,0 +1,14 @@
+
+
+
+
+lets add pages. 
+the pages will have its own undo history. 
+eage page has a title. 
+add menu putton to flip to the pages menu like hiw find does it. 
+ the pages menu will have a previous and next page. 
+ also has an input box that is editable for title.  
+ has a dropdown to select the title of a page to be current. 
+ pages is a way to swap in text in the text editor and swap undo history.
+ add a values property to the dom. the the values will have [{“title”:”text for page”},{….}].
+ show the full code with the changes for both textCodUI.js and textCode.js

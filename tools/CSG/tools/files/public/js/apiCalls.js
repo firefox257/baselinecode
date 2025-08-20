@@ -1,3 +1,6 @@
+
+
+
 /*
 for the apiCalls lets add some security.
 at 
@@ -157,6 +160,22 @@ const api = {
     },
 
     /**
+     * Renames a single file or directory.
+     * @param {string} sourcePath - The current path of the file or directory, relative to the server's 'files' root.
+     * @param {string} newPath - The new path and name for the file or directory, relative to the server's 'files' root. This must be in the same directory as the source.
+     * @returns {Promise<string>} - A promise that resolves to a success message detailing the rename operation.
+     */
+    rn: async (sourcePath, newPath) => {
+        if (!sourcePath || !newPath) {
+            throw new Error("RN: Source and destination paths are required.");
+        }
+        return makeApiCall('POST', '/', {
+            'X-RN-Source': sourcePath,
+            'X-RN-Destination': newPath
+        });
+    },
+    
+    /**
      * Deletes files or directories. Moves to trash first if not already in trash, then permanently deletes from trash.
      * @param {string} delPath - The path(s) to delete, relative to the server's 'files' root. Can include wildcards (e.g., 'temp/*.log').
      * @returns {Promise<string>} - A promise that resolves to a success message detailing the deletion operation.
@@ -170,5 +189,8 @@ const api = {
 };
 
 export { api };
+
+
+
 
 

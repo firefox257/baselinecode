@@ -1,541 +1,24 @@
 
 
-
 // ./ux/filePicker.js
 
-import { api } from '../js/apiCalls.js'; // Assuming apiCalls.js is in the same directory
-
-// --- Constants ---
-const LINE_HEIGHT_EM = 1.5; // Consistent line height for alignment
-const HISTORY_DEBOUNCE_TIME = 300; // Milliseconds to wait before saving history state
+import { api } from '../js/apiCalls.js';
+import { 
+    injectStyles,
+    formatBytes,
+    showPopupMessage,
+    showConfirmDialog,
+    showPromptDialog,
+    createPickerDOM
+} from './filePickerUI.js';
 
 // --- Module-level Variables ---
-let stylesInjected = false; // Flag to ensure styles are injected only once
-
-// --- Dynamic Style Injection ---
-/**
- * Injects necessary CSS styles for the file picker into the document head.
- * Ensures styles are injected only once.
- */
-function injectStyles() {
-    if (stylesInjected) return;
-
-    const style = document.createElement('style');
-    style.id = 'file-picker-styles';
-    style.textContent = `
-        /* Main container for the file picker */
-        .file-picker-container-wrapper {
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            border: 1px solid #ccc;
-            font-family: 'Fira Code', 'Cascadia Code', 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
-            font-size: 14px;
-            line-height: ${LINE_HEIGHT_EM};
-        }
-
-        /* Title Bar Styles to show the full path */
-        .file-picker-title-bar {
-            background-color: #333; /* Dark background for title */
-            color: #fff;
-            padding: 4px 8px; /* Padding here */
-            font-weight: bold;
-            flex-shrink: 0;
-            overflow: hidden; /* Ensure text doesn't spill out */
-            white-space: nowrap; /* Prevent text wrapping */
-            display: flex; /* Always show the title bar */
-            align-items: center;
-            justify-content: flex-end; /* Align title text to the right */
-        }
-        .file-picker-title-bar span {
-            text-overflow: ellipsis; /* Applies ellipsis to the start of the text */
-            overflow: hidden;
-            white-space: nowrap;
-        }
-
-        /* Menu bar similar to fileManager.js */
-        .file-picker-menu-bar {
-            width: 100%;
-            border-collapse: collapse;
-            background-color: #f8f8f8;
-            border-bottom: 1px solid #eee;
-            flex-shrink: 0;
-            display: table; /* To make TD behave correctly */
-            table-layout: fixed; /* Distribute columns evenly */
-        }
-
-        .file-picker-menu-bar tr {
-            display: table-row;
-        }
-
-        .file-picker-menu-bar td {
-            border: 1px solid #ddd;
-            text-align: center;
-            vertical-align: middle;
-            padding: 0;
-            display: table-cell;
-        }
-
-        .file-picker-menu-bar button {
-            background-color: transparent;
-            border: none;
-            color: #555;
-            padding: 0 6px;
-            margin: 0;
-            cursor: pointer;
-            border-radius: 0;
-            font-size: 1em;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: background-color 0.2s, border-color 0.2s;
-            line-height: 1;
-            height: 24px;
-            box-sizing: border-box;
-            width: 100%;
-        }
-
-        .file-picker-menu-bar button:hover:not(:disabled) {
-            background-color: #e0e0e0;
-            border-color: #ccc;
-        }
-
-        .file-picker-menu-bar button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        /* Path display and refresh button */
-        .file-picker-path-display {
-            display: flex;
-            align-items: center;
-            padding: 2px 5px;
-            background-color: #e9e9e9;
-            border-bottom: 1px solid #ddd;
-            flex-shrink: 0;
-            height: 24px;
-            box-sizing: border-box;
-            font-weight: bold;
-        }
-        .file-picker-current-path {
-            flex-grow: 1;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            overflow: hidden;
-            padding-right: 5px;
-        }
-        .file-picker-refresh-button {
-            background-color: transparent;
-            border: none;
-            color: #555;
-            cursor: pointer;
-            font-size: 1em;
-            padding: 0 5px;
-            height: 100%;
-            display: flex;
-            align-items: center;
-        }
-        .file-picker-refresh-button:hover {
-            background-color: #e0e0e0;
-        }
-
-        /* File list area */
-        .file-picker-list-container {
-            flex-grow: 1;
-            overflow-y: auto;
-            background-color: #ffffff;
-            color: #000000;
-        }
-
-        .file-picker-list-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 14px;
-        }
-
-        .file-picker-list-table th,
-        .file-picker-list-table td {
-            padding: 4px 8px;
-            text-align: left;
-            border-bottom: 1px solid #eee;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .file-picker-list-table th {
-            background-color: #f0f0f0;
-            font-weight: bold;
-            color: #333;
-            position: sticky;
-            top: 0;
-            z-index: 1;
-        }
-
-        .file-picker-list-table tr:hover {
-            background-color: #f5f5f5;
-        }
-
-        .file-picker-list-table td:nth-child(1) { width: 30px; text-align: center; } /* Icon */
-        .file-picker-list-table td:nth-child(2) { width: auto; } /* Name */
-        .file-picker-list-table td:nth-child(3) { width: 80px; text-align: right; } /* Size */
-        .file-picker-list-table td:nth-child(4) { width: 40px; text-align: center; } /* Checkbox */
-
-        .file-picker-list-table .file-name,
-        .file-picker-list-table .up-directory {
-            cursor: pointer;
-            color: #007bff;
-            text-decoration: none;
-        }
-
-        .file-picker-list-table .file-name:hover,
-        .file-picker-list-table .up-directory:hover {
-            text-decoration: underline;
-        }
-
-        .file-picker-list-table .file-icon {
-            font-size: 1.1em;
-            vertical-align: middle;
-        }
-
-        .file-picker-list-table .file-checkbox {
-            margin: 0;
-            vertical-align: middle;
-        }
-        
-        /* New Wrapper for Modal Dialogs */
-        .file-picker-dialog-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
-            display: none; /* Hidden by default */
-            align-items: center;
-            justify-content: center;
-            z-index: 99999999999;
-        }
-
-        /* Popup Message Styles */
-        .file-picker-popup {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: #4CAF50; /* Green for success */
-            color: white;
-            padding: 10px 20px;
-            border-radius: 5px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            z-index: 99999999999; /* Higher than overlay */
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
-        }
-
-        .file-picker-popup.show {
-            opacity: 1;
-            visibility: visible;
-        }
-
-        .file-picker-popup.error {
-            background-color: #f44336; /* Red for error */
-        }
-
-        /* Confirmation Dialog Styles */
-        .file-picker-confirm-dialog {
-            background-color: #fff;
-            border: 1px solid #ccc;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-            z-index: 99999999999; /* Above popup */
-            flex-direction: column;
-            gap: 15px;
-            min-width: 280px;
-            max-width: 90%;
-        }
-
-        .file-picker-confirm-dialog p {
-            margin: 0;
-            font-size: 1.1em;
-            color: #333;
-            text-align: center;
-        }
-
-        .file-picker-confirm-dialog-buttons {
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-        }
-
-        .file-picker-confirm-dialog-buttons button {
-            background-color: #007bff;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-            font-size: 1em;
-            min-width: 80px;
-        }
-
-        .file-picker-confirm-dialog-buttons button.cancel {
-            background-color: #6c757d;
-        }
-
-        .file-picker-confirm-dialog-buttons button:hover {
-            background-color: #0056b3;
-        }
-
-        .file-picker-confirm-dialog-buttons button.cancel:hover {
-            background-color: #5a6268;
-        }
-
-        /* Prompt Dialog Styles */
-        .file-picker-prompt-dialog {
-            background-color: #fff;
-            border: 1px solid #ccc;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-            z-index: 99999999999;
-            flex-direction: column;
-            gap: 15px;
-            min-width: 280px;
-            max-width: 90%;
-        }
-
-        .file-picker-prompt-dialog p {
-            margin: 0;
-            font-size: 1.1em;
-            color: #333;
-            text-align: center;
-        }
-
-        .file-picker-prompt-dialog input[type="text"] {
-            width: calc(100% - 16px); /* Adjust for padding */
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 1em;
-            box-sizing: border-box;
-        }
-
-        .file-picker-prompt-dialog-buttons {
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-        }
-
-        .file-picker-prompt-dialog-buttons button {
-            background-color: #007bff;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-            font-size: 1em;
-        }
-
-        .file-picker-prompt-dialog-buttons button.cancel {
-            background-color: #6c757d;
-        }
-
-        .file-picker-prompt-dialog-buttons button:hover {
-            background-color: #0056b3;
-        }
-
-        .file-picker-prompt-dialog-buttons button.cancel:hover {
-            background-color: #5a6268;
-        }
-    `;
-    document.head.appendChild(style);
-    stylesInjected = true;
-}
-
-// --- Helper Functions ---
-
-/**
- * Formats file size into a human-readable string.
- * @param {number} bytes The size in bytes.
- * @returns {string} Human-readable size.
- */
-function formatBytes(bytes) {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-}
-
-/**
- * Shows a temporary popup message.
- * @param {string} message The message to display.
- * @param {boolean} isError True if it's an error message, false for success.
- */
-function showPopupMessage(message, isError = false) {
-    let popup = document.getElementById('file-picker-global-popup');
-    if (!popup) {
-        popup = document.createElement('div');
-        popup.id = 'file-picker-global-popup';
-        popup.className = 'file-picker-popup';
-        document.body.appendChild(popup);
-    }
-
-    popup.textContent = message;
-    popup.classList.remove('error', 'show'); // Reset classes
-    if (isError) {
-        popup.classList.add('error');
-    }
-    popup.classList.add('show');
-
-    setTimeout(() => {
-        popup.classList.remove('show');
-    }, 3000); // Hide after 3 seconds
-}
-
-/**
- * Shows a confirmation dialog.
- * @param {string} message The confirmation message.
- * @returns {Promise<boolean>} Resolves to true if confirmed, false if canceled.
- */
-function showConfirmDialog(message) {
-    return new Promise(resolve => {
-        let dialog = document.getElementById('file-picker-global-confirm-dialog');
-        if (!dialog) {
-            dialog = document.createElement('div');
-            dialog.id = 'file-picker-global-confirm-dialog';
-            dialog.className = 'file-picker-confirm-dialog';
-            dialog.innerHTML = `
-                <p class="file-picker-confirm-message"></p>
-                <div class="file-picker-confirm-dialog-buttons">
-                    <button class="confirm-ok">OK</button>
-                    <button class="cancel">Cancel</button>
-                </div>
-            `;
-        }
-
-        const dialogOverlay = getDialogOverlay(); // Get the single overlay
-        dialogOverlay.innerHTML = '';
-        dialogOverlay.appendChild(dialog);
-
-        const messageEl = dialog.querySelector('.file-picker-confirm-message');
-        const okBtn = dialog.querySelector('.confirm-ok');
-        const cancelBtn = dialog.querySelector('.cancel');
-
-        messageEl.textContent = message;
-        dialogOverlay.style.display = 'flex';
-
-        const handleOk = () => {
-            dialogOverlay.style.display = 'none';
-            okBtn.removeEventListener('click', handleOk);
-            cancelBtn.removeEventListener('click', handleCancel);
-            resolve(true);
-        };
-        const handleCancel = () => {
-            dialogOverlay.style.display = 'none';
-            okBtn.removeEventListener('click', handleOk);
-            cancelBtn.removeEventListener('click', handleCancel);
-            resolve(false);
-        };
-
-        okBtn.addEventListener('click', handleOk);
-        cancelBtn.addEventListener('click', handleCancel);
-    });
-}
-
-/**
- * Shows a prompt dialog for text input.
- * @param {string} message The prompt message.
- * @param {string} defaultValue The default value for the input.
- * @returns {Promise<string|null>} Resolves to the input string if OK, null if canceled.
- */
-function showPromptDialog(message, defaultValue = '') {
-    return new Promise(resolve => {
-        let dialog = document.getElementById('file-picker-global-prompt-dialog');
-        if (!dialog) {
-            dialog = document.createElement('div');
-            dialog.id = 'file-picker-global-prompt-dialog';
-            dialog.className = 'file-picker-prompt-dialog';
-            dialog.innerHTML = `
-                <p class="file-picker-prompt-message"></p>
-                <input type="text" class="file-picker-prompt-input" />
-                <div class="file-picker-prompt-dialog-buttons">
-                    <button class="prompt-ok">OK</button>
-                    <button class="cancel">Cancel</button>
-                </div>
-            `;
-        }
-        
-        const dialogOverlay = getDialogOverlay(); // Get the single overlay
-        dialogOverlay.innerHTML = '';
-        dialogOverlay.appendChild(dialog);
-
-        const messageEl = dialog.querySelector('.file-picker-prompt-message');
-        const inputEl = dialog.querySelector('.file-picker-prompt-input');
-        const okBtn = dialog.querySelector('.prompt-ok');
-        const cancelBtn = dialog.querySelector('.cancel');
-
-        messageEl.textContent = message;
-        inputEl.value = defaultValue;
-        dialogOverlay.style.display = 'flex';
-        inputEl.focus();
-        inputEl.select(); // Select the default value
-
-        const cleanup = () => {
-            okBtn.removeEventListener('click', handleOk);
-            cancelBtn.removeEventListener('click', handleCancel);
-            inputEl.removeEventListener('keydown', handleKeyDown);
-            dialogOverlay.style.display = 'none';
-        };
-
-        const handleOk = () => {
-            cleanup();
-            resolve(inputEl.value);
-        };
-        const handleCancel = () => {
-            cleanup();
-            resolve(null);
-        };
-        const handleKeyDown = (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                handleOk();
-            } else if (e.key === 'Escape') {
-                e.preventDefault();
-                handleCancel();
-            }
-        };
-
-        okBtn.addEventListener('click', handleOk);
-        cancelBtn.addEventListener('click', handleCancel);
-        inputEl.addEventListener('keydown', handleKeyDown);
-    });
-}
-
-/**
- * Gets or creates a single, global overlay for all dialogs.
- * This prevents z-index issues and provides a consistent modal experience.
- * @returns {HTMLElement} The dialog overlay element.
- */
-function getDialogOverlay() {
-    let overlay = document.getElementById('file-picker-dialog-overlay');
-    if (!overlay) {
-        overlay = document.createElement('div');
-        overlay.id = 'file-picker-dialog-overlay';
-        overlay.className = 'file-picker-dialog-overlay';
-        document.body.appendChild(overlay);
-    }
-    return overlay;
-}
-
+// (No need for stylesInjected here, it's in filePickerUI.js)
+let currentPath = '/';
+let clipboard = { type: null, paths: [] };
+let _onFilePickHandler = null;
+let _onCancelHandler = null;
+let selectedFilePath = null;
 
 // --- Core File Picker Setup Function ---
 
@@ -546,20 +29,15 @@ function getDialogOverlay() {
  * @returns {HTMLElement} The outermost DOM element representing the file picker.
  */
 function setupFilePickerInstance(originalElement = null) {
-    injectStyles(); // Ensure styles are present
+    injectStyles();
 
     // --- State Variables (Per Instance) ---
-    let currentPath = '/';
-    let clipboard = { type: null, paths: [] }; // { type: 'copy' | 'cut', paths: ['/path/to/file1', ...] }
-    let _onFilePickHandler = null; // Internal reference for onFilePick
-    let _onCancelHandler = null; // Internal reference for onCancel
-    let selectedFilePath = null; // The path of the currently selected file
-
-    // --- Create DOM Elements ---
-    const pickerContainerWrapper = document.createElement('div');
-    pickerContainerWrapper.className = 'file-picker-container-wrapper';
-    pickerContainerWrapper.style.width = '100%';
-    pickerContainerWrapper.style.height = '100%';
+    // These need to be instance-specific, so they are re-declared here for each new instance.
+    let instanceCurrentPath = '/';
+    let instanceClipboard = { type: null, paths: [] };
+    let instanceOnFilePickHandler = null;
+    let instanceOnCancelHandler = null;
+    let instanceSelectedFilePath = null;
 
     // Store original attributes from <filepicker> for emulation
     let originalId = null;
@@ -567,148 +45,41 @@ function setupFilePickerInstance(originalElement = null) {
     let originalOnFilePickAttribute = null;
     let originalOnCancelAttribute = null;
     let originalButtonTextAttribute = null;
+    let initialFilePathAttribute = null;
+
 
     if (originalElement) {
         originalId = originalElement.id;
         originalClass = originalElement.className;
         originalOnFilePickAttribute = originalElement.getAttribute('onfilepick');
         originalOnCancelAttribute = originalElement.getAttribute('oncancel');
-        // MODIFIED: Changed attribute name to 'useFileButtonText'
         originalButtonTextAttribute = originalElement.getAttribute('useFileButtonText');
-
-        // Apply ID and Class attributes to the outermost container
-        if (originalId) {
-            pickerContainerWrapper.id = originalId;
-        }
-        if (originalClass) {
-            pickerContainerWrapper.className += ` ${originalClass}`; // Append existing classes
+        initialFilePathAttribute = originalElement.getAttribute('file-path');
+        if (initialFilePathAttribute) {
+            const pathParts = initialFilePathAttribute.split('/');
+            pathParts.pop(); // Remove the file name
+            instanceCurrentPath = pathParts.join('/') + (pathParts.length > 1 ? '/' : '');
+            if (pathParts.length === 1 && pathParts[0] === '') instanceCurrentPath = '/';
         }
     }
 
-    // New: Title Bar
-    const titleBarEl = document.createElement('div');
-    titleBarEl.className = 'file-picker-title-bar';
-    const titleTextEl = document.createElement('span');
-    titleBarEl.appendChild(titleTextEl);
-    titleTextEl.textContent = 'No file selected'; // Initial text
-    
-    // Menu Bar
-    const menuBar = document.createElement('table');
-    menuBar.className = 'file-picker-menu-bar';
-    const menuBarBody = document.createElement('tbody');
-    const menuBarRow = document.createElement('tr');
-
-    // Create File Button
-    const createButton = document.createElement('button');
-    createButton.innerHTML = '➕📄'; // Plus Sign and Page with Curl
-    createButton.title = 'Create New File';
-    const createCell = document.createElement('td');
-    createCell.appendChild(createButton);
-    menuBarRow.appendChild(createCell);
-
-    // Create Directory Button
-    const createDirectoryButton = document.createElement('button');
-    createDirectoryButton.innerHTML = '➕📁'; // Plus Sign and Folder
-    createDirectoryButton.title = 'Create New Directory';
-    const createDirectoryCell = document.createElement('td');
-    createDirectoryCell.appendChild(createDirectoryButton);
-    menuBarRow.appendChild(createDirectoryCell);
-
-    const copyButton = document.createElement('button');
-    copyButton.innerHTML = '📋'; // Clipboard icon
-    copyButton.title = 'Copy Selected';
-    copyButton.disabled = true; // Initially disabled
-    const copyCell = document.createElement('td');
-    copyCell.appendChild(copyButton);
-    menuBarRow.appendChild(copyCell);
-
-    const cutButton = document.createElement('button');
-    cutButton.innerHTML = '✂️'; // Scissors icon
-    cutButton.title = 'Cut Selected';
-    cutButton.disabled = true; // Initially disabled
-    const cutCell = document.createElement('td');
-    cutCell.appendChild(cutButton);
-    menuBarRow.appendChild(cutCell);
-
-    const pasteButton = document.createElement('button');
-    pasteButton.innerHTML = '📌'; // Pushpin icon (commonly used for paste)
-    pasteButton.title = 'Paste';
-    pasteButton.disabled = true; // Initially disabled, will be updated by updateButtonStates
-    const pasteCell = document.createElement('td');
-    pasteCell.appendChild(pasteButton);
-    menuBarRow.appendChild(pasteCell);
-
-    const deleteButton = document.createElement('button');
-    deleteButton.innerHTML = '🗑️'; // Trash can icon
-    deleteButton.title = 'Delete Selected';
-    deleteButton.disabled = true; // Initially disabled
-    const deleteCell = document.createElement('td');
-    deleteCell.appendChild(deleteButton);
-    menuBarRow.appendChild(deleteCell);
-
-    // Cancel Button
-    const cancelButton = document.createElement('button');
-    cancelButton.innerHTML = '✕'; // Multiplication X icon (commonly used for cancel)
-    cancelButton.title = 'Cancel';
-    const cancelCell = document.createElement('td');
-    cancelCell.appendChild(cancelButton);
-    menuBarRow.appendChild(cancelCell);
-    
-    // Use File Path Button
-    const usePathButton = document.createElement('button');
-    usePathButton.innerHTML = originalButtonTextAttribute || 'Use File';
-    usePathButton.title = originalButtonTextAttribute || 'Use Selected File Path';
-    usePathButton.disabled = true; // Initially disabled
-    const usePathCell = document.createElement('td');
-    usePathCell.appendChild(usePathButton);
-    menuBarRow.appendChild(usePathCell);
-
-
-    menuBarBody.appendChild(menuBarRow);
-    menuBar.appendChild(menuBarBody);
-
-    // Path Display
-    const pathDisplay = document.createElement('div');
-    pathDisplay.className = 'file-picker-path-display';
-    const currentPathSpan = document.createElement('span');
-    currentPathSpan.className = 'file-picker-current-path';
-    currentPathSpan.textContent = `Path: ${currentPath}`;
-    const refreshButton = document.createElement('button');
-    refreshButton.className = 'file-picker-refresh-button';
-    refreshButton.innerHTML = '🔄'; // Refresh icon
-    refreshButton.title = 'Refresh';
-
-    pathDisplay.appendChild(currentPathSpan);
-    pathDisplay.appendChild(refreshButton);
-
-    // File List Area
-    const listContainer = document.createElement('div');
-    listContainer.className = 'file-picker-list-container';
-    const fileListTable = document.createElement('table');
-    fileListTable.className = 'file-picker-list-table';
-    fileListTable.innerHTML = `
-        <thead>
-            <tr>
-                <th></th>
-                <th>Name</th>
-                <th>Size</th>
-                <th><input type="checkbox" class="file-picker-select-all-checkbox" title="Select All"></th>
-            </tr>
-        </thead>
-        <tbody>
-            </tbody>
-    `;
-    const fileListTbody = fileListTable.querySelector('tbody');
-    const selectAllCheckbox = fileListTable.querySelector('.file-picker-select-all-checkbox');
-
-
-    listContainer.appendChild(fileListTable);
-
-    // Append elements to construct the file picker DOM
-    pickerContainerWrapper.appendChild(titleBarEl); // Add title bar first
-    pickerContainerWrapper.appendChild(menuBar);
-    pickerContainerWrapper.appendChild(pathDisplay);
-    pickerContainerWrapper.appendChild(listContainer);
+    // --- Create DOM Elements and Get References ---
+    const pickerContainer = createPickerDOM(originalClass, originalId, instanceCurrentPath);
+    const titleTextEl = pickerContainer.querySelector('.file-picker-title-text');
+    const createFileButton = pickerContainer.querySelector('.create-file-btn');
+    const createDirectoryButton = pickerContainer.querySelector('.create-dir-btn');
+    const renameButton = pickerContainer.querySelector('.rename-btn');
+    const copyButton = pickerContainer.querySelector('.copy-btn');
+    const cutButton = pickerContainer.querySelector('.cut-btn');
+    const pasteButton = pickerContainer.querySelector('.paste-btn');
+    const deleteButton = pickerContainer.querySelector('.delete-btn');
+    const cancelButton = pickerContainer.querySelector('.cancel-btn');
+    const usePathButton = pickerContainer.querySelector('.use-path-btn');
+    const currentPathSpan = pickerContainer.querySelector('.file-picker-current-path');
+    const refreshButton = pickerContainer.querySelector('.file-picker-refresh-button');
+    const fileListTable = pickerContainer.querySelector('.file-picker-list-table');
+    const fileListTbody = pickerContainer.querySelector('.file-picker-list-table tbody');
+    const selectAllCheckbox = pickerContainer.querySelector('.file-picker-select-all-checkbox');
 
     /** Executes a string-based event handler from an HTML attribute. */
     const executeAttributeHandler = (handlerCode, scope, ...args) => {
@@ -722,11 +93,11 @@ function setupFilePickerInstance(originalElement = null) {
     };
 
     // Emulate 'onfilepick' property
-    Object.defineProperty(pickerContainerWrapper, 'onfilepick', {
-        get() { return _onFilePickHandler; },
+    Object.defineProperty(pickerContainer, 'onfilepick', {
+        get() { return instanceOnFilePickHandler; },
         set(newValue) {
             if (typeof newValue === 'function' || newValue === null) {
-                _onFilePickHandler = newValue;
+                instanceOnFilePickHandler = newValue;
             } else {
                 console.warn("Attempted to set onfilepick to a non-function value:", newValue);
             }
@@ -735,11 +106,11 @@ function setupFilePickerInstance(originalElement = null) {
     });
 
     // Emulate 'oncancel' property
-    Object.defineProperty(pickerContainerWrapper, 'oncancel', {
-        get() { return _onCancelHandler; },
+    Object.defineProperty(pickerContainer, 'oncancel', {
+        get() { return instanceOnCancelHandler; },
         set(newValue) {
             if (typeof newValue === 'function' || newValue === null) {
-                _onCancelHandler = newValue;
+                instanceOnCancelHandler = newValue;
             } else {
                 console.warn("Attempted to set oncancel to a non-function value:", newValue);
             }
@@ -747,12 +118,45 @@ function setupFilePickerInstance(originalElement = null) {
         configurable: true
     });
 
-    // MODIFIED: Changed property name to 'dom.buttonText'
-    Object.defineProperty(pickerContainerWrapper, 'dom.buttonText', {
+    // Emulate a 'filePath' property
+    Object.defineProperty(pickerContainer, 'filePath', {
+        get() { return instanceSelectedFilePath; },
+        set(newValue) {
+            if (typeof newValue === 'string') {
+                const normalizedPath = newValue.endsWith('/') ? newValue.slice(0, -1) : newValue;
+                const pathParts = normalizedPath.split('/');
+                pathParts.pop();
+                const dirPath = pathParts.join('/') + (pathParts.length > 1 ? '/' : '');
+                
+                renderFileList(dirPath || '/').then(() => {
+                    const checkbox = fileListTbody.querySelector(`.file-checkbox[data-path="${normalizedPath}"]`);
+                    const dirNameEl = fileListTbody.querySelector(`.file-name[data-path="${normalizedPath}"]`);
+                    
+                    if (checkbox) {
+                        checkbox.checked = true;
+                        instanceSelectedFilePath = normalizedPath;
+                        titleTextEl.textContent = normalizedPath;
+                    } else if (dirNameEl) {
+                        instanceSelectedFilePath = normalizedPath;
+                        titleTextEl.textContent = normalizedPath;
+                    } else {
+                        console.warn(`File or directory '${newValue}' not found.`);
+                        instanceSelectedFilePath = null;
+                        titleTextEl.textContent = 'No file selected';
+                    }
+                    updateButtonStates();
+                });
+            } else {
+                console.warn("Attempted to set filePath to a non-string value:", newValue);
+            }
+        },
+        configurable: true
+    });
+
+    Object.defineProperty(pickerContainer, 'dom.buttonText', {
         get() { return usePathButton.textContent; },
         set(newValue) {
             if (newValue && typeof newValue === 'string') {
-                usePathButton.textContent = newValue;
                 usePathButton.title = `Use Selected File Path (${newValue})`;
             }
         },
@@ -761,14 +165,13 @@ function setupFilePickerInstance(originalElement = null) {
 
     // Initialize handlers from attributes if present
     if (originalOnFilePickAttribute) {
-        pickerContainerWrapper.onfilepick = (e, filePath) => executeAttributeHandler(originalOnFilePickAttribute, pickerContainerWrapper, e, filePath);
+        pickerContainer.onfilepick = (e, filePath) => executeAttributeHandler(originalOnFilePickAttribute, pickerContainer, e, filePath);
     }
     if (originalOnCancelAttribute) {
-        pickerContainerWrapper.oncancel = (e) => executeAttributeHandler(originalOnCancelAttribute, pickerContainerWrapper, e);
+        pickerContainer.oncancel = (e) => executeAttributeHandler(originalOnCancelAttribute, pickerContainer, e);
     }
     if (originalButtonTextAttribute) {
-        // MODIFIED: Set the new property name
-        pickerContainerWrapper['dom.buttonText'] = originalButtonTextAttribute;
+        pickerContainer['dom.buttonText'] = originalButtonTextAttribute;
     }
 
 
@@ -776,26 +179,23 @@ function setupFilePickerInstance(originalElement = null) {
 
     /**
      * Updates button states based on selection and clipboard.
-     * **FIXED**: The logic for enabling the 'Use File Path' button has been corrected.
      */
     const updateButtonStates = () => {
-        // Get all checkboxes that are currently checked
         const selectedCheckboxes = fileListTbody.querySelectorAll('.file-checkbox:checked');
         const hasSelection = selectedCheckboxes.length > 0;
-        
-        // Enable/disable the file management buttons based on if anything is selected
+        const isSingleSelection = selectedCheckboxes.length === 1;
+
         copyButton.disabled = !hasSelection;
         cutButton.disabled = !hasSelection;
         deleteButton.disabled = !hasSelection;
+        renameButton.disabled = !isSingleSelection;
         
-        // Paste button is enabled if clipboard has items
-        pasteButton.disabled = clipboard.type === null || clipboard.paths.length === 0;
+        pasteButton.disabled = instanceClipboard.type === null || instanceClipboard.paths.length === 0;
 
-        // Use File Path button is ONLY enabled when a single file is selected
-        const isSingleFileSelected = selectedCheckboxes.length === 1 && selectedCheckboxes[0].closest('tr').querySelector('.file-name').textContent !== '..';
-        usePathButton.disabled = !isSingleFileSelected;
+        const isSingleItem = selectedCheckboxes.length === 1 || (instanceSelectedFilePath && !instanceSelectedFilePath.endsWith('/..') && !hasSelection);
+        const isGoUpDir = instanceSelectedFilePath && instanceSelectedFilePath.endsWith('/..');
+        usePathButton.disabled = !isSingleItem || isGoUpDir;
         
-        // "Select All" checkbox state
         const allCheckboxes = fileListTbody.querySelectorAll('.file-checkbox');
         const allFileCheckboxes = Array.from(allCheckboxes).filter(cb => !cb.closest('.up-directory-row'));
         selectAllCheckbox.checked = allFileCheckboxes.length > 0 && selectedCheckboxes.length === allFileCheckboxes.length;
@@ -807,84 +207,54 @@ function setupFilePickerInstance(originalElement = null) {
      * @param {string} path The path to list.
      */
     const renderFileList = async (path) => {
-        currentPath = path;
-        currentPathSpan.textContent = `Path: ${currentPath}`;
-        fileListTbody.innerHTML = ''; // Clear existing list
+        instanceCurrentPath = path;
+        currentPathSpan.textContent = `Path: ${instanceCurrentPath}`;
+        fileListTbody.innerHTML = '';
         selectAllCheckbox.checked = false;
         selectAllCheckbox.indeterminate = false;
 
-        // Clear title text and selection state
-        selectedFilePath = null;
+        instanceSelectedFilePath = null;
         titleTextEl.textContent = 'No file selected';
 
 
         try {
-            const files = await api.ls(currentPath === '/' ? '*' : `${currentPath.endsWith('/') ? currentPath + '*' : currentPath + '/*'}`);
-
-            // Add "Go Up" directory if not at root
-            if (currentPath !== '/') {
-                const upRow = fileListTbody.insertRow();
-                upRow.className = 'up-directory-row';
-                upRow.innerHTML = `
-                    <td>⬆️</td>
-                    <td class="file-name up-directory">..</td>
-                    <td></td>
-                    <td><input type="checkbox" class="file-checkbox" disabled></td>
+            const files = await api.ls(instanceCurrentPath === '/' ? '*' : `${instanceCurrentPath.endsWith('/') ? instanceCurrentPath + '*' : instanceCurrentPath + '/*'}`);
+            let fileListHtml = '';
+            if (instanceCurrentPath !== '/') {
+                const parentPath = instanceCurrentPath.split('/').slice(0, -2).join('/') + '/';
+                const upPath = parentPath === '//' ? '/' : parentPath;
+                fileListHtml += `
+                    <tr class="up-directory-row" data-type="directory">
+                        <td>⬆️</td>
+                        <td class="file-name up-directory" data-path="${upPath}">..</td>
+                        <td></td>
+                        <td><input type="checkbox" class="file-checkbox" data-path="${upPath}/.." disabled></td>
+                    </tr>
                 `;
-                upRow.querySelector('.file-name').addEventListener('click', () => {
-                    const parentPath = currentPath.split('/').slice(0, -2).join('/') + '/';
-                    renderFileList(parentPath === '//' ? '/' : parentPath); // Handle root case
-                });
             }
-
-            // Sort directories first, then files, both alphabetically
             files.sort((a, b) => {
                 if (a.type === 'directory' && b.type === 'file') return -1;
                 if (a.type === 'file' && b.type === 'directory') return 1;
                 return a.name.localeCompare(b.name);
             });
 
-
             files.forEach(file => {
-                const row = fileListTbody.insertRow();
                 const icon = file.type === 'directory' ? '📂' : '📄';
                 const size = file.type === 'file' ? formatBytes(file.size) : '';
-                const fullPath = currentPath === '/' ? `/${file.name}` : `${currentPath}${file.name}`;
+                const fullPath = instanceCurrentPath === '/' ? `/${file.name}` : `${instanceCurrentPath}${file.name}`;
+                const dataType = file.type === 'directory' ? 'data-type="directory"' : 'data-type="file"';
 
-
-                row.innerHTML = `
-                    <td class="file-icon">${icon}</td>
-                    <td class="file-name" data-path="${fullPath}">${file.name}</td>
-                    <td>${size}</td>
-                    <td><input type="checkbox" class="file-checkbox" data-path="${fullPath}"></td>
+                fileListHtml += `
+                    <tr ${dataType}>
+                        <td class="file-icon">${icon}</td>
+                        <td class="file-name" data-path="${fullPath}">${file.name}</td>
+                        <td class="file-size-cell">${size}</td>
+                        <td><input type="checkbox" class="file-checkbox" data-path="${fullPath}"></td>
+                    </tr>
                 `;
-
-                const nameCell = row.querySelector('.file-name');
-                const checkbox = row.querySelector('.file-checkbox');
-                
-                // Add click listener to the entire row
-                row.addEventListener('click', (e) => {
-                     // Check if the click was on the checkbox itself to avoid double-handling
-                    if (e.target.type === 'checkbox') {
-                        return;
-                    }
-
-                    if (file.type === 'directory') {
-                         const newPath = currentPath === '/' ? `/${file.name}/` : `${currentPath}${file.name}/`;
-                         renderFileList(newPath);
-                    } else {
-                        // For files, toggle the checkbox and update the selection state
-                        checkbox.checked = !checkbox.checked;
-                        updateSelectionState(fullPath);
-                    }
-                });
-
-                // Checkbox change listener
-                checkbox.addEventListener('change', () => {
-                    updateSelectionState(fullPath);
-                });
             });
-            updateButtonStates(); // Update after rendering new list
+            fileListTbody.innerHTML = fileListHtml;
+            updateButtonStates();
         } catch (error) {
             console.error("Error rendering file list:", error);
             showPopupMessage(`Error: ${error.message || 'Failed to list files.'}`, true);
@@ -894,10 +264,8 @@ function setupFilePickerInstance(originalElement = null) {
     
     /**
      * Updates the UI and state based on the current selection.
-     * @param {string} fullPath The full path of the selected file.
      */
     const updateSelectionState = (fullPath) => {
-        // Uncheck all other checkboxes to enforce single selection
         const checkboxes = fileListTbody.querySelectorAll('.file-checkbox');
         checkboxes.forEach(cb => {
             if (cb.dataset.path !== fullPath) {
@@ -908,29 +276,70 @@ function setupFilePickerInstance(originalElement = null) {
         const selectedCheckbox = fileListTbody.querySelector(`.file-checkbox[data-path="${fullPath}"]`);
         
         if (selectedCheckbox && selectedCheckbox.checked) {
-            selectedFilePath = fullPath;
+            instanceSelectedFilePath = fullPath;
             titleTextEl.textContent = fullPath;
         } else {
-            selectedFilePath = null;
-            titleTextEl.textContent = 'No file selected';
+            const selectedDirNameEl = fileListTbody.querySelector(`.file-name[data-path="${fullPath}"]`);
+            if (selectedDirNameEl) {
+                instanceSelectedFilePath = fullPath;
+                titleTextEl.textContent = fullPath;
+            } else {
+                instanceSelectedFilePath = null;
+                titleTextEl.textContent = 'No file selected';
+            }
         }
-        
         updateButtonStates();
     };
-
 
     /** Gets selected file/directory paths. */
     const getSelectedPaths = () => {
         const selectedCheckboxes = fileListTbody.querySelectorAll('.file-checkbox:checked');
-        return Array.from(selectedCheckboxes)
+        const paths = Array.from(selectedCheckboxes)
             .map(cb => cb.dataset.path)
-            .filter(name => name); // Filter out any empty names
+            .filter(name => name);
+        
+        if (instanceSelectedFilePath && !paths.includes(instanceSelectedFilePath)) {
+            paths.push(instanceSelectedFilePath);
+        }
+        return paths;
+    };
+    
+    /** Handles renaming a file or directory. */
+    const handleRename = async () => {
+        const selected = getSelectedPaths();
+        if (selected.length !== 1) {
+            showPopupMessage("Please select exactly one item to rename.", true);
+            return;
+        }
+
+        const oldPath = selected[0];
+        const oldName = oldPath.split('/').pop();
+        const newName = await showPromptDialog(`Rename '${oldName}' to:`, oldName);
+
+        if (newName === null || !newName.trim()) {
+            showPopupMessage("Rename cancelled.", true);
+            return;
+        }
+
+        // Correctly construct the new path based on the parent directory of the old path
+        const parentDir = oldPath.substring(0, oldPath.lastIndexOf('/') + 1);
+        const newPath = parentDir + newName;
+        
+        try {
+            // Use api.rn for renaming, which requires the new path to be in the same directory.
+            await api.rn(oldPath, newPath);
+            showPopupMessage(`Renamed '${oldName}' to '${newName}' successfully.`);
+            renderFileList(instanceCurrentPath);
+        } catch (error) {
+            console.error("Error renaming item:", error);
+            showPopupMessage(`Failed to rename: ${error.message}`, true);
+        }
     };
 
     /** Handles creating a new empty file. */
     const handleCreateFile = async () => {
         const fileName = await showPromptDialog('Enter new file name:');
-        if (fileName === null) { // User cancelled
+        if (fileName === null) {
             showPopupMessage("File creation cancelled.", true);
             return;
         }
@@ -939,11 +348,11 @@ function setupFilePickerInstance(originalElement = null) {
             return;
         }
 
-        const fullPath = currentPath === '/' ? `/${fileName}` : `${currentPath}${fileName}`;
+        const fullPath = instanceCurrentPath === '/' ? `/${fileName}` : `${instanceCurrentPath}${fileName}`;
         try {
-            await api.saveFile(fullPath, ''); // Save an empty string
+            await api.saveFile(fullPath, '');
             showPopupMessage(`File '${fileName}' created successfully.`);
-            renderFileList(currentPath); // Refresh the list
+            renderFileList(instanceCurrentPath);
         } catch (error) {
             console.error("Error creating file:", error);
             showPopupMessage(`Failed to create file '${fileName}': ${error.message}`, true);
@@ -953,7 +362,7 @@ function setupFilePickerInstance(originalElement = null) {
     /** Handles creating a new directory. */
     const handleCreateDirectory = async () => {
         const dirName = await showPromptDialog('Enter new directory name:');
-        if (dirName === null) { // User cancelled
+        if (dirName === null) {
             showPopupMessage("Directory creation cancelled.", true);
             return;
         }
@@ -962,12 +371,11 @@ function setupFilePickerInstance(originalElement = null) {
             return;
         }
 
-        // Ensure the directory path ends with a slash for mkPath
-        const fullPath = currentPath === '/' ? `/${dirName}/` : `${currentPath}${dirName}/`;
+        const fullPath = instanceCurrentPath === '/' ? `/${dirName}/` : `${instanceCurrentPath}${dirName}/`;
         try {
             await api.mkPath(fullPath);
             showPopupMessage(`Directory '${dirName}' created successfully.`);
-            renderFileList(currentPath); // Refresh the list
+            renderFileList(instanceCurrentPath);
         } catch (error) {
             console.error("Error creating directory:", error);
             showPopupMessage(`Failed to create directory '${dirName}': ${error.message}`, true);
@@ -982,10 +390,10 @@ function setupFilePickerInstance(originalElement = null) {
             showPopupMessage("No items selected to copy.", true);
             return;
         }
-        clipboard.type = 'copy';
-        clipboard.paths = selected.map(name => name);
+        instanceClipboard.type = 'copy';
+        instanceClipboard.paths = selected;
         showPopupMessage(`Copied ${selected.length} item(s) to clipboard.`);
-        updateButtonStates(); // Update to enable paste
+        updateButtonStates();
     };
 
     /** Performs a cut operation. */
@@ -995,52 +403,51 @@ function setupFilePickerInstance(originalElement = null) {
             showPopupMessage("No items selected to cut.", true);
             return;
         }
-        clipboard.type = 'cut';
-        clipboard.paths = selected.map(name => name);
+        instanceClipboard.type = 'cut';
+        instanceClipboard.paths = selected;
         showPopupMessage(`Cut ${selected.length} item(s) to clipboard.`);
-        updateButtonStates(); // Update to enable paste
+        updateButtonStates();
     };
 
     /** Performs a paste operation. */
     const handlePaste = async () => {
-        if (clipboard.type === null || clipboard.paths.length === 0) {
+        if (instanceClipboard.type === null || instanceClipboard.paths.length === 0) {
             showPopupMessage("Clipboard is empty.", true);
             return;
         }
 
-        const destination = currentPath.endsWith('/') ? currentPath : currentPath + '/';
+        const destination = instanceCurrentPath.endsWith('/') ? instanceCurrentPath : instanceCurrentPath + '/';
         let successCount = 0;
         let failCount = 0;
 
-        for (const sourcePath of clipboard.paths) {
+        for (const sourcePath of instanceClipboard.paths) {
             try {
-                if (clipboard.type === 'copy') {
+                if (instanceClipboard.type === 'copy') {
                     await api.copy(sourcePath, destination);
                     showPopupMessage(`Copied ${sourcePath.split('/').pop()} to ${destination}`);
-                } else if (clipboard.type === 'cut') {
+                } else if (instanceClipboard.type === 'cut') {
                     await api.mv(sourcePath, destination);
                     showPopupMessage(`Moved ${sourcePath.split('/').pop()} to ${destination}`);
                 }
                 successCount++;
             } catch (error) {
                 console.error(`Error during paste operation for ${sourcePath}:`, error);
-                showPopupMessage(`Failed to ${clipboard.type} ${sourcePath.split('/').pop()}: ${error.message}`, true);
+                showPopupMessage(`Failed to ${instanceClipboard.type} ${sourcePath.split('/').pop()}: ${error.message}`, true);
                 failCount++;
             }
         }
 
         if (successCount > 0) {
-            showPopupMessage(`${successCount} item(s) ${clipboard.type}ed successfully.`);
+            showPopupMessage(`${successCount} item(s) ${instanceClipboard.type}ed successfully.`);
         }
         if (failCount > 0) {
-            showPopupMessage(`${failCount} item(s) failed to ${clipboard.type}.`, true);
+            showPopupMessage(`${failCount} item(s) failed to ${instanceClipboard.type}.`, true);
         }
 
-        // Clear clipboard after cut, not after copy
-        if (clipboard.type === 'cut') {
-            clipboard = { type: null, paths: [] };
+        if (instanceClipboard.type === 'cut') {
+            instanceClipboard = { type: null, paths: [] };
         }
-        renderFileList(currentPath); // Refresh the view
+        renderFileList(instanceCurrentPath);
         updateButtonStates();
     };
 
@@ -1052,7 +459,7 @@ function setupFilePickerInstance(originalElement = null) {
             return;
         }
 
-        const message = currentPath.startsWith('/trash/')
+        const message = instanceCurrentPath.startsWith('/trash/')
             ? `Are you sure you want to permanently delete ${selected.length} selected item(s)? This action cannot be undone.`
             : `Are you sure you want to move ${selected.length} selected item(s) to /trash?`;
 
@@ -1067,8 +474,7 @@ function setupFilePickerInstance(originalElement = null) {
 
         for (const name of selected) {
             try {
-                // If in /trash, delete permanently, otherwise move to trash
-                if (currentPath.startsWith('/trash/')) {
+                if (instanceCurrentPath.startsWith('/trash/')) {
                     await api.del(name);
                 } else {
                     await api.mv(name, '/trash/');
@@ -1082,39 +488,36 @@ function setupFilePickerInstance(originalElement = null) {
         }
 
         if (successCount > 0) {
-            showPopupMessage(`${successCount} item(s) ${currentPath.startsWith('/trash/') ? 'deleted permanently' : 'moved to trash'} successfully.`);
+            showPopupMessage(`${successCount} item(s) ${instanceCurrentPath.startsWith('/trash/') ? 'deleted permanently' : 'moved to trash'} successfully.`);
         }
         if (failCount > 0) {
             showPopupMessage(`${failCount} item(s) failed to delete/move.`, true);
         }
 
-        renderFileList(currentPath); // Refresh the view
+        renderFileList(instanceCurrentPath);
         updateButtonStates();
     };
 
     // Handle "Use File Path" operation
     const handleUsePath = (e) => {
-        if (!selectedFilePath) {
+        if (!instanceSelectedFilePath) {
             showPopupMessage("No file is currently selected.", true);
             return;
         }
 
-        // Call dynamically set onfilepick handler
-        if (_onFilePickHandler) {
+        if (instanceOnFilePickHandler) {
             try {
-                _onFilePickHandler.call(pickerContainerWrapper, e, selectedFilePath);
+                instanceOnFilePickHandler.call(pickerContainer, e, instanceSelectedFilePath);
             } catch (err) {
                 console.error("Error executing programmatic onfilepick handler:", err);
             }
         }
-        // Call original onfilepick handler from HTML attribute
         if (originalOnFilePickAttribute) {
-            executeAttributeHandler(originalOnFilePickAttribute, pickerContainerWrapper, e, selectedFilePath);
+            executeAttributeHandler(originalOnFilePickAttribute, pickerContainer, e, instanceSelectedFilePath);
         }
 
-        // Dispatch a custom 'filepick' event
-        pickerContainerWrapper.dispatchEvent(new CustomEvent('filepick', {
-            detail: { filePath: selectedFilePath },
+        pickerContainer.dispatchEvent(new CustomEvent('filepick', {
+            detail: { filePath: instanceSelectedFilePath },
             bubbles: true,
             composed: true
         }));
@@ -1122,21 +525,18 @@ function setupFilePickerInstance(originalElement = null) {
 
     // Handle "Cancel" operation
     const handleCancel = (e) => {
-        // Call dynamically set oncancel handler
-        if (_onCancelHandler) {
+        if (instanceOnCancelHandler) {
             try {
-                _onCancelHandler.call(pickerContainerWrapper, e);
+                instanceOnCancelHandler.call(pickerContainer, e);
             } catch (err) {
                 console.error("Error executing programmatic oncancel handler:", err);
             }
         }
-        // Call original oncancel handler from HTML attribute
         if (originalOnCancelAttribute) {
-            executeAttributeHandler(originalOnCancelAttribute, pickerContainerWrapper, e);
+            executeAttributeHandler(originalOnCancelAttribute, pickerContainer, e);
         }
 
-        // Dispatch a custom 'cancel' event
-        pickerContainerWrapper.dispatchEvent(new CustomEvent('cancel', {
+        pickerContainer.dispatchEvent(new CustomEvent('cancel', {
             bubbles: true,
             composed: true
         }));
@@ -1145,63 +545,107 @@ function setupFilePickerInstance(originalElement = null) {
 
     // --- Event Listeners ---
 
-    // Initial render
-    renderFileList(currentPath);
-    updateButtonStates(); // Set initial button states
+    if (initialFilePathAttribute) {
+        pickerContainer.filePath = initialFilePathAttribute;
+    } else {
+        renderFileList(instanceCurrentPath);
+    }
+    updateButtonStates();
 
-    // Menu button handlers
-    createButton.addEventListener('click', handleCreateFile);
+    createFileButton.addEventListener('click', handleCreateFile);
     createDirectoryButton.addEventListener('click', handleCreateDirectory);
+    renameButton.addEventListener('click', handleRename);
     copyButton.addEventListener('click', handleCopy);
     cutButton.addEventListener('click', handleCut);
     pasteButton.addEventListener('click', handlePaste);
     deleteButton.addEventListener('click', handleDelete);
-    refreshButton.addEventListener('click', () => renderFileList(currentPath));
+    refreshButton.addEventListener('click', () => renderFileList(instanceCurrentPath));
     cancelButton.addEventListener('click', handleCancel);
     usePathButton.addEventListener('click', handleUsePath);
 
-    // Select All checkbox
     selectAllCheckbox.addEventListener('change', (e) => {
         const isChecked = e.target.checked;
         const checkboxes = fileListTbody.querySelectorAll('.file-checkbox');
         checkboxes.forEach(cb => {
-            if (!cb.disabled) { // Don't change disabled checkboxes (like ".." up directory)
+            if (!cb.disabled) {
                 cb.checked = isChecked;
             }
         });
 
-        // Update selectedFilePath and title based on multi-selection
         if (isChecked && checkboxes.length > 0) {
-            selectedFilePath = "Multiple files selected";
-            titleTextEl.textContent = selectedFilePath;
+            instanceSelectedFilePath = "Multiple files selected";
+            titleTextEl.textContent = instanceSelectedFilePath;
         } else {
-            selectedFilePath = null;
+            instanceSelectedFilePath = null;
             titleTextEl.textContent = 'No file selected';
         }
-
         updateButtonStates();
     });
 
-    // Event delegation for individual file checkboxes to also trigger updateSelectionState
-    fileListTbody.addEventListener('change', (e) => {
-        if (e.target.classList.contains('file-checkbox')) {
-             // For single selection, update the state based on the checked checkbox
-            const fullPath = e.target.dataset.path;
-            if (e.target.checked) {
+    fileListTbody.addEventListener('click', (e) => {
+        const targetRow = e.target.closest('tr');
+        if (!targetRow) return;
+
+        const nameCell = targetRow.querySelector('.file-name');
+        const checkbox = targetRow.querySelector('.file-checkbox');
+
+        if (targetRow.classList.contains('up-directory-row')) {
+            const upPath = nameCell.dataset.path;
+            renderFileList(upPath);
+            return;
+        }
+
+        if (nameCell && !e.target.classList.contains('file-checkbox')) {
+            const fullPath = nameCell.dataset.path;
+            const isDirectory = targetRow.dataset.type === 'directory';
+
+            if (isDirectory) {
                 updateSelectionState(fullPath);
+                renderFileList(fullPath + '/');
             } else {
-                // If the user unchecks the last item, clear the selection
-                const checkedCount = fileListTbody.querySelectorAll('.file-checkbox:checked').length;
-                if (checkedCount === 0) {
-                    selectedFilePath = null;
-                    titleTextEl.textContent = 'No file selected';
-                    updateButtonStates();
-                }
+                checkbox.checked = !checkbox.checked;
+                updateSelectionState(fullPath);
             }
         }
     });
 
-    return pickerContainerWrapper;
+    fileListTbody.addEventListener('change', (e) => {
+        if (e.target.classList.contains('file-checkbox')) {
+            const fullPath = e.target.dataset.path;
+            const checkedCount = fileListTbody.querySelectorAll('.file-checkbox:checked').length;
+            if (e.target.checked) {
+                updateSelectionState(fullPath);
+            } else {
+                if (checkedCount === 0) {
+                    instanceSelectedFilePath = null;
+                    titleTextEl.textContent = 'No file selected';
+                } else {
+                    instanceSelectedFilePath = 'Multiple files selected';
+                    titleTextEl.textContent = instanceSelectedFilePath;
+                }
+            }
+            updateButtonStates();
+        }
+    });
+
+    // Handle resizing for responsiveness
+    const checkResize = () => {
+        const containerWidth = pickerContainer.offsetWidth;
+        const sizeCells = fileListTable.querySelectorAll('.file-size-cell');
+        
+        if (containerWidth < 400) {
+            fileListTable.querySelector('thead th:nth-child(3)').style.display = 'none';
+            sizeCells.forEach(cell => cell.style.display = 'none');
+        } else {
+            fileListTable.querySelector('thead th:nth-child(3)').style.display = 'table-cell';
+            sizeCells.forEach(cell => cell.style.display = 'table-cell');
+        }
+    };
+
+    const resizeObserver = new ResizeObserver(checkResize);
+    resizeObserver.observe(pickerContainer);
+
+    return pickerContainer;
 }
 
 // --- Public function to create a new file picker programmatically. ---
@@ -1211,7 +655,6 @@ function setupFilePickerInstance(originalElement = null) {
  * @returns {HTMLElement} The outermost DOM element representing the file picker.
  */
 export function createfilePicker() {
-    // Encapsulate the file picker in a dialog wrapper for modal behavior
     const dialogWrapper = document.createElement('div');
     dialogWrapper.className = 'file-picker-dialog-wrapper';
     dialogWrapper.style.position = 'fixed';
@@ -1232,13 +675,11 @@ export function createfilePicker() {
 
 
 // --- DOM Observation for <filepicker> tags ---
-
 /**
  * Observes the DOM for `<filepicker>` elements, converts them into
  * enhanced file pickers, and handles dynamically added elements.
  */
 function observeFilePickerElements() {
-    // Initial scan for existing <filepicker> elements on page load
     document.querySelectorAll('filepicker').forEach(filepickerElement => {
         const parentContainer = filepickerElement.parentNode;
         if (parentContainer) {
@@ -1249,12 +690,10 @@ function observeFilePickerElements() {
         }
     });
 
-    // MutationObserver to detect dynamically added <filepicker> elements
     const observer = new MutationObserver(mutations => {
         mutations.forEach(mutation => {
             if (mutation.type === 'childList') {
                 mutation.addedNodes.forEach(node => {
-                    // Check if the added node itself is a <filepicker>
                     if (node.nodeType === 1 && node.tagName === 'FILEPICKER') {
                         const parentContainer = node.parentNode;
                         if (parentContainer) {
@@ -1262,7 +701,6 @@ function observeFilePickerElements() {
                             parentContainer.replaceChild(pickerDom, node);
                         }
                     } else if (node.nodeType === 1) {
-                        // Check for <filepicker> elements within added subtrees
                         node.querySelectorAll('filepicker').forEach(filepickerElement => {
                             const parentContainer = filepickerElement.parentNode;
                             if (parentContainer) {
@@ -1276,8 +714,6 @@ function observeFilePickerElements() {
         });
     });
 
-    // Start observing the document body for child list changes (additions/removals)
-    // and subtree changes (important for deeply nested additions)
     observer.observe(document.body, {
         childList: true,
         subtree: true
@@ -1285,9 +721,9 @@ function observeFilePickerElements() {
 }
 
 // --- Initialize on DOMContentLoaded ---
-// Ensures the DOM is fully loaded before trying to find and replace elements
 document.addEventListener('DOMContentLoaded', () => {
     observeFilePickerElements();
 });
+
 
 

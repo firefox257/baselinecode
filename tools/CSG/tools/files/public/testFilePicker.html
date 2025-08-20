@@ -1,5 +1,6 @@
 
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -34,7 +35,8 @@
         <filepicker
             id="basicPicker"
             onfilepick="handleFilePick(event, filePath)"
-            oncancel="handleCancel(event)">
+            oncancel="handleCancel(event)"
+            file-path="/test_folder/test.txt">
         </filepicker>
     </div>
 
@@ -45,7 +47,8 @@
             id="customPicker"
             data-button-text="Save As"
             onfilepick="handleSaveAs(event, filePath)"
-            oncancel="handleCancel(event)">
+            oncancel="handleCancel(event)"
+            file-path="/another_folder/">
         </filepicker>
     </div>
 
@@ -86,6 +89,7 @@
             // Create a new file picker instance programmatically
             const myPicker = createfilePicker();
             myPicker.buttonText = "Load"; // Set custom button text via property
+            myPicker.filePath = '/example_path/example.json'; // Set initial path programmatically
             myPicker.onfilepick = (event, filePath) => {
                 alert(`Programmatic Picker: File loaded from ${filePath}`);
                 console.log('Programmatic File Pick Event:', event);
@@ -103,5 +107,3 @@
     </script>
 </body>
 </html>
-
-
