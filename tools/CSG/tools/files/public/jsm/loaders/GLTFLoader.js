@@ -2376,7 +2376,7 @@ function addUnknownExtensionsToUserData( knownExtensions, object, objectDef ) {
 /**
  *
  * @private
- * @param {Object3D|Material|BufferGeometry|Object} object
+ * @param {Object3D|Material|BufferGeometry|Object|AnimationClip} object
  * @param {GLTF.definition} gltfDef
  */
 function assignExtrasToUserData( object, gltfDef ) {
@@ -4213,7 +4213,11 @@ class GLTFParser {
 
 			}
 
-			return new AnimationClip( animationName, undefined, tracks );
+			const animation = new AnimationClip( animationName, undefined, tracks );
+
+			assignExtrasToUserData( animation, animationDef );
+
+			return animation;
 
 		} );
 
@@ -4450,6 +4454,11 @@ class GLTFParser {
 			if ( ! parser.associations.has( node ) ) {
 
 				parser.associations.set( node, {} );
+
+			} else if ( nodeDef.mesh !== undefined && parser.meshCache.refs[ nodeDef.mesh ] > 1 ) {
+
+				const mapping = parser.associations.get( node );
+				parser.associations.set( node, { ...mapping } );
 
 			}
 

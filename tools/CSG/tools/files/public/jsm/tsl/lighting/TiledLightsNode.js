@@ -234,8 +234,8 @@ class TiledLightsNode extends LightsNode {
 		const lightingModel = builder.context.reflectedLight;
 
 		// force declaration order, before of the loop
-		lightingModel.directDiffuse.append();
-		lightingModel.directSpecular.append();
+		lightingModel.directDiffuse.toStack();
+		lightingModel.directSpecular.toStack();
 
 		super.setupLights( builder, lightNodes );
 
@@ -262,7 +262,7 @@ class TiledLightsNode extends LightsNode {
 
 			} );
 
-		} )().append();
+		}, 'void' )();
 
 	}
 
@@ -322,7 +322,7 @@ class TiledLightsNode extends LightsNode {
 		const lightsTexture = new DataTexture( lightsData, lightsData.length / 8, 2, RGBAFormat, FloatType );
 
 		const lightIndexesArray = new Int32Array( count * 4 * 2 );
-		const lightIndexes = attributeArray( lightIndexesArray, 'ivec4' ).label( 'lightIndexes' );
+		const lightIndexes = attributeArray( lightIndexesArray, 'ivec4' ).setName( 'lightIndexes' );
 
 		// compute
 

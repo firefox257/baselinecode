@@ -149,6 +149,8 @@
     }
   </style>
 
+  <!--keep do not remove
+  
   <script type="importmap">
     {
       "imports": {
@@ -159,6 +161,20 @@
       }
     }
   </script>
+  -->
+  
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./build/three.module.js",
+        "three/addons/": "./jsm/",
+        "three-mesh-bvh": "./js/mesh-bvh.js",
+        "three-bvh-csg": "./js/csg-bvh.js"
+      }
+    }
+  </script>
+  
+  
 </head>
 <body>
 
@@ -280,20 +296,46 @@ return cube([40, 50, 60]);
     const canvas = document.getElementById('three-canvas');
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     renderer.setClearColor(0x1e1e1e);
+    // Remove or comment out these lines
+    // renderer.shadowMap.enabled = true;
+    // renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 2000);
-    camera.position.set(0, 50, 50);
+    
+	camera.position.set(0, 50, 50);
     camera.lookAt(0, 0, 0);
+	
+	
+	
     const controls = new OrbitControls(camera, canvas);
     controls.enableDamping = true;
     controls.dampingFactor = 0.1;
 
     // --- 3-Point Lighting ---
-    const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
-    const fillLight = new THREE.DirectionalLight(0xffffff, 0.7);
-    const backLight = new THREE.DirectionalLight(0xffffff, 0.5);
-    const ambient = new THREE.AmbientLight(0x404040, 1.2);
-    scene.add(keyLight, fillLight, backLight, ambient);
+	
+	// Add a new PointLight with decay of 1.5
+    const keyLight = new THREE.PointLight(0xffffff, 7, 1000, 0.2);
+    //keyLight.position.set(200, 0, 200); // Position it at the camera's local origin
+    //camera.add(newPointLight); // Attach the light to the camera
+
+	
+	
+    //const keyLight = new THREE.DirectionalLight(0xffffff, 2);
+	//keyLight.position.set(1000,1500,0);
+    // Remove this line
+    // keyLight.castShadow = true;
+    //const fillLight = new THREE.DirectionalLight(0xffffff, 1);
+    // Remove this line
+    // fillLight.castShadow = true;
+    //const backLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    // Remove this line
+    // backLight.castShadow = true;
+    //keyLight.decay = 1.6;
+    //fillLight.decay = 1.6;
+    //backLight.decay = 1.6;
+    //const ambient = new THREE.AmbientLight(0x404040, 1.2);
+    scene.add(keyLight);//fillLight, backLight, ambient);
     
     // --- Vertical Line at Origin (Y-axis) ---
     const originLineMaterial = new THREE.LineBasicMaterial({ color: 0x555555 });
@@ -832,11 +874,25 @@ return cube([40, 50, 60]);
 
         // --- NEW LOGIC TO HANDLE ALL RETURN TYPES ---
         if (result instanceof THREE.Object3D || result instanceof Brush) {
+            result.traverse(node => {
+                if (node.isMesh) {
+                    // Remove or comment out these lines
+                    // node.castShadow = true;
+                    // node.receiveShadow = true;
+                }
+            });
           scene.add(result);
           currentObjects.push(result);
         } else if (Array.isArray(result)) {
           result.forEach(obj => {
             if (obj instanceof THREE.Object3D || obj instanceof Brush) {
+                obj.traverse(node => {
+                    if (node.isMesh) {
+                        // Remove or comment out these lines
+                        // node.castShadow = true;
+                        // node.receiveShadow = true;
+                    }
+                });
               scene.add(obj);
               currentObjects.push(obj);
             }
@@ -845,6 +901,13 @@ return cube([40, 50, 60]);
           for (const key in result) {
             const item = result[key];
             if (item && item.data && (item.data instanceof THREE.Object3D || item.data instanceof Brush) && item.show === true) {
+                item.data.traverse(node => {
+                    if (node.isMesh) {
+                        // Remove or comment out these lines
+                        // node.castShadow = true;
+                        // node.receiveShadow = true;
+                    }
+                });
               scene.add(item.data);
               currentObjects.push(item.data);
             }
@@ -852,7 +915,7 @@ return cube([40, 50, 60]);
         }
         // --- END OF NEW LOGIC ---
 
-        console.log('CSG executed:', result);
+        //console.log('CSG executed:', result);
       } catch (err) {
         console.error('CSG Error:', err);
         alert('CSG Error:\n' + err.message);
@@ -887,8 +950,8 @@ return cube([40, 50, 60]);
       camera.getWorldDirection(cameraDirection);
 
       keyLight.position.copy(camera.position).add(cameraDirection.multiplyScalar(-10));
-      fillLight.position.copy(camera.position).add(cameraDirection.multiplyScalar(5)).add(new THREE.Vector3().set(0, 5, 0));
-      backLight.position.copy(camera.position).add(cameraDirection.multiplyScalar(10));
+      //fillLight.position.copy(camera.position).add(cameraDirection.multiplyScalar(5)).add(new THREE.Vector3().set(0, 5, 0));
+      //backLight.position.copy(camera.position).add(cameraDirection.multiplyScalar(10));
 
       renderer.render(scene, camera);
     }
