@@ -1,5 +1,6 @@
 
 
+
 // ./ux/textCode.js
 
 import {
@@ -125,9 +126,63 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
     } else {
         titleBarRow.style.display = 'none';
     }
-    runButton.parentElement.style.display = (originalOnRunAttribute !== null) ? 'table-cell' : 'none';
-    saveButton.parentElement.style.display = (originalOnSaveAttribute !== null) ? 'table-cell' : 'none';
-    closeButton.parentElement.style.display = (originalOnCloseAttribute !== null) ? 'table-cell' : 'none';
+
+    // --- INTERCEPT AND WRAP addEventListener/removeEventListener ---
+    const originalAddEventListener = editorContainerWrapper.addEventListener;
+    const originalRemoveEventListener = editorContainerWrapper.removeEventListener;
+
+    const eventListenerCount = {
+        run: 0,
+        save: 0,
+        close: 0
+    };
+
+    const updateButtonVisibility = (type) => {
+        const button = {
+            run: runButton.parentElement,
+            save: saveButton.parentElement,
+            close: closeButton.parentElement
+        }[type];
+
+        if (button) {
+            button.style.display = (eventListenerCount[type] > 0) ? 'table-cell' : 'none';
+        }
+    };
+    
+    editorContainerWrapper.__addEventListener = originalAddEventListener.bind(editorContainerWrapper);
+    editorContainerWrapper.__removeEventListener = originalRemoveEventListener.bind(editorContainerWrapper);
+    
+    editorContainerWrapper.addEventListener = function(type, listener, options) {
+        if (eventListenerCount.hasOwnProperty(type)) {
+            eventListenerCount[type]++;
+            updateButtonVisibility(type);
+        }
+        this.__addEventListener(type, listener, options);
+    };
+
+    editorContainerWrapper.removeEventListener = function(type, listener, options) {
+        if (eventListenerCount.hasOwnProperty(type)) {
+            eventListenerCount[type]--;
+            updateButtonVisibility(type);
+        }
+        this.__removeEventListener(type, listener, options);
+    };
+    // --- END INTERCEPT ---
+    
+    // Set initial button visibility based on original attributes
+    if (originalOnRunAttribute) {
+        eventListenerCount.run++;
+    }
+    if (originalOnSaveAttribute) {
+        eventListenerCount.save++;
+    }
+    if (originalOnCloseAttribute) {
+        eventListenerCount.close++;
+    }
+    updateButtonVisibility('run');
+    updateButtonVisibility('save');
+    updateButtonVisibility('close');
+
 
     // --- Emulate 'value', 'oninput', 'onchange', 'onsave', 'onclose', 'onrun', 'values', and 'valuesIndex' properties ---
     Object.defineProperty(editorContainerWrapper, 'value', {
@@ -241,7 +296,8 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
         set(newValue) {
             if (typeof newValue === 'function' || newValue === null) {
                 _onSaveHandler = newValue;
-                saveButton.parentElement.style.display = 'table-cell';
+                eventListenerCount.save++;
+                updateButtonVisibility('save');
             } else {
                 console.warn("Attempted to set onsave to a non-function value:", newValue);
             }
@@ -254,7 +310,8 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
         set(newValue) {
             if (typeof newValue === 'function' || newValue === null) {
                 _onCloseHandler = newValue;
-                closeButton.parentElement.style.display = 'table-cell';
+                eventListenerCount.close++;
+                updateButtonVisibility('close');
             } else {
                 console.warn("Attempted to set onclose to a non-function value:", newValue);
             }
@@ -267,7 +324,8 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
         set(newValue) {
             if (typeof newValue === 'function' || newValue === null) {
                 _onRunHandler = newValue;
-                runButton.parentElement.style.display = 'table-cell';
+                eventListenerCount.run++;
+                updateButtonVisibility('run');
             } else {
                 console.warn("Attempted to set onrun to a non-function value:", newValue);
             }
@@ -465,9 +523,9 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
 
         // Adjust visibility for optional buttons in the main menu
         if (menuName === 'main') {
-            runButton.parentElement.style.display = (originalOnRunAttribute !== null) ? 'table-cell' : 'none';
-            saveButton.parentElement.style.display = (originalOnSaveAttribute !== null) ? 'table-cell' : 'none';
-            closeButton.parentElement.style.display = (originalOnCloseAttribute !== null) ? 'table-cell' : 'none';
+            updateButtonVisibility('run');
+            updateButtonVisibility('save');
+            updateButtonVisibility('close');
         }
     };
 
@@ -709,7 +767,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
                 const lineContentWhereBracketWasTyped = lines[targetLineIndex];
                 const trimmedLine = lineContentWhereBracketWasTyped.trim();
                 let hasOpeningCounterpart = false;
-                switch (lastTypedChar) {
+                switch (trimmedLine[0]) {
                     case '}':
                         hasOpeningCounterpart = lineContentWhereBracketWasTyped.includes('{');
                         break;
@@ -721,8 +779,10 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
                         break;
                 }
                 if (trimmedLine === lastTypedChar ||
-                    (!hasOpeningCounterpart && lineContentWhereBracketWasTyped.endsWith(lastTypedChar))
+                    (!hasOpeningCounterpart && lineContentWhereBracketWasTyped.startsWith(lastTypedChar))
                 ) {
+					
+					
                     shouldDeindentClosingBracket = true;
                 }
             }
@@ -784,26 +844,107 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
             lastTypedChar = '';
         }
     });
+	
+	beautifyButton.addEventListener('click', () => {
+		
+		const originalScrollTop = contentDiv.scrollTop;
+		const originalScrollLeft = contentDiv.scrollLeft;
 
-    beautifyButton.addEventListener('click', () => {
+		
+		
         const lines = contentDiv.textContent.split('\n');
         let beautifiedLines = [];
         let currentIndentLevel = 0;
+		//skip inside of strings
+		var isAtStr= false;
+		var atStrChar;
+        var isAtMultiComment=false;
         lines.forEach(line => {
             const trimmedLine = line.trim();
             if (trimmedLine.length === 0) {
                 beautifiedLines.push('');
                 return;
             }
-            if (trimmedLine.length > 0 && (trimmedLine.startsWith('}') || trimmedLine.startsWith(']') || trimmedLine.startsWith(')'))) {
+            // Check for closing brackets at the start of the line, which should de-indent
+            // skip because tab accounted for closing bracket.
+			var skipBracket=0;
+			if (!isAtStr&&!isAtMultiComment&&trimmedLine.length > 0 && (trimmedLine.startsWith('}') || trimmedLine.startsWith(']') || trimmedLine.startsWith(')'))) {
                 currentIndentLevel = Math.max(0, currentIndentLevel - 1);
+				skipBracket=1;
             }
-            const indent = '\t'.repeat(currentIndentLevel);
-            beautifiedLines.push(indent + trimmedLine);
-            currentIndentLevel += (trimmedLine.match(/[{[(]/g) || []).length;
-            currentIndentLevel -= (trimmedLine.match(/[}\])]/g) || []).length;
+            
+            
+			if(isAtMultiComment)
+			{
+				beautifiedLines.push(line);
+			}
+			else
+			{
+				const indent = '\t'.repeat(currentIndentLevel);
+				beautifiedLines.push(indent + trimmedLine);
+			}
+
+            var strLen= trimmedLine.length;
+			
+			
+			for(var i = skipBracket; i < strLen;i++)
+			{
+				var c=trimmedLine[i];
+				if(isAtStr)
+				{
+					// skip charactures and escaped string charactures.
+					//implement here.
+					//check ending string characture get out of isAtStr
+                    if (c === atStrChar && (i === 0 || trimmedLine[i - 1] !== '\\')) {
+                        isAtStr = false;
+                    }
+				}
+				else if(isAtMultiComment)
+				{
+					if(c=='*'&&i+1<strLen&&trimmedLine[i+1]=='/')
+					{
+						isAtMultiComment=false;
+						i++;
+					}
+				}
+				else
+				{
+					// count brackets incountered
+					if(c=="'"||c=='"'||c=="`")
+					{
+						isAtStr=true;
+						atStrChar=c;
+					}
+					else if(c=='/'&&i+1<strLen&&trimmedLine[i+1]=='/')
+					{
+						// skip rest of line.
+						break;
+					}
+					else if(c=='/'&&i+1<strLen&&trimmedLine[i+1]=='*')
+					{
+						isAtMultiComment=true;
+						i++;
+					}
+					else if(c=='{' || c=='[' || c=='(')
+					{
+						currentIndentLevel++;
+					}
+					else if(c=='}' || c==']' || c==')')
+					{
+						currentIndentLevel = Math.max(0, currentIndentLevel-1);
+					}
+				}
+				
+			}
+            
+            
+            
             currentIndentLevel = Math.max(0, currentIndentLevel);
+			
+
         });
+		
+		
         const originalCaretPos = getCaretPosition(contentDiv);
         contentDiv.textContent = beautifiedLines.join('\n');
         updateLineNumbers();
@@ -811,6 +952,13 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
         scrollCaretIntoView(contentDiv);
         contentDiv.dispatchEvent(new Event('input', { bubbles: true }));
         pushToHistory(true);
+		
+		
+		
+		contentDiv.scrollTop = originalScrollTop;
+		contentDiv.scrollLeft = originalScrollLeft;
+
+		
     });
 
     const resizeObserver = new ResizeObserver(entries => {
@@ -911,6 +1059,5 @@ function observeTextcodeElements() {
 document.addEventListener('DOMContentLoaded', () => {
     observeTextcodeElements();
 });
-
 
 

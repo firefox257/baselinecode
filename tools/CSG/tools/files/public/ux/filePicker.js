@@ -505,16 +505,17 @@ function setupFilePickerInstance(originalElement = null) {
             return;
         }
 
+        // --- FIX: Prioritize programmatic handler over attribute handler to prevent double trigger ---
         if (instanceOnFilePickHandler) {
             try {
                 instanceOnFilePickHandler.call(pickerContainer, e, instanceSelectedFilePath);
             } catch (err) {
                 console.error("Error executing programmatic onfilepick handler:", err);
             }
-        }
-        if (originalOnFilePickAttribute) {
+        } else if (originalOnFilePickAttribute) {
             executeAttributeHandler(originalOnFilePickAttribute, pickerContainer, e, instanceSelectedFilePath);
         }
+        // --- End of Fix ---
 
         pickerContainer.dispatchEvent(new CustomEvent('filepick', {
             detail: { filePath: instanceSelectedFilePath },

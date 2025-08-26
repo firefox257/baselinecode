@@ -1,0 +1,6 @@
+[
+  {
+    "title": "CSG Script",
+    "content": "\n\n\n\nvar jl= convexHull(align({\n\t\t\tbz:0,\n\t\t\tby:0,\n\t\t\tlx:0\n\t\t},\n\t\tcube([20,40,20])\n\t),\n\tsphere({r:2, $fn:60})\n);\n\n\n\nreturn {\n\tjl:{\n\t\tdata:jl,\n\t\tshow:true\n\t}\n};\n"
+  }
+]
