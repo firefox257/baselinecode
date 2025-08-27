@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Calls Test Page</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; }
+        .test-section { border: 1px solid #ccc; padding: 1em; margin-bottom: 1em; }
+        .test-section h3 { margin-top: 0; }
+        input[type="text"] { width: 100%; box-sizing: border-box; margin-bottom: 0.5em; }
+        textarea { width: 100%; box-sizing: border-box; margin-bottom: 0.5em; }
+        button { margin-top: 0.5em; }
+        pre { background: #f4f4f4; padding: 1em; white-space: pre-wrap; word-wrap: break-word; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>API Calls Test Page</h1>
+
+    <div class="test-section">
+        <h3>LS (List)</h3>
+        <input type="text" id="lsPathInput" value="/" placeholder="Enter path (e.g., 'public/')">
+        <button onclick="testLs()">Test ls()</button>
+        <pre id="lsResult"></pre>
+    </div>
+
+    <hr>
+
+    <div class="test-section">
+        <h3>Read File</h3>
+        <input type="text" id="readFilePathInput" value="README.md" placeholder="Enter file path (e.g., 'public/test.txt')">
+        <button onclick="testReadFile()">Test readFile()</button>
+        <pre id="readFileResult"></pre>
+    </div>
+
+    <hr>
+
+    <div class="test-section">
+        <h3>Save File</h3>
+        <input type="text" id="saveFilePathInput" value="test_file.txt" placeholder="Enter file path to save">
+        <textarea id="saveFileContent" rows="5" placeholder="Enter content to save."></textarea>
+        <button onclick="testSaveFile()">Test saveFile()</button>
+        <pre id="saveFileResult"></pre>
+    </div>
+
+    <hr>
+
+    <div class="test-section">
+        <h3>Create Directory Path (mkPath)</h3>
+        <input type="text" id="mkPathInput" value="test/new_dir" placeholder="Enter path to create (e.g., 'my/new/directory')">
+        <button onclick="testMkPath()">Test mkPath()</button>
+        <pre id="mkPathResult"></pre>
+    </div>
+
+    <hr>
+
+    <div class="test-section">
+        <h3>Move File/Directory (mv)</h3>
+        <input type="text" id="mvSourceInput" value="test_file.txt" placeholder="Enter source path (e.g., 'old/path.txt')">
+        <input type="text" id="mvDestinationInput" value="test_dir/" placeholder="Enter destination path (e.g., 'new_dir/')">
+        <button onclick="testMv()">Test mv()</button>
+        <pre id="mvResult"></pre>
+    </div>
+
+    <hr>
+
+    <div class="test-section">
+        <h3>Copy File/Directory (copy)</h3>
+        <input type="text" id="copySourceInput" value="test_file.txt" placeholder="Enter source path (e.g., 'source/file.txt')">
+        <input type="text" id="copyDestinationInput" value="test_dir/copied_file.txt" placeholder="Enter destination path (e.g., 'new_dir/copied.txt')">
+        <button onclick="testCopy()">Test copy()</button>
+        <pre id="copyResult"></pre>
+    </div>
+
+    <hr>
+
+    <div class="test-section">
+        <h3>Rename File/Directory (rn)</h3>
+        <input type="text" id="rnSourceInput" value="test_dir/copied_file.txt" placeholder="Enter source path (e.g., 'old_name.txt')">
+        <input type="text" id="rnNewPathInput" value="test_dir/renamed_file.txt" placeholder="Enter new path (e.g., 'new_name.txt')">
+        <button onclick="testRn()">Test rn()</button>
+        <pre id="rnResult"></pre>
+    </div>
+
+    <hr>
+
+    <div class="test-section">
+        <h3>Delete File/Directory (del)</h3>
+        <input type="text" id="delPathInput" value="test_file.txt" placeholder="Enter path to delete">
+        <button onclick="testDel()">Test del()</button>
+        <pre id="delResult"></pre>
+    </div>
+
+    <script type="module">
+        import { api } from './js/apiCalls.js'; // Adjust the path as needed
+
+        function displayResult(elementId, result, isSuccess = true) {
+            const resultElement = document.getElementById(elementId);
+            resultElement.className = isSuccess ? 'success' : 'error';
+            resultElement.textContent = isSuccess ? (typeof result === 'object' ? JSON.stringify(result, null, 2) : result) : `Error: ${result}`;
+        }
+
+        async function testLs() {
+            const path = document.getElementById('lsPathInput').value;
+            try {
+                const result = await api.ls(path);
+                displayResult('lsResult', result);
+            } catch (error) {
+                displayResult('lsResult', error.message, false);
+            }
+        }
+
+        async function testReadFile() {
+            const path = document.getElementById('readFilePathInput').value;
+            try {
+                const result = await api.readFile(path);
+                displayResult('readFileResult', result);
+            } catch (error) {
+                displayResult('readFileResult', error.message, false);
+            }
+        }
+
+        async function testSaveFile() {
+            const path = document.getElementById('saveFilePathInput').value;
+            const content = document.getElementById('saveFileContent').value;
+            try {
+                const result = await api.saveFile(path, content);
+                displayResult('saveFileResult', result);
+            } catch (error) {
+                displayResult('saveFileResult', error.message, false);
+            }
+        }
+        
+        async function testMkPath() {
+            const path = document.getElementById('mkPathInput').value;
+            try {
+                const result = await api.mkPath(path);
+                displayResult('mkPathResult', result);
+            } catch (error) {
+                displayResult('mkPathResult', error.message, false);
+            }
+        }
+
+        async function testMv() {
+            const source = document.getElementById('mvSourceInput').value;
+            const destination = document.getElementById('mvDestinationInput').value;
+            try {
+                const result = await api.mv(source, destination);
+                displayResult('mvResult', result);
+            } catch (error) {
+                displayResult('mvResult', error.message, false);
+            }
+        }
+        
+        async function testCopy() {
+            const source = document.getElementById('copySourceInput').value;
+            const destination = document.getElementById('copyDestinationInput').value;
+            try {
+                const result = await api.copy(source, destination);
+                displayResult('copyResult', result);
+            } catch (error) {
+                displayResult('copyResult', error.message, false);
+            }
+        }
+
+        async function testRn() {
+            const source = document.getElementById('rnSourceInput').value;
+            const newPath = document.getElementById('rnNewPathInput').value;
+            try {
+                const result = await api.rn(source, newPath);
+                displayResult('rnResult', result);
+            } catch (error) {
+                displayResult('rnResult', error.message, false);
+            }
+        }
+
+        async function testDel() {
+            const path = document.getElementById('delPathInput').value;
+            try {
+                const result = await api.del(path);
+                displayResult('delResult', result);
+            } catch (error) {
+                displayResult('delResult', error.message, false);
+            }
+        }
+
+        // Expose functions to the global scope for onclick attributes
+        window.testLs = testLs;
+        window.testReadFile = testReadFile;
+        window.testSaveFile = testSaveFile;
+        window.testMkPath = testMkPath;
+        window.testMv = testMv;
+        window.testCopy = testCopy;
+        window.testRn = testRn;
+        window.testDel = testDel;
+    </script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "csgCode": [
+    {
+      "title": "CSG Script",
+      "content": ""
+    }
+  ],
+  "editorCode": [
+    {
+      "title": "try2",
+      "content": "\n\nreturn 124;"
+    }
+  ],
+  "meshCache": {}
+}

@@ -1,0 +1,88 @@
+{
+  "csgCode": [
+    {
+      "title": "CSG Script",
+      "content": "\n\n\nreturn floor(\n\tcube([inch,inch,inch])\n);\n\n"
+    }
+  ],
+  "editorCode": [
+    {
+      "title": "Editor Script",
+      "content": "hdhdh"
+    }
+  ],
+  "meshCache": {
+    "CSG Script": {
+      "mesh": {
+        "metadata": {
+          "version": 4.7,
+          "type": "Object",
+          "generator": "Object3D.toJSON"
+        },
+        "geometries": [
+          {
+            "uuid": "3e5e09e6-f303-47a0-98b7-af19bab3a27f",
+            "type": "BoxGeometry",
+            "width": 25.4,
+            "height": 25.4,
+            "depth": 25.4,
+            "widthSegments": 1,
+            "heightSegments": 1,
+            "depthSegments": 1
+          }
+        ],
+        "materials": [
+          {
+            "uuid": "e2a9d43b-0243-4713-87a5-2294e9b356ff",
+            "type": "MeshStandardMaterial",
+            "color": 16763904,
+            "roughness": 0.6,
+            "metalness": 0.2,
+            "emissive": 0,
+            "envMapRotation": [
+              0,
+              0,
+              0,
+              "XYZ"
+            ],
+            "envMapIntensity": 1,
+            "side": 2,
+            "blendColor": 0,
+            "flatShading": true
+          }
+        ],
+        "object": {
+          "uuid": "efa86686-23f9-4282-b0dd-0c845b78fb73",
+          "type": "Mesh",
+          "layers": 1,
+          "matrix": [
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            12.699999809265137,
+            0,
+            1
+          ],
+          "up": [
+            0,
+            1,
+            0
+          ],
+          "geometry": "3e5e09e6-f303-47a0-98b7-af19bab3a27f",
+          "material": "e2a9d43b-0243-4713-87a5-2294e9b356ff"
+        }
+      },
+      "updated": true
+    }
+  }
+}

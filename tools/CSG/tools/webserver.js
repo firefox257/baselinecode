@@ -1,29 +1,20 @@
 
 
-/*
-do not remove!!!!
-This code is for a node js web server.
-file name is webserer.js
-Reerence this code no response required.
-
-*/
 
 const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
-const { promisify } = require('util'); // For async file operations
+const { promisify } = require('util');
 
 const readdir = promisify(fs.readdir);
 const stat = promisify(fs.stat);
 const readFile = promisify(fs.readFile);
 const writeFile = promisify(fs.writeFile);
-const mkdir = promisify(fs.mkdir); // Promisify fs.mkdir
-const rename = promisify(fs.rename); // Promisify fs.rename
-const unlink = promisify(fs.unlink); // Promisify fs.unlink
-const rm = promisify(fs.rm); // Promisify fs.rm (for recursive delete in Node.js 14+)
-
-// Promisify fs.copyFile for file copying
+const mkdir = promisify(fs.mkdir);
+const rename = promisify(fs.rename);
+const unlink = promisify(fs.unlink);
+const rm = promisify(fs.rm);
 const copyFile = promisify(fs.copyFile);
 
 const _mimetype = {
@@ -54,7 +45,7 @@ const _mimetype = {
     '.usdz': 'vnd.usdz+zip',
     '.mpd': 'application/dash+xml',
     '.dae': 'model/vnd.collada+xml',
-    '.obj': 'multipart/form-data', // Note: This might not be the most appropriate for single .obj files
+    '.obj': 'multipart/form-data',
     '.ply': 'model/mesh',
     '.3dm': 'model/vnd.3dm',
     '.3ds': 'application/x-3ds',
@@ -87,14 +78,14 @@ const _mimetype = {
     '.zip': 'application/zip',
     '.xyz': 'application/octet-stream',
     '.webm': 'video/webm',
-    '.wat': 'text/plain' // Added .wat mimetype
+    '.wat': 'text/plain'
 }
 
 const serverOptions = {
     port: 80,
     sslport: 443,
-    key: './key.pem', // Make sure these paths are correct
-    cert: './cert.pem', // Make sure these paths are correct
+    key: './key.pem',
+    cert: './cert.pem',
     additionalMethods: []
 }
 
@@ -104,10 +95,9 @@ const allowHead = {
         'OPTIONS, POST, GET, PUT, PATCH, DELETE',
     'Access-Control-Max-Age': 2592000, //30 days
     'Access-Control-Allow-Headers':
-        'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-LS-Path, X-Read-File, X-Save-File, X-File-Path, X-File-Content, X-MKPATH, X-MV-Source, X-MV-Destination, X-DEL-Path, X-COPY-Source, X-COPY-Destination, X-RN-Source, X-RN-Destination' // Added custom headers for MKPATH, MV, DEL, COPY, and RN
+        'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-LS-Path, X-Read-File, X-Save-File, X-File-Path, X-File-Content, X-MKPATH, X-MV-Source, X-MV-Destination, X-DEL-Path, X-COPY-Source, X-COPY-Destination, X-RN-Source, X-RN-Destination'
 }
 
-// Global response handlers
 globalThis.sendPlainTextResponse = function (res, message, statusCode = 200, headers = {}) {
     res.writeHead(statusCode, { 'Content-Type': 'text/plain', ...headers });
     res.end(typeof message === 'object' ? JSON.stringify(message) : message);
@@ -118,14 +108,6 @@ globalThis.sendJsonResponse = function (res, data, statusCode = 200, headers = {
     res.end(JSON.stringify(data));
 };
 
-/**
- * Handles streaming files.
- * @param {http.ServerResponse} res - The HTTP response object.
- * @param {string} filePath - The path to the file to stream.
- * @param {string} contentType - The MIME type of the file.
- * @param {number} statusCode - The HTTP status code.
- * @param {object} headers - Additional headers to include.
- */
 globalThis.streamFile = function (req, res, filePath, contentType, statusCode = 200, headers = {}) {
     fs.stat(filePath, (err, stats) => {
         if (err) {
@@ -154,7 +136,7 @@ globalThis.streamFile = function (req, res, filePath, contentType, statusCode = 
                 ...headers
             };
 
-            res.writeHead(206, streamHeaders); // Partial Content
+            res.writeHead(206, streamHeaders);
             const fileStream = fs.createReadStream(filePath, { start, end });
             fileStream.pipe(res);
         } else {
@@ -169,16 +151,9 @@ globalThis.streamFile = function (req, res, filePath, contentType, statusCode = 
     });
 };
 
-const apiCache = new Map(); // Stores loaded API modules and their last access time
+const apiCache = new Map();
 
-/**
- * Handles file requests, including range requests.
- * @param {http.ServerRequest} req - The HTTP request object.
- * @param {http.ServerResponse} res - The HTTP response object.
- * @param {string} filePath - The absolute path to the file.
- */
 function handleFileRequest(req, res, filePath) {
-    //console.log(filePath)
     fs.stat(filePath, (err, stats) => {
         if (err) {
             if (err.code === 'ENOENT') {
@@ -196,14 +171,7 @@ function handleFileRequest(req, res, filePath) {
     });
 }
 
-/**
- * Loads and calls API files dynamically.
- * @param {http.ServerRequest} req - The HTTP request object.
- * @param {http.ServerResponse} res - The HTTP response object.
- * @param {string} apiName - The name of the API (e.g., 'data' for data.api.js).
- */
 async function handleApiRequest(req, res, apiName) {
-    // Corrected path for API files to include 'files/api'
     const apiFilePath = path.join(__dirname, 'files', 'api', `${apiName}.api.js`);
 
     if (apiCache.has(apiName)) {
@@ -223,9 +191,6 @@ async function handleApiRequest(req, res, apiName) {
             }
 
             try {
-                // Clear module from cache to ensure fresh load in development,
-                // or if the file changed on disk. In production, consider
-                // more robust caching or restart for updates.
                 delete require.cache[require.resolve(apiFilePath)];
                 const apiModule = require(apiFilePath);
                 if (typeof apiModule.handler === 'function') {
@@ -242,94 +207,61 @@ async function handleApiRequest(req, res, apiName) {
     }
 }
 
-// Function to unload APIs if not used for an hour
 setInterval(() => {
     const now = Date.now();
     for (const [apiName, apiInfo] of apiCache.entries()) {
         const oneHour = 60 * 60 * 1000;
         if (now - apiInfo.lastAccessed > oneHour) {
             console.log(`Unloading API: ${apiName}.api.js due to inactivity.`);
-            // Corrected path for API files to include 'files/api'
             const apiFilePath = path.join(__dirname, 'files', 'api', `${apiName}.api.js`);
-            // Remove from require cache to allow for fresh load next time
             delete require.cache[require.resolve(apiFilePath)];
             apiCache.delete(apiName);
         }
     }
-}, 10 * 60 * 1000); // Check every 10 minutes
-
-
-// --- New LS, READFILE, SAVEFILE functionality ---
+}, 10 * 60 * 1000);
 
 const FILES_ROOT = path.join(__dirname, 'files');
-const TRASH_DIR = path.join(FILES_ROOT, 'trash'); // Define the trash directory
+const TRASH_DIR = path.join(FILES_ROOT, 'trash');
 
-/**
- * Handles LS (list files) functionality.
- * @param {http.ServerResponse} res - The HTTP response object.
- * @param {string} lsPath - The path from the 'files' directory to list. Can include wildcards.
- */
+// The CORRECTED handleLs function
 async function handleLs(res, lsPath) {
     const hasWildcard = lsPath.includes('*');
-    let targetDirectory = path.join(FILES_ROOT, path.dirname(lsPath)); // Directory to read
-    let pattern = hasWildcard ? path.basename(lsPath) : null; // Pattern to filter by
+    let targetDirectory;
+    let filesToProcess = [];
 
     // Basic path traversal prevention for the target directory
-    if (!targetDirectory.startsWith(FILES_ROOT)) {
+    if (!path.join(FILES_ROOT, lsPath).startsWith(FILES_ROOT)) {
         return sendPlainTextResponse(res, 'Access Denied: Invalid LS path.', 403);
     }
 
     try {
-        // First, check if the targetDirectory actually exists and is a directory
-        const dirStats = await stat(targetDirectory);
-        if (!dirStats.isDirectory()) {
-            // If the targetDirectory from the path (e.g., /public/index.html in /public/*.html)
-            // is not a directory, it means the base path for wildcard is invalid or
-            // the whole lsPath is pointing to a specific non-existent file without wildcard
-            return sendPlainTextResponse(res, `LS Error: Base path is not a directory or does not exist: ${path.dirname(lsPath)}`, 404);
-        }
-
-        let files = await readdir(targetDirectory);
-        let filteredFiles = [];
-
         if (hasWildcard) {
+            targetDirectory = path.join(FILES_ROOT, path.dirname(lsPath));
+            const pattern = path.basename(lsPath);
             const regex = new RegExp('^' + pattern.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$');
-            filteredFiles = files.filter(file => regex.test(file));
+            const allEntries = await readdir(targetDirectory);
+            filesToProcess = allEntries.filter(file => regex.test(file));
         } else {
-            // If no wildcard, check if the full path resolves to a specific file or directory
-            const specificPath = path.join(FILES_ROOT, lsPath);
-            try {
-                const specificStats = await stat(specificPath);
-                if (specificStats.isFile()) {
-                    // If it's a direct file request, return only that file's info
-                    sendJsonResponse(res, [{
-                        name: path.basename(specificPath),
-                        type: 'file',
-                        size: specificStats.size,
-                        modifiedTime: specificStats.mtime.toISOString(),
-                        modifiedTimeMs: specificStats.mtime.getTime()
-                    }]);
-                    return; // Exit here as we've responded
-                } else if (specificStats.isDirectory()) {
-                    // If it's a direct directory request, list all its contents
-                    filteredFiles = files; // All files in the directory
-                }
-            } catch (err) {
-                // If specificPath doesn't exist, it means the user asked for a non-existent file/directory
-                // without a wildcard. In this case, we proceed to check if the base directory exists
-                // and return an empty list or 404 if the directory itself doesn't exist.
-                // Or if base directory exists, but specific file doesn't, we should treat it as "no matching files"
-                if (err.code === 'ENOENT' && !hasWildcard) {
-                     sendPlainTextResponse(res, `LS Error: Path not found: ${lsPath}`, 404);
-                     return;
-                }
+            targetDirectory = path.join(FILES_ROOT, lsPath);
+            const stats = await stat(targetDirectory);
+
+            if (stats.isFile()) {
+                // It's a single file request, return only its info
+                const fileInfo = {
+                    name: path.basename(targetDirectory),
+                    type: 'file',
+                    size: stats.size,
+                    modifiedTime: stats.mtime.toISOString(),
+                    modifiedTimeMs: stats.mtime.getTime()
+                };
+                return sendJsonResponse(res, [fileInfo]);
+            } else if (stats.isDirectory()) {
+                // It's a directory request, list all its contents
+                filesToProcess = await readdir(targetDirectory);
             }
         }
-        
-        // If we reached here, it means it's either a wildcard search or a direct directory listing
+
         const fileInfoList = [];
-        const filesToProcess = hasWildcard ? filteredFiles : files; // Use filtered list for wildcards, full list for direct directory
-        
         for (const file of filesToProcess) {
             const filePath = path.join(targetDirectory, file);
             try {
@@ -342,15 +274,15 @@ async function handleLs(res, lsPath) {
                     modifiedTimeMs: fileStats.mtime.getTime()
                 });
             } catch (err) {
+                // Skip if we can't get stats (e.g., race condition)
                 console.warn(`Could not get stats for ${filePath}: ${err.message}`);
-                // Optionally, include a note about the error or skip
             }
         }
         sendJsonResponse(res, fileInfoList);
 
     } catch (error) {
         if (error.code === 'ENOENT') {
-            sendPlainTextResponse(res, `LS Error: Path not found or base directory for wildcard does not exist: ${lsPath}`, 404);
+            sendPlainTextResponse(res, `LS Error: Path not found: ${lsPath}`, 404);
         } else {
             console.error(`LS Internal Server Error for path "${lsPath}": ${error.message}`);
             sendPlainTextResponse(res, `LS Internal Server Error: ${error.message}`, 500);
@@ -358,15 +290,9 @@ async function handleLs(res, lsPath) {
     }
 }
 
-/**
- * Reads a file in plain text.
- * @param {http.ServerResponse} res - The HTTP response object.
- * @param {string} filePathHeader - The path from the 'files' directory to read.
- */
 async function handleReadFile(res, filePathHeader) {
     const fullPath = path.join(FILES_ROOT, filePathHeader);
 
-    // Basic path traversal prevention
     if (!fullPath.startsWith(FILES_ROOT)) {
         return sendPlainTextResponse(res, 'Access Denied: Invalid file path.', 403);
     }
@@ -388,16 +314,9 @@ async function handleReadFile(res, filePathHeader) {
     }
 }
 
-/**
- * Saves content to a file.
- * @param {http.ServerRequest} req - The HTTP request object.
- * @param {http.ServerResponse} res - The HTTP response object.
- * @param {string} filePathHeader - The path from the 'files' directory to save.
- */
 async function handleSaveFile(req, res, filePathHeader) {
     const fullPath = path.join(FILES_ROOT, filePathHeader);
 
-    // Basic path traversal prevention
     if (!fullPath.startsWith(FILES_ROOT)) {
         return sendPlainTextResponse(res, 'Access Denied: Invalid file path.', 403);
     }
@@ -409,9 +328,8 @@ async function handleSaveFile(req, res, filePathHeader) {
 
     req.on('end', async () => {
         try {
-            // Ensure the directory exists before writing the file
             const dir = path.dirname(fullPath);
-            await mkdir(dir, { recursive: true }); // THIS LINE CREATES DIRECTORIES RECURSIVELY
+            await mkdir(dir, { recursive: true });
 
             await writeFile(fullPath, body, 'utf8');
             sendPlainTextResponse(res, `File saved successfully: ${filePathHeader}`, 200);
@@ -427,15 +345,9 @@ async function handleSaveFile(req, res, filePathHeader) {
     });
 }
 
-/**
- * Creates a path of directories. If a directory in a path doesn't exist, it's created.
- * @param {http.ServerResponse} res - The HTTP response object.
- * @param {string} mkPathHeader - The path of directories to create, relative to FILES_ROOT.
- */
 async function handleMkpath(res, mkPathHeader) {
     const fullPath = path.join(FILES_ROOT, mkPathHeader);
 
-    // Basic path traversal prevention
     if (!fullPath.startsWith(FILES_ROOT)) {
         return sendPlainTextResponse(res, 'Access Denied: Invalid MKPATH.', 403);
     }
@@ -453,17 +365,10 @@ async function handleMkpath(res, mkPathHeader) {
     }
 }
 
-/**
- * Moves file/files or directory/directories into another path. Supports wildcards.
- * @param {http.ServerResponse} res - The HTTP response object.
- * @param {string} mvSourceHeader - The source path(s) (can include wildcards) relative to FILES_ROOT.
- * @param {string} mvDestinationHeader - The destination directory relative to FILES_ROOT.
- */
 async function handleMv(res, mvSourceHeader, mvDestinationHeader) {
     const sourceFullPath = path.join(FILES_ROOT, mvSourceHeader);
     const destinationFullPath = path.join(FILES_ROOT, mvDestinationHeader);
 
-    // Basic path traversal prevention for both source and destination
     if (!sourceFullPath.startsWith(FILES_ROOT) || !destinationFullPath.startsWith(FILES_ROOT)) {
         return sendPlainTextResponse(res, 'Access Denied: Invalid MV source or destination path.', 403);
     }
@@ -490,12 +395,11 @@ async function handleMv(res, mvSourceHeader, mvDestinationHeader) {
                 if (err.code === 'ENOENT') {
                     return sendPlainTextResponse(res, `MV Error: Source directory for wildcard not found: ${path.dirname(mvSourceHeader)}`, 404);
                 }
-                throw err; // Re-throw other errors
+                throw err;
             }
         } else {
-            // No wildcard, check if the specific source exists
             try {
-                await stat(sourceFullPath); // Just to check if it exists
+                await stat(sourceFullPath);
                 filesToMove.push(sourceFullPath);
             } catch (err) {
                 if (err.code === 'ENOENT') {
@@ -529,22 +433,14 @@ async function handleMv(res, mvSourceHeader, mvDestinationHeader) {
     }
 }
 
-/**
- * Renames a single file or directory.
- * @param {http.ServerResponse} res - The HTTP response object.
- * @param {string} rnSourceHeader - The source path relative to FILES_ROOT.
- * @param {string} rnDestinationHeader - The new name, including the full path, relative to FILES_ROOT.
- */
 async function handleRn(res, rnSourceHeader, rnDestinationHeader) {
     const sourceFullPath = path.join(FILES_ROOT, rnSourceHeader);
     const destinationFullPath = path.join(FILES_ROOT, rnDestinationHeader);
     
-    // Basic path traversal prevention for both source and destination
     if (!sourceFullPath.startsWith(FILES_ROOT) || !destinationFullPath.startsWith(FILES_ROOT)) {
         return sendPlainTextResponse(res, 'Access Denied: Invalid RN source or destination path.', 403);
     }
 
-    // Ensure the new name is in the same directory as the source
     if (path.dirname(sourceFullPath) !== path.dirname(destinationFullPath)) {
         return sendPlainTextResponse(res, 'RN Error: Destination must be in the same directory as the source.', 400);
     }
@@ -562,12 +458,6 @@ async function handleRn(res, rnSourceHeader, rnDestinationHeader) {
     }
 }
 
-
-/**
- * Recursively copies a directory.
- * @param {string} src - The source directory path.
- * @param {string} dest - The destination directory path.
- */
 async function copyDirectoryRecursive(src, dest) {
     await mkdir(dest, { recursive: true });
     const entries = await readdir(src, { withFileTypes: true });
@@ -584,44 +474,26 @@ async function copyDirectoryRecursive(src, dest) {
     }
 }
 
-/**
- * Copies file/files or directory/directories into another path. Supports wildcards.
- * @param {http.ServerResponse} res - The HTTP response object.
- * @param {string} copySourceHeader - The source path(s) (can include wildcards) relative to FILES_ROOT.
- * @param {string} copyDestinationHeader - The destination directory relative to FILES_ROOT.
- */
 async function handleCopy(res, copySourceHeader, copyDestinationHeader) {
     const sourceFullPath = path.join(FILES_ROOT, copySourceHeader);
     const destinationFullPath = path.join(FILES_ROOT, copyDestinationHeader);
 
-    // Basic path traversal prevention for both source and destination
     if (!sourceFullPath.startsWith(FILES_ROOT) || !destinationFullPath.startsWith(FILES_ROOT)) {
         return sendPlainTextResponse(res, 'Access Denied: Invalid COPY source or destination path.', 403);
     }
 
     try {
-        // Ensure the destinationFullPath is a directory or its parent exists if it's a file path
-        // For COPY, if destinationFullPath is meant to be a directory, it must exist.
-        // If it's a file, its parent must exist.
         let actualDestinationDir = destinationFullPath;
         try {
             const destStats = await stat(destinationFullPath);
             if (!destStats.isDirectory()) {
-                // If destinationFullPath exists but is a file, we can't copy into it as a directory.
-                // Or if it's a file that will be overwritten, its parent directory must exist.
-                // In a COPY operation into a specified "destination directory", this case should usually imply an error,
-                // or if the intent is to rename during copy, then the parent directory of the new name must exist.
-                // For simplicity and alignment with the MV operation, we assume copyDestinationHeader refers to a *directory*.
                 return sendPlainTextResponse(res, `COPY Error: Destination is not a directory: ${copyDestinationHeader}`, 400);
             }
         } catch (err) {
             if (err.code === 'ENOENT') {
-                // If destinationFullPath doesn't exist, it means we need to create it recursively.
-                // This handles cases like `COPY source/file.txt to_new_dir/` where `to_new_dir` doesn't exist.
                 await mkdir(destinationFullPath, { recursive: true });
-                // Now that it's created, it's a directory.
             } else {
-                throw err; // Re-throw other stat errors
+                throw err;
             }
         }
 
@@ -645,7 +517,6 @@ async function handleCopy(res, copySourceHeader, copyDestinationHeader) {
                 throw err;
             }
         } else {
-            // No wildcard, check if the specific source exists
             try {
                 await stat(sourceFullPath);
                 itemsToCopy.push(sourceFullPath);
@@ -664,7 +535,7 @@ async function handleCopy(res, copySourceHeader, copyDestinationHeader) {
         const results = [];
         for (const itemToCopy of itemsToCopy) {
             const itemName = path.basename(itemToCopy);
-            const finalDestinationPath = path.join(destinationFullPath, itemName); // Destination is guaranteed to be a directory at this point
+            const finalDestinationPath = path.join(destinationFullPath, itemName);
 
             try {
                 const itemStats = await stat(itemToCopy);
@@ -672,9 +543,8 @@ async function handleCopy(res, copySourceHeader, copyDestinationHeader) {
                     await copyDirectoryRecursive(itemToCopy, finalDestinationPath);
                     results.push(`Copied directory: ${path.relative(FILES_ROOT, itemToCopy)} to ${path.relative(FILES_ROOT, finalDestinationPath)}`);
                 } else {
-                    // For files, ensure the parent directory of the finalDestinationPath exists
                     const parentDirOfFile = path.dirname(finalDestinationPath);
-                    await mkdir(parentDirOfFile, { recursive: true }); // Ensure parent directory exists for the file
+                    await mkdir(parentDirOfFile, { recursive: true });
                     await copyFile(itemToCopy, finalDestinationPath);
                     results.push(`Copied file: ${path.relative(FILES_ROOT, itemToCopy)} to ${path.relative(FILES_ROOT, finalDestinationPath)}`);
                 }
@@ -691,18 +561,9 @@ async function handleCopy(res, copySourceHeader, copyDestinationHeader) {
     }
 }
 
-
-/**
- * Moves file/files directory/directories into files/trash directory.
- * If the DEL is in files/trash then permanently remove the files and directories.
- * DEL has wildcards like LS for filtering.
- * @param {http.ServerResponse} res - The HTTP response object.
- * @param {string} delPathHeader - The path(s) to delete (can include wildcards) relative to FILES_ROOT.
- */
 async function handleDel(res, delPathHeader) {
     const fullPathToDelete = path.join(FILES_ROOT, delPathHeader);
 
-    // Basic path traversal prevention
     if (!fullPathToDelete.startsWith(FILES_ROOT)) {
         return sendPlainTextResponse(res, 'Access Denied: Invalid DEL path.', 403);
     }
@@ -727,7 +588,6 @@ async function handleDel(res, delPathHeader) {
                 throw err;
             }
         } else {
-            // No wildcard, check if the specific item exists
             try {
                 await stat(fullPathToDelete);
                 itemsToDelete.push(fullPathToDelete);
@@ -750,9 +610,7 @@ async function handleDel(res, delPathHeader) {
                 const itemStats = await stat(itemPath);
                 const isDirectory = itemStats.isDirectory();
 
-                // Check if the item is already in the trash directory
                 if (itemPath.startsWith(TRASH_DIR + path.sep) || itemPath === TRASH_DIR) {
-                    // Permanent deletion from trash
                     if (isDirectory) {
                         await rm(itemPath, { recursive: true, force: true });
                         results.push(`Permanently deleted directory from trash: ${relativeItemPath}`);
@@ -761,8 +619,7 @@ async function handleDel(res, delPathHeader) {
                         results.push(`Permanently deleted file from trash: ${relativeItemPath}`);
                     }
                 } else {
-                    // Move to trash
-                    await mkdir(TRASH_DIR, { recursive: true }); // Ensure trash directory exists
+                    await mkdir(TRASH_DIR, { recursive: true });
                     const trashDestination = path.join(TRASH_DIR, path.basename(itemPath));
                     await rename(itemPath, trashDestination);
                     results.push(`Moved to trash: ${relativeItemPath}`);
@@ -780,23 +637,16 @@ async function handleDel(res, delPathHeader) {
     }
 }
 
-/**
- * The single web handler for all HTTP and HTTPS requests.
- * @param {http.ServerRequest} req - The HTTP request object.
- * @param {http.ServerResponse} res - The HTTP response object.
- */
 function webHandler(req, res) {
-    // Handle OPTIONS preflight requests
     if (req.method === 'OPTIONS') {
         res.writeHead(204, allowHead);
         res.end();
         return;
     }
 
-    const requestedUrl = new URL(req.url, `http://${req.headers.host}`); // Use http as base for URL parsing
+    const requestedUrl = new URL(req.url, `http://${req.headers.host}`);
     const pathname = requestedUrl.pathname;
 
-    // --- Check for custom headers for LS, READFILE, SAVEFILE, MKPATH, MV, DEL, COPY ---
     const lsPath = req.headers['x-ls-path'];
     const readFileHeader = req.headers['x-read-file'];
     const saveFileHeader = req.headers['x-save-file'];
@@ -804,10 +654,10 @@ function webHandler(req, res) {
     const mvSourceHeader = req.headers['x-mv-source'];
     const mvDestinationHeader = req.headers['x-mv-destination'];
     const delPathHeader = req.headers['x-del-path'];
-    const copySourceHeader = req.headers['x-copy-source']; // New COPY header
-    const copyDestinationHeader = req.headers['x-copy-destination']; // New COPY header
-    const rnSourceHeader = req.headers['x-rn-source']; // New RN header
-    const rnDestinationHeader = req.headers['x-rn-destination']; // New RN header
+    const copySourceHeader = req.headers['x-copy-source'];
+    const copyDestinationHeader = req.headers['x-copy-destination'];
+    const rnSourceHeader = req.headers['x-rn-source'];
+    const rnDestinationHeader = req.headers['x-rn-destination'];
 
 
     if (lsPath) {
@@ -839,31 +689,29 @@ function webHandler(req, res) {
     }
 
     if (mvSourceHeader && mvDestinationHeader) {
-        if (req.method === 'POST' || req.method === 'PUT') { // MV can be seen as modifying resources
+        if (req.method === 'POST' || req.method === 'PUT') {
             handleMv(res, mvSourceHeader, mvDestinationHeader);
         } else {
             sendPlainTextResponse(res, 'MV requires POST or PUT method.', 405);
         }
         return;
-    } else if (mvSourceHeader || mvDestinationHeader) { // One is present, but not both
+    } else if (mvSourceHeader || mvDestinationHeader) {
         sendPlainTextResponse(res, 'Both X-MV-Source and X-MV-Destination headers are required for MV operation.', 400);
         return;
     }
 
-    // New COPY handling
     if (copySourceHeader && copyDestinationHeader) {
-        if (req.method === 'POST' || req.method === 'PUT') { // COPY can be seen as creating/modifying resources
+        if (req.method === 'POST' || req.method === 'PUT') {
             handleCopy(res, copySourceHeader, copyDestinationHeader);
         } else {
             sendPlainTextResponse(res, 'COPY requires POST or PUT method.', 405);
         }
         return;
-    } else if (copySourceHeader || copyDestinationHeader) { // One is present, but not both
+    } else if (copySourceHeader || copyDestinationHeader) {
         sendPlainTextResponse(res, 'Both X-COPY-Source and X-COPY-Destination headers are required for COPY operation.', 400);
         return;
     }
 
-    // New RN handling
     if (rnSourceHeader && rnDestinationHeader) {
         if (req.method === 'POST' || req.method === 'PUT') {
             handleRn(res, rnSourceHeader, rnDestinationHeader);
@@ -885,28 +733,22 @@ function webHandler(req, res) {
         return;
     }
 
-    // Handle API routes ending with .api.js
     if (pathname.endsWith('.api.js')) {
-        // Extract the apiName by removing the leading '/' and the '.api.js' extension
         const apiName = path.basename(pathname, '.api.js');
         handleApiRequest(req, res, apiName);
         return;
     }
 
-    // Serve static files from 'public' directory
-    // Corrected path for public files to include 'files/public'
     const filePath = path.join(__dirname, 'files', 'public', pathname === '/' ? 'index.html' : pathname);
     handleFileRequest(req, res, filePath);
 }
 
-// Create HTTP server
 const httpServer = http.createServer(webHandler);
 
 httpServer.listen(serverOptions.port, () => {
     console.log(`HTTP Server running on port ${serverOptions.port}`);
 });
 
-// Create HTTPS server
 let httpsServer;
 try {
     const privateKey = fs.readFileSync(serverOptions.key, 'utf8');
@@ -922,7 +764,4 @@ try {
     console.error('Error starting HTTPS server: Ensure key.pem and cert.pem exist in the server directory and are valid.', error.message);
     console.log('HTTPS server will not start.');
 }
-
-
-
 

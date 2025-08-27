@@ -1,5 +1,6 @@
 
 
+
 // ./ux/filePicker.js
 
 import { api } from '../js/apiCalls.js';
@@ -421,10 +422,39 @@ function setupFilePickerInstance(originalElement = null) {
         let failCount = 0;
 
         for (const sourcePath of instanceClipboard.paths) {
+            const fileName = sourcePath.split('/').pop();
+            let newFileName = fileName;
+
+            if (instanceClipboard.type === 'copy') {
+                try {
+                    const filesInDest = await api.ls(destination);
+                    const fileExists = filesInDest.some(f => f.name === newFileName);
+
+                    if (fileExists) {
+						
+                        let copyIndex = 0;
+                        let foundUniqueName = false;
+                        while (!foundUniqueName) {
+                            const newName = `${newFileName}_copy${copyIndex}`;
+                            const nameExists = filesInDest.some(f => f.name === newName);
+                            if (!nameExists) {
+                                newFileName = newName;
+                                foundUniqueName = true;
+                            } else {
+                                copyIndex++;
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error("Error checking for file existence:", error);
+                    // Continue with original filename if we can't check
+                }
+            }
+
             try {
                 if (instanceClipboard.type === 'copy') {
-                    await api.copy(sourcePath, destination);
-                    showPopupMessage(`Copied ${sourcePath.split('/').pop()} to ${destination}`);
+                    await api.copy(sourcePath, destination + newFileName);
+                    showPopupMessage(`Copied ${sourcePath.split('/').pop()} to ${destination + newFileName}`);
                 } else if (instanceClipboard.type === 'cut') {
                     await api.mv(sourcePath, destination);
                     showPopupMessage(`Moved ${sourcePath.split('/').pop()} to ${destination}`);
@@ -725,6 +755,4 @@ function observeFilePickerElements() {
 document.addEventListener('DOMContentLoaded', () => {
     observeFilePickerElements();
 });
-
-
 

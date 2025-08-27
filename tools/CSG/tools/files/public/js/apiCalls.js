@@ -83,6 +83,66 @@ const api = {
      * @param {string} path - The path to list, relative to the server's 'files' root. Can include wildcards (e.g., 'public/*.html').
      * @returns {Promise<FileInfo[]>} - A promise that resolves to an array of file/directory information.
      */
+	 
+	 /*example result
+	 
+	 ls()
+[
+  {
+    "name": "api",
+    "type": "directory",
+    "size": 96,
+    "modifiedTime": "2025-08-26T17:23:04.843Z",
+    "modifiedTimeMs": 1756228984843
+  },
+  {
+    "name": "docs",
+    "type": "directory",
+    "size": 96,
+    "modifiedTime": "2025-08-26T17:23:04.678Z",
+    "modifiedTimeMs": 1756228984678
+  },
+  {
+    "name": "generated_images",
+    "type": "directory",
+    "size": 96,
+    "modifiedTime": "2025-08-26T17:23:04.677Z",
+    "modifiedTimeMs": 1756228984677
+  },
+  {
+    "name": "public",
+    "type": "directory",
+    "size": 512,
+    "modifiedTime": "2025-08-27T14:09:18.080Z",
+    "modifiedTimeMs": 1756303758080
+  },
+  {
+    "name": "test_folder",
+    "type": "directory",
+    "size": 96,
+    "modifiedTime": "2025-08-26T17:23:04.677Z",
+    "modifiedTimeMs": 1756228984677
+  },
+  {
+    "name": "trash",
+    "type": "directory",
+    "size": 64,
+    "modifiedTime": "2025-08-27T09:25:47.015Z",
+    "modifiedTimeMs": 1756286747015
+  },
+  {
+    "name": "try1",
+    "type": "directory",
+    "size": 288,
+    "modifiedTime": "2025-08-27T03:18:15.240Z",
+    "modifiedTimeMs": 1756264695240
+  }
+]
+	 
+	example of not found 404 error.
+	Error: API Error 404: LS Error: Path not found: /funnifile
+	 
+	 */
     ls: async (path) => {
         if (!path) {
             throw new Error("LS: Path is required.");

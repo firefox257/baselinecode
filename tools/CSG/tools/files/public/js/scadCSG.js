@@ -1,6 +1,5 @@
 
 
-
 /*
 ./js/scadCSG.js
 code runs in a browser
@@ -8,6 +7,9 @@ code runs in a browser
 import * as THREE from 'three';
 import { Brush, Evaluator, ADDITION, SUBTRACTION, INTERSECTION } from 'three-bvh-csg';
 import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
+
+
+globalThis.inch=25.4;
 
 // === CSG Evaluator ===
 const csgEvaluator = new Evaluator();
@@ -64,7 +66,7 @@ function sphere({ r, d, fn } = {}) {
 }
 
 function cube([x = 1, y = 1, z = 1] = [1, 1, 1]) {
-  const geom = new THREE.BoxGeometry(x, y, z);
+  const geom = new THREE.BoxGeometry(x, z, y);
   return new THREE.Mesh(geom, defaultMaterial.clone());
 }
 
@@ -351,23 +353,115 @@ function intersect(...meshes) {
   return result;
 }
 
-// Export all functions for use in the main script
-export {
-  sphere,
-  cube,
-  cylinder,
-  union,
-  difference,
-  intersect,
-  translate,
-  rotate,
-  scale,
-  color,
-  floor,
-  convexHull,
-  align,
-  line3d,
-  linePaths3d
+// --- New `scaleTo` Function ---
+function scaleTo(config = {}, ...meshes) {
+    const newMeshes = [];
+    const scaleMesh = (mesh) => {
+        if (!mesh || !mesh.geometry) {
+            console.warn("scaleTo requires a valid mesh.");
+            return;
+        }
+
+        // 1. Ensure the mesh's transformations are up-to-date
+        mesh.updateMatrixWorld(true);
+        const bbox = new THREE.Box3().setFromObject(mesh);
+        const size = new THREE.Vector3();
+        bbox.getSize(size);
+        
+        // Swapping y and z for the Z-up convention
+        const currentX = size.x;
+        const currentY = size.z;
+        const currentZ = size.y;
+
+        const targetX = config.x;
+        const targetY = config.y;
+        const targetZ = config.z;
+
+        let scaleFactorX = 1;
+        let scaleFactorY = 1;
+        let scaleFactorZ = 1;
+        
+        // Calculate scale factors for defined dimensions
+        if (targetX !== undefined && currentX !== 0) {
+            scaleFactorX = targetX / currentX;
+        }
+        if (targetY !== undefined && currentY !== 0) {
+            scaleFactorY = targetY / currentY;
+        }
+        if (targetZ !== undefined && currentZ !== 0) {
+            scaleFactorZ = targetZ / currentZ;
+        }
+
+        // Determine the base scale factor for aspect ratio
+        let baseScaleFactor;
+        if (targetX !== undefined) {
+            baseScaleFactor = scaleFactorX;
+        } else if (targetY !== undefined) {
+            baseScaleFactor = scaleFactorY;
+        } else if (targetZ !== undefined) {
+            baseScaleFactor = scaleFactorZ;
+        }
+
+        // Apply aspect ratio to undefined dimensions
+        if (targetX === undefined && baseScaleFactor !== undefined) {
+            scaleFactorX = baseScaleFactor;
+        }
+        if (targetY === undefined && baseScaleFactor !== undefined) {
+            scaleFactorY = baseScaleFactor;
+        }
+        if (targetZ === undefined && baseScaleFactor !== undefined) {
+            scaleFactorZ = baseScaleFactor;
+        }
+
+        // Create a new, scaled geometry
+        const oldGeometry = mesh.geometry;
+        const scaledGeometry = oldGeometry.clone();
+
+        // Apply the scaling directly to the geometry's vertex data
+        const positionAttribute = scaledGeometry.getAttribute('position');
+        const vertex = new THREE.Vector3();
+        for (let i = 0; i < positionAttribute.count; i++) {
+            vertex.fromBufferAttribute(positionAttribute, i);
+            // Apply scale, considering Z-up
+            vertex.x *= scaleFactorX;
+            vertex.y *= scaleFactorZ; // Corresponds to Z-axis in world space
+            vertex.z *= scaleFactorY; // Corresponds to Y-axis in world space
+            positionAttribute.setXYZ(i, vertex.x, vertex.y, vertex.z);
+        }
+
+        // Replace the old geometry and update bounding info
+        scaledGeometry.computeBoundingBox();
+        scaledGeometry.computeBoundingSphere();
+        mesh.geometry = scaledGeometry;
+        
+        // Reset the mesh's local scale to [1,1,1] to avoid double-scaling
+        mesh.scale.set(1, 1, 1);
+        
+        newMeshes.push(mesh);
+    };
+
+    meshes.forEach(scaleMesh);
+    return newMeshes.length === 1 ? newMeshes[0] : newMeshes;
+}
+
+// Private object containing all exportable functions
+// This is a private, self-contained list within the module.
+const _exportedFunctions = {
+  sphere, cube, cylinder, union, difference, intersect, 
+  translate, rotate, scale, color, floor, convexHull, align, 
+  line3d, linePaths3d, scaleTo
 };
+
+// --- Revised `ezport` function ---
+// This function returns an object containing both the function names and the functions themselves.
+function ezport() {
+  const funcNames = Object.keys(_exportedFunctions);
+  const funcs = Object.values(_exportedFunctions);
+  return { names: funcNames, funcs: funcs };
+}
+
+// Export only the ezport function
+export { ezport };
+
 
 
