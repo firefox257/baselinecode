@@ -760,6 +760,8 @@ try {
     httpsServer.listen(serverOptions.sslport, () => {
         console.log(`HTTPS Server running on port ${serverOptions.sslport}`);
     });
+	
+	webAppReady();
 } catch (error) {
     console.error('Error starting HTTPS server: Ensure key.pem and cert.pem exist in the server directory and are valid.', error.message);
     console.log('HTTPS server will not start.');

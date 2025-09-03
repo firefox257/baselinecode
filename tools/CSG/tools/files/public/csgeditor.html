@@ -1,5 +1,3 @@
-
-
 <!DOCTYPE html>
 <html lang="en">
     <head>
@@ -62,7 +60,7 @@
 
             #main-container {
                 width: 100%;
-                height: calc(100vh - 35px);
+                height: calc(100vh - 30mm);
                 position: relative;
             }
 
@@ -128,7 +126,7 @@
             #save-settings-btn:hover {
                 background: #218838;
             }
-            
+
             #clear-cache-btn {
                 background: #dc3545;
                 color: white;
@@ -138,7 +136,7 @@
                 cursor: pointer;
                 margin-top: 20px;
             }
-            
+
             #clear-cache-btn:hover {
                 background: #c82333;
             }
@@ -203,56 +201,17 @@
                     id="csg-code"
                     title="CSG Script"
                     onrun="runCSGCode();">
-                    // Edit and save to update!
-/*
-return floor(
-	difference(
-		color(0x0000ffff,sphere({ r: 20, fn:100 })),
-		translate([15, 0, 0], cube([20, 20, 20])),
-		translate([0, 0, 15], cylinder({ r: 20, h: 30 , fn:100}))
-	)
-);
-*/
-//return cube([40, 50, 60]);
-/*
-var b1= floor(
-	translate([30,0,0],
-		cylinder({d:10, h:20, fn:50})
-	)
-);
-
-var b2= floor(
-	translate([0,0,0],
-		cube([10,10,10])
-	)
-);
-
-return {
-	b1:{
-	data:b1,
-	show:true
-	},
-	b2:{
-		data:b2,
-		show:true
-		}
-	};
-	*/
-	
-	return translate([30,0,0],
-	union(
-	
-	translate([5,5,0],
-		color(0xffff0000, cube([10,10,10]))
-	),
-	translate([0,0,0],
-		cube([10,10,10])
-	)
-	
-	)
-	);
-	
-	
+                    //Edit and save to update! /* return floor( difference(
+                    color(0x0000ffff,sphere({ r: 20, fn:100 })), translate([15,
+                    0, 0], cube([20, 20, 20])), translate([0, 0, 15], cylinder({
+                    r: 20, h: 30 , fn:100})) ) ); */ //return cube([40, 50,
+                    60]); /* var b1= floor( translate([30,0,0], cylinder({d:10,
+                    h:20, fn:50}) ) ); var b2= floor( translate([0,0,0],
+                    cube([10,10,10]) ) ); return { b1:{ data:b1, show:true },
+                    b2:{ data:b2, show:true } }; */ return floor(
+                    translate([30,0,0], union( translate([5,5,0],
+                    color(0xffff0000, cube([10,10,10])) ), translate([0,0,0],
+                    cube([10,10,10]) ) ) ) );
                 </textcode>
             </div>
 
@@ -260,16 +219,10 @@ return {
                 <textcode
                     id="editor-code"
                     title="Editor Script"
-					onrun="runEditorScript();">
-                    // Place reusable functions and objects here.
-                    // Access from CSG Script with include("page name");
-                    /*
-                    var constants = {
-                        PI: Math.PI,
-                        E: Math.E
-                    };
-                    return { constants };
-                    */
+                    onrun="runEditorScript();">
+                    // Place reusable functions and objects here. // Access from
+                    CSG Script with include("page name"); /* var constants = {
+                    PI: Math.PI, E: Math.E }; return { constants }; */
                 </textcode>
             </div>
 
@@ -289,7 +242,10 @@ return {
                 <input type="number" id="grid-size-input" value="10" />
                 mm<br /><br />
                 <label for="library-path-input">Library Path:</label>
-                <input type="text" id="library-path-input" value="/csgLib" /><br /><br />
+                <input
+                    type="text"
+                    id="library-path-input"
+                    value="/csgLib" /><br /><br />
                 <button id="save-settings-btn">Save Settings</button>
                 <button id="clear-cache-btn">Clear All Cache</button>
             </div>
@@ -330,22 +286,230 @@ return {
 
         <script type="module" src="/ux/textCode.js"></script>
         <script type="module" src="/ux/filePicker.js"></script>
-        
+
         <script type="module">
-            import { initialize, openModal, closeModal, runCSGCode, runEditorScript, handleLoadFile, handleSaveFile, handleSaveStl, exportSTL } from './js/editorCsg.js';
-            
+            import * as THREE from 'three'
+            import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
+
+            import {
+                initialize,
+                //openModal,
+                //closeModal,
+                runCSGCode,
+                runEditorScript,
+                handleLoadFile,
+                handleSaveFile,
+                handleSaveStl,
+                exportSTL,
+                clearAllCache
+            } from './js/editorCsg.js'
+
+            let settings
+            let currentObjects
+
+            var domElements
+            var renderer
+            var scene
+            var camera
+            var controls
+            var keyLight
+            var ambientLight
+            var originLine
+            var buildPlateGrid = null
+            var buildPlateBox = null
+
             // Make these functions available globally for the HTML event handlers
-            window.openModal = openModal;
-            window.closeModal = closeModal;
-            window.runCSGCode = runCSGCode;
-            window.runEditorScript = runEditorScript;
-            window.handleLoadFile = handleLoadFile;
-            window.handleSaveFile = handleSaveFile;
-            window.handleSaveStl = handleSaveStl;
-            
-            window.onload = function() {
+            window.openModal = openModal
+            window.closeModal = closeModal
+            window.runCSGCode = runCSGCode
+            window.runEditorScript = runEditorScript
+            window.handleLoadFile = handleLoadFile
+            window.handleSaveFile = handleSaveFile
+            window.handleSaveStl = handleSaveStl
+
+            function openModal(id) {
+                document.getElementById(id).style.display = 'flex'
+            }
+
+            function closeModal(id) {
+                document.getElementById(id).style.display = 'none'
+            }
+
+            // --- Three.js Setup Functions ---
+
+            function setupThreeJs(canvas) {
+                renderer = new THREE.WebGLRenderer({
+                    canvas,
+                    antialias: true
+                })
+                renderer.setClearColor(0x1e1e1e)
+                renderer.setPixelRatio(window.devicePixelRatio)
+
+                scene = new THREE.Scene()
+                camera = new THREE.PerspectiveCamera(
+                    60,
+                    window.innerWidth / window.innerHeight,
+                    0.01,
+                    2000
+                )
+
+                camera.position.set(0, 50, 50)
+                camera.lookAt(0, 0, 0)
+
+                controls = new OrbitControls(camera, canvas)
+                controls.enableDamping = true
+                controls.dampingFactor = 0.1
+
+                keyLight = new THREE.PointLight(0xffffff, 7, 1000, 0.2)
+                ambientLight = new THREE.AmbientLight(0xffcc66, 0.5)
+                scene.add(keyLight, ambientLight)
+
+                const originLineMaterial = new THREE.LineBasicMaterial({
+                    color: 0x555555
+                })
+                const originLineGeometry =
+                    new THREE.BufferGeometry().setFromPoints([
+                        new THREE.Vector3(0, -100, 0),
+                        new THREE.Vector3(0, 500, 0)
+                    ])
+                originLine = new THREE.LineSegments(
+                    originLineGeometry,
+                    originLineMaterial
+                )
+                scene.add(originLine)
+            }
+
+            function createBuildPlate() {
+                if (buildPlateGrid) {
+                    scene.remove(buildPlateGrid)
+                    buildPlateGrid.geometry.dispose()
+                    buildPlateGrid = null
+                }
+                if (buildPlateBox) {
+                    scene.remove(buildPlateBox)
+                    buildPlateBox.geometry.dispose()
+                    buildPlateBox = null
+                }
+
+                const plateSize = Math.max(
+                    settings.plateWidth,
+                    settings.plateLength
+                )
+                const divisions = Math.floor(plateSize / settings.gridSize)
+                buildPlateGrid = new THREE.GridHelper(
+                    plateSize,
+                    divisions,
+                    0x555555,
+                    0x555555
+                )
+                buildPlateGrid.position.y = 0
+                scene.add(buildPlateGrid)
+
+                const boxMaterial = new THREE.LineBasicMaterial({
+                    color: 0xcccccc
+                })
+                const boxGeometry = new THREE.BufferGeometry()
+                const halfWidth = settings.plateWidth / 2
+                const halfLength = settings.plateLength / 2
+                const boxVertices = new Float32Array([
+                    -halfWidth,
+                    0,
+                    -halfLength,
+                    halfWidth,
+                    0,
+                    -halfLength,
+                    halfWidth,
+                    0,
+                    -halfLength,
+                    halfWidth,
+                    0,
+                    halfLength,
+                    halfWidth,
+                    0,
+                    halfLength,
+                    -halfWidth,
+                    0,
+                    halfLength,
+                    -halfWidth,
+                    0,
+                    halfLength,
+                    -halfWidth,
+                    0,
+                    -halfLength
+                ])
+                boxGeometry.setAttribute(
+                    'position',
+                    new THREE.BufferAttribute(boxVertices, 3)
+                )
+                buildPlateBox = new THREE.LineSegments(boxGeometry, boxMaterial)
+                scene.add(buildPlateBox)
+            }
+
+            function resizeRenderer() {
+                const canvas = renderer.domElement
+                const width = canvas.clientWidth
+                const height = canvas.clientHeight
+
+                if (canvas.width !== width || canvas.height !== height) {
+                    renderer.setSize(width, height, false)
+                    camera.aspect = width / height
+                    camera.updateProjectionMatrix()
+                }
+            }
+
+            function animate() {
+                requestAnimationFrame(animate)
+                controls.update()
+                const cameraDirection = new THREE.Vector3()
+                camera.getWorldDirection(cameraDirection)
+                keyLight.position
+                    .copy(camera.position)
+                    .add(cameraDirection.multiplyScalar(-10))
+                renderer.render(scene, camera)
+            }
+
+            // --- UI Management and File Handling ---
+            function showView(id) {
+                const dom = {
+                    codePanel: document.getElementById('code-panel'),
+                    viewPanel: document.getElementById('view-panel'),
+                    settingsPanel: document.getElementById('settings-panel'),
+                    editorCodePanel:
+                        document.getElementById('editor-code-panel'),
+                    btn3D: document.getElementById('btn-3d'),
+                    btnCode: document.getElementById('btn-code'),
+                    btnEditorCode: document.getElementById('btn-editor-code'),
+                    btnSettings: document.getElementById('btn-settings')
+                }
+
+                dom.codePanel.style.display = 'none'
+                dom.viewPanel.style.display = 'none'
+                dom.settingsPanel.style.display = 'none'
+                dom.editorCodePanel.style.display = 'none'
+
+                dom.btn3D.style.backgroundColor = '#3498db'
+                dom.btnCode.style.backgroundColor = '#3498db'
+                dom.btnEditorCode.style.backgroundColor = '#3498db'
+                dom.btnSettings.style.backgroundColor = '#3498db'
+
+                if (id === '3d') {
+                    dom.viewPanel.style.display = 'block'
+                    dom.btn3D.style.backgroundColor = '#e74c3c'
+                } else if (id === 'code') {
+                    dom.codePanel.style.display = 'block'
+                    dom.btnCode.style.backgroundColor = '#e74c3c'
+                } else if (id === 'editor-code') {
+                    dom.editorCodePanel.style.display = 'block'
+                    dom.btnEditorCode.style.backgroundColor = '#e74c3c'
+                } else if (id === 'settings') {
+                    dom.settingsPanel.style.display = 'block'
+                    dom.btnSettings.style.backgroundColor = '#e74c3c'
+                }
+            }
+
+            window.onload = function () {
                 // Collect all the DOM elements and pass them to the initializer function
-                const domElements = {
+                domElements = {
                     btn3D: document.getElementById('btn-3d'),
                     btnCode: document.getElementById('btn-code'),
                     btnEditorCode: document.getElementById('btn-editor-code'),
@@ -355,23 +519,105 @@ return {
                     widthInput: document.getElementById('width-input'),
                     lengthInput: document.getElementById('length-input'),
                     gridSizeInput: document.getElementById('grid-size-input'),
-                    libraryPathInput: document.getElementById('library-path-input'),
-                    saveSettingsBtn: document.getElementById('save-settings-btn'),
+                    libraryPathInput:
+                        document.getElementById('library-path-input'),
+                    saveSettingsBtn:
+                        document.getElementById('save-settings-btn'),
                     clearCacheBtn: document.getElementById('clear-cache-btn'),
                     csgEditor: document.getElementById('csg-code'),
                     editorCodeEditor: document.getElementById('editor-code'),
                     codePanel: document.getElementById('code-panel'),
-                    editorCodePanel: document.getElementById('editor-code-panel'),
+                    editorCodePanel:
+                        document.getElementById('editor-code-panel'),
                     viewPanel: document.getElementById('view-panel'),
                     settingsPanel: document.getElementById('settings-panel'),
-                    canvas: document.getElementById('three-canvas')
-                };
-                
-                initialize(domElements);
-            };
+                    canvas: document.getElementById('three-canvas'),
+                    openModal: openModal,
+                    closeModal: closeModal,
+                    setupThreeJs: setupThreeJs,
+                    createBuildPlate: createBuildPlate,
+                    resizeRenderer: resizeRenderer,
+                    animate: animate,
+                    get scene() {
+                        return scene
+                    },
+                    showView: showView
+                }
+
+                // Initial settings load
+
+                settings = {
+                    plateWidth: 220,
+                    plateLength: 220,
+                    gridSize: 10,
+                    libraryPath: '/csgLib'
+                }
+                const savedSettings = localStorage.getItem(
+                    'csg-editor-settings'
+                )
+                if (savedSettings) {
+                    settings = JSON.parse(savedSettings)
+                }
+                domElements.widthInput.value = settings.plateWidth
+                domElements.lengthInput.value = settings.plateLength
+                domElements.gridSizeInput.value = settings.gridSize
+                domElements.libraryPathInput.value = settings.libraryPath
+                domElements.settings = settings
+
+                // Setup Three.js
+                setupThreeJs(domElements.canvas)
+                //createBuildPlate();
+                //resizeRenderer();
+                //animate();
+
+                // Set up event listeners
+                window.addEventListener('resize', resizeRenderer)
+                domElements.btn3D.addEventListener('click', () =>
+                    showView('3d')
+                )
+                domElements.btnCode.addEventListener('click', () =>
+                    showView('code')
+                )
+                domElements.btnEditorCode.addEventListener('click', () =>
+                    showView('editor-code')
+                )
+                domElements.btnSettings.addEventListener('click', () =>
+                    showView('settings')
+                )
+                domElements.btnLoad.addEventListener('click', () =>
+                    openModal('load-code-modal')
+                )
+
+                // Corrected Save Button Logic
+                domElements.btnSave.addEventListener('click', () => {
+                    const { btnCode, btnEditorCode, btnSettings, btn3D } =
+                        domElements
+                    const activeColor = 'rgb(231, 76, 60)'
+
+                    if (
+                        btnCode.style.backgroundColor === activeColor ||
+                        btnEditorCode.style.backgroundColor === activeColor
+                    ) {
+                        openModal('save-code-modal')
+                    } else if (btn3D.style.backgroundColor === activeColor) {
+                        exportSTL()
+                    } else if (
+                        btnSettings.style.backgroundColor === activeColor
+                    ) {
+                        saveSettings(domElements)
+                    }
+                })
+
+                domElements.saveSettingsBtn.addEventListener('click', () =>
+                    saveSettings(domElements)
+                )
+                domElements.clearCacheBtn.addEventListener(
+                    'click',
+                    clearAllCache
+                )
+
+                initialize(domElements)
+            }
         </script>
     </body>
 </html>
-
-
-
