@@ -1,5 +1,6 @@
 
 
+
 // ./ux/textCodeUI.js
 
 
@@ -135,7 +136,7 @@ export function injectStyles() {
         .code-editor-line-numbers {
             flex-shrink: 0; /* Prevents shrinking of line numbers column */
             text-align: right;
-            padding: 10px;
+            padding: 0; /* Changed from 10px to 0 */
             background-color: #f0f0f0; /* Lighter background for line numbers */
             color: #888; /* Darker text for line numbers */
             user-select: none; /* Prevents selection of line numbers */
@@ -146,12 +147,13 @@ export function injectStyles() {
         .code-editor-line-numbers > div {
             height: ${LINE_HEIGHT_EM}em; /* Match editor line-height for perfect alignment */
             line-height: ${LINE_HEIGHT_EM}em; /* Ensure text within div also matches */
+            padding: 0 10px; /* Add padding here for visual spacing */
         }
 
         /* Styles for the content editable area */
         .code-editor-content {
             flex-grow: 1; /* Takes remaining space */
-            padding: 10px;
+            padding: 0; /* Changed from 10px to 0 */
             outline: none; /* Removes default focus outline */
             overflow: auto; /* Enables scrolling for content */
             background-color: #ffffff; /* White background for editor content */
@@ -162,6 +164,12 @@ export function injectStyles() {
             word-break: normal; /* Prevents word breaking within lines */
             box-sizing: border-box; /* Include padding in element's total width/height */
         }
+
+        /* Add padding to the text content itself */
+        .code-editor-content > div {
+            padding: 0 10px;
+        }
+
 
         /* Styling for the beautify button, now positioned absolutely */
         .code-editor-beautify-button-container {
@@ -492,5 +500,4 @@ export const editorHtml = `
         </div>
     </div>
 `;
-
 

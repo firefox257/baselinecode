@@ -201,17 +201,55 @@
                     id="csg-code"
                     title="CSG Script"
                     onrun="runCSGCode();">
-                    //Edit and save to update! /* return floor( difference(
-                    color(0x0000ffff,sphere({ r: 20, fn:100 })), translate([15,
-                    0, 0], cube([20, 20, 20])), translate([0, 0, 15], cylinder({
-                    r: 20, h: 30 , fn:100})) ) ); */ //return cube([40, 50,
-                    60]); /* var b1= floor( translate([30,0,0], cylinder({d:10,
-                    h:20, fn:50}) ) ); var b2= floor( translate([0,0,0],
-                    cube([10,10,10]) ) ); return { b1:{ data:b1, show:true },
-                    b2:{ data:b2, show:true } }; */ return floor(
-                    translate([30,0,0], union( translate([5,5,0],
-                    color(0xffff0000, cube([10,10,10])) ), translate([0,0,0],
-                    cube([10,10,10]) ) ) ) );
+ // Edit and save to update!
+/*
+return floor(
+	difference(
+		color(0x0000ffff,sphere({ r: 20, fn:100 })),
+		translate([15, 0, 0], cube([20, 20, 20])),
+		translate([0, 0, 15], cylinder({ r: 20, h: 30 , fn:100}))
+	)
+);
+*/
+//return cube([40, 50, 60]);
+/*
+var b1= floor(
+	translate([30,0,0],
+		cylinder({d:10, h:20, fn:50})
+	)
+);
+
+var b2= floor(
+	translate([0,0,0],
+		cube([10,10,10])
+	)
+);
+
+return {
+	b1:{
+	data:b1,
+	show:true
+	},
+	b2:{
+		data:b2,
+		show:true
+		}
+	};
+	*/
+
+return floor(
+	translate([30,0,0],
+		union(
+
+			translate([5,5,0],
+				color(0xffff0000, cube([10,10,10]))
+			),
+			translate([0,0,0],
+				cube([10,10,10])
+			)
+		)
+	)
+);
                 </textcode>
             </div>
 
@@ -507,6 +545,40 @@
                 }
             }
 
+            function saveSettings(domElements) {
+                const newWidth = parseFloat(domElements.widthInput.value)
+                const newLength = parseFloat(domElements.lengthInput.value)
+                const newGridSize = parseFloat(domElements.gridSizeInput.value)
+                const newLibraryPath = domElements.libraryPathInput.value
+
+                if (
+                    isNaN(newWidth) ||
+                    newWidth <= 0 ||
+                    isNaN(newLength) ||
+                    newLength <= 0 ||
+                    isNaN(newGridSize) ||
+                    newGridSize <= 0
+                ) {
+                    alert(
+                        'Please enter valid positive numbers for all settings.'
+                    )
+                    return
+                }
+
+                settings.plateWidth = newWidth
+                settings.plateLength = newLength
+                settings.gridSize = newGridSize
+                settings.libraryPath = newLibraryPath
+
+                localStorage.setItem(
+                    'csg-editor-settings',
+                    JSON.stringify(settings)
+                )
+
+                createBuildPlate()
+                alert('Settings saved successfully!')
+            }
+
             window.onload = function () {
                 // Collect all the DOM elements and pass them to the initializer function
                 domElements = {
@@ -617,6 +689,12 @@
                 )
 
                 initialize(domElements)
+                // Initial view and render
+                showView('3d')
+                createBuildPlate()
+                resizeRenderer()
+                animate()
+                runCSGCode()
             }
         </script>
     </body>
