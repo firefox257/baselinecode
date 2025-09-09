@@ -91,7 +91,7 @@ const cloneFilter = (item, checkFunction, applyFunction, ...args) => {
 		var obj={};
         for (const key in item) {
            if (Object.prototype.hasOwnProperty.call(item, key)) {
-				console.log("key: "+ key)
+				//console.log("key: "+ key)
                 obj[key]=cloneFilter(item[key], checkFunction, applyFunction, ...args);
             }
 			//obj[key]= cloneFilter(item[key], checkFunction, applyFunction, ...args);
@@ -296,7 +296,10 @@ export async function handleLoadFile(event, filePath) {
         // Rehydrate mesh cache if present
         const objectLoader = new THREE.ObjectLoader();
         if (projectData.meshCache) {
-            for (const pageName in projectData.meshCache) {
+			
+			/*
+            for (const pageName in projectData.meshCache) 
+			{
                 const cachedData = projectData.meshCache[pageName];
                 let rehydratedMesh = null;
 
@@ -329,6 +332,19 @@ export async function handleLoadFile(event, filePath) {
                 project.meshCache[pageName] = { mesh: rehydratedMesh, updated: true };
 				//project.meshCache[pageName].mesh.userData
             }
+			//*/
+			
+			project.meshCache = cloneFilter(projectData.meshCache, isJsonMesh,(item)=>{
+				if(item.isBrush) {
+					const mesh = objectLoader.parse(item.$jsonMesh.mesh);
+                    return new Brush(mesh);
+					
+				} 
+				else
+				{
+					return objectLoader.parse(item.$jsonMesh.mesh);
+				}
+			});
         }
 
         const csgEditorValues = csgEditor.values;
@@ -359,10 +375,29 @@ export async function handleSaveFile(event, filePath) {
         const projectData = {
             csgCode: csgEditor.values,
             editorCode: editorCodeEditor.values,
-            meshCache: {}
+            meshCache: cloneFilter(project.meshCache, isMesh, (item)=>{
+				if(item instanceof THREE.Mesh) {
+					return {
+						$jsonMesh:{
+							mesh:item.toJSON()
+						}
+					};
+				} 
+				else if(item instanceof Brush) {
+					return {
+						$jsonMesh:{
+							isBrush:true,
+							mesh:item.mesh.toJSON()
+						}
+					};
+				}
+				
+			})
         };
-
-        for (const pageName in project.meshCache) {
+		
+		/*
+        for (const pageName in project.meshCache) 
+		{
             const cachedItem = project.meshCache[pageName];
             if (cachedItem.updated && cachedItem.mesh) {
                 if (cachedItem.mesh instanceof THREE.Object3D) {
@@ -387,6 +422,10 @@ export async function handleSaveFile(event, filePath) {
 				//projectData.meshCache[pageName].mesh.userData=cachedItem.mesh.userData;
             }
         }
+		//*/
+		
+		
+		
 
         const projectDataString = JSON.stringify(projectData, null, 2);
         await api.saveFile(finalPath, projectDataString);
