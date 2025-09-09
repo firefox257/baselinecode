@@ -1,40 +1,43 @@
 
 
-var v1 ={
+
+var v={
 	
-	i:0
+	x:123,
+	fun:function() {
+		var self=this;
+		console.log(`here:${self.x}`);
+	}
 }
-class try1
+
+var vv=v.fun.bind(v);
+
+vv();
+
+
+
+
+
+/*
+var outerror =console.error.bind(console);
+
+console.log =()function()
+{
+	outerror("blabla");
+	console.log("================");
+	outerror(...arguments);
+	
+	
+}).bind(console);
+*/
+
+try
 {
 	
-	constructor(){
-		this.i=123;
-		this.v=v1;
-	}
 	
-	geti()
-	{
-		return this.v.i;
-	}
-	getfunc()
-	{
-		var self =this;
-		return ()=>{
-			return self.geti();
-		}
-	}
-	
+eval("hdhd");
 }
-
-
-
-var t1= new try1();
-
-var geti=t1.getfunc();
-console.log(geti());
-v1.i=124;
-
-console.log(geti());
-
-
-//*/
+catch(err)
+{
+	console.log("Error:", err.message, err)
+}

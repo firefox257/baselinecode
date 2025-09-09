@@ -1,0 +1,475 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Nexus Access</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Exo+2:wght@300;400;600&display=swap');
+
+        body {
+            /* FIXED: Correct pollinations.ai URL with your exact parameters */
+            background-image: url('https://image.pollinations.ai/prompt/sci-fi%20fantasy%20digital%20realm%20with%20floating%20islands%2C%20neon%20rivers%2C%20and%20glowing%20symbols%20in%20the%20sky?nologo=true&model=none&private=true&seed=13754');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            font-family: 'Exo 2', sans-serif;
+            color: #e0f7ff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            position: relative;
+            text-shadow: 0 0 5px rgba(0, 255, 255, 0.7);
+        }
+
+        #stardust-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .container {
+            background: rgba(8, 2, 32, 0.88);
+            backdrop-filter: blur(12px);
+            padding: 3rem 2.5rem;
+            border: 1px solid rgba(0, 255, 255, 0.5);
+            border-radius: 16px;
+            box-shadow: 
+                0 0 30px rgba(0, 255, 255, 0.4),
+                inset 0 0 20px rgba(100, 200, 255, 0.2);
+            animation: pulseGlow 3s ease-in-out infinite;
+            position: relative;
+            z-index: 3;
+            max-width: 440px;
+            width: 92%;
+            text-align: center;
+            transform: translateY(0);
+            transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+
+        .container:hover {
+            transform: translateY(-5px) scale(1.01);
+            box-shadow: 
+                0 10px 40px rgba(153, 0, 255, 0.5),
+                inset 0 0 25px rgba(100, 255, 255, 0.3);
+        }
+
+        h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            text-align: center;
+            margin: 0 0 2rem 0;
+            font-size: 2.3rem;
+            letter-spacing: 3px;
+            background: linear-gradient(to right, #00ffff, #ff00ff, #ffff00, #00ff88);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+            animation: rainbowShift 8s linear infinite;
+            position: relative;
+            padding: 0.5rem 0;
+        }
+
+        @keyframes rainbowShift {
+            0% { background-position: 0% 50%; }
+            100% { background-position: 200% 50%; }
+        }
+
+        h1::after {
+            content: "";
+            position: absolute;
+            bottom: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100px;
+            height: 2px;
+            background: linear-gradient(to right, transparent, #00ffff, #ff00ff, transparent);
+            animation: shimmer 1.8s infinite;
+        }
+
+        @keyframes shimmer {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 1; }
+        }
+
+        .form-group {
+            margin-bottom: 1.8rem;
+            text-align: left;
+            position: relative;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.8rem;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.95rem;
+            letter-spacing: 1px;
+            color: #a0f0ff;
+            text-transform: uppercase;
+            padding-left: 30px;
+            position: relative;
+        }
+
+        label::before {
+            content: "✦";
+            position: absolute;
+            left: 0;
+            top: 0;
+            color: #ff55ff;
+            font-size: 1.3rem;
+            animation: float 2.5s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-6px); }
+        }
+
+        input {
+            width: 100%;
+            padding: 1rem;
+            background: rgba(0, 12, 40, 0.7);
+            border: 1px solid rgba(0, 220, 255, 0.4);
+            border-radius: 8px;
+            color: #ffffff;
+            font-family: 'Exo 2', sans-serif;
+            font-size: 1rem;
+            box-shadow: inset 0 0 10px rgba(0, 200, 255, 0.2);
+            transition: all 0.3s ease;
+            box-sizing: border-box;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #00ffff;
+            box-shadow: 
+                0 0 15px rgba(0, 255, 255, 0.6),
+                inset 0 0 15px rgba(0, 220, 255, 0.4);
+            background: rgba(0, 25, 60, 0.85);
+        }
+
+        button {
+            width: 100%;
+            padding: 1.1rem;
+            background: linear-gradient(45deg, #0066ff, #9900ff, #ff00aa, #00ffcc);
+            background-size: 300% 300%;
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 600;
+            letter-spacing: 1.2px;
+            cursor: pointer;
+            transition: all 0.4s ease;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4);
+            margin-top: 1rem;
+            text-transform: uppercase;
+        }
+
+        button:hover {
+            background-position: 100% 0%;
+            transform: translateY(-3px);
+            box-shadow: 0 8px 30px rgba(153, 0, 255, 0.5), 0 0 20px rgba(0, 255, 255, 0.3);
+            letter-spacing: 2px;
+        }
+
+        button::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            transition: 0.6s;
+        }
+
+        button:hover::before {
+            left: 100%;
+        }
+
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 30px rgba(0, 255, 255, 0.4); }
+            50% { box-shadow: 0 0 45px rgba(0, 255, 255, 0.8), 0 0 70px rgba(255, 0, 255, 0.4); }
+        }
+
+        .floating-symbols {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 2;
+            mix-blend-mode: screen;
+        }
+
+        .symbol {
+            position: absolute;
+            font-size: 1.8rem;
+            opacity: 0;
+            animation: floatSymbol 9s infinite forwards;
+            filter: drop-shadow(0 0 6px currentColor);
+        }
+
+        @keyframes floatSymbol {
+            0% {
+                transform: translateY(100vh) rotate(0deg) scale(0.5);
+                opacity: 0;
+            }
+            10% {
+                opacity: 0.9;
+                transform: translateY(80vh) rotate(20deg) scale(1);
+            }
+            90% {
+                opacity: 0.8;
+                transform: translateY(10vh) rotate(340deg) scale(1.1);
+            }
+            100% {
+                transform: translateY(-20vh) rotate(360deg) scale(0.8);
+                opacity: 0;
+            }
+        }
+
+        .status-bar {
+            margin-top: 1.5rem;
+            padding: 8px 16px;
+            background: rgba(0, 0, 0, 0.6);
+            display: inline-block;
+            border-radius: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            color: #00ff99;
+            border: 1px solid #00ff99;
+            animation: statusPulse 2s infinite alternate;
+            box-shadow: 0 0 10px rgba(0, 255, 153, 0.5);
+        }
+
+        @keyframes statusPulse {
+            0% { opacity: 0.7; transform: scale(1); }
+            100% { opacity: 1; transform: scale(1.05); }
+        }
+
+        /* Responsive fixes */
+        @media (max-width: 768px) {
+            body {
+                padding: 1rem;
+            }
+            .container {
+                padding: 2rem 1.5rem;
+                max-width: 100%;
+                margin: 0 auto;
+            }
+            h1 {
+                font-size: 1.8rem;
+            }
+        }
+
+        @media (max-height: 700px) {
+            body {
+                padding: 0.5rem;
+            }
+            .container {
+                max-height: 90vh;
+                overflow-y: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="stardust-canvas"></canvas>
+    <div class="floating-symbols" id="symbols-container"></div>
+
+    <div class="container">
+        <h1>QUANTUM NEXUS</h1>
+        <form id="login-form">
+            <div class="form-group">
+                <label for="username">USER IDENTITY:</label>
+                <input type="text" id="username" name="username" placeholder="ENTER COSMIC SIGNATURE" autocomplete="off" required>
+            </div>
+            <div class="form-group">
+                <label for="password">QUANTUM KEY:</label>
+                <input type="password" id="password" name="password" placeholder="••••••••••••••••" autocomplete="off" required>
+            </div>
+            <button type="submit">ESTABLISH CONNECTION</button>
+            <div class="status-bar">SYSTEM STATUS: AWAITING AUTHENTICATION</div>
+        </form>
+    </div>
+
+    <script>
+        // Stardust and glittering symbols animation
+        const canvas = document.getElementById('stardust-canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // Sci-fi fantasy symbols set
+        const sciFiSymbols = [
+            '✦','✧','✩','✪','✫','✬','✭','✮','✯','✰','✵','✶','✷','✸','✹','✺','✻','✼','✽','✾',
+            '✿','❀','❁','❂','❃','❄','❅','❆','❇','❈','❉','❊','❋','♫','♪','☯','☸','☹','☺','♠',
+            '♣','♥','♦','♪','♫','☼','►','◄','▲','▼','■','●','◆','○','◇','◊','◄','►','↕','‼',
+            '∆','∇','⊕','⊖','⊗','⊘','⊙','⊚','⊛','⊜','⊝','⊞','⊟','⊠','⊡','⋂','⋃','⊂','⊃','⊆'
+        ];
+
+        // Create particles
+        const particles = [];
+        const maxParticles = 200;
+
+        class Particle {
+            constructor() {
+                this.reset();
+            }
+
+            reset() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.size = Math.random() * 4 + 1;
+                this.baseSize = this.size;
+                this.speedX = (Math.random() - 0.5) * 0.7;
+                this.speedY = (Math.random() - 0.5) * 0.7;
+                this.color = this.getRandomColor();
+                this.symbol = sciFiSymbols[Math.floor(Math.random() * sciFiSymbols.length)];
+                this.opacity = Math.random() * 0.6 + 0.2;
+                this.pulseSpeed = Math.random() * 0.03 + 0.01;
+                this.pulsePhase = Math.random() * Math.PI * 2;
+                this.rotation = Math.random() * Math.PI * 2;
+                this.rotationSpeed = (Math.random() - 0.5) * 0.03;
+                this.life = 0;
+                this.maxLife = Math.random() * 300 + 200;
+            }
+
+            getRandomColor() {
+                const colors = ['#00ffff', '#ff00ff', '#ffff00', '#00ff88', '#ff55ff', '#55aaff', '#ffaa55'];
+                return colors[Math.floor(Math.random() * colors.length)];
+            }
+
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                this.pulsePhase += this.pulseSpeed;
+                this.rotation += this.rotationSpeed;
+                this.life++;
+
+                if (this.life > this.maxLife) {
+                    this.reset();
+                }
+
+                // Wrap around screen edges
+                if (this.x < 0) this.x = canvas.width;
+                if (this.x > canvas.width) this.x = 0;
+                if (this.y < 0) this.y = canvas.height;
+                if (this.y > canvas.height) this.y = 0;
+            }
+
+            draw() {
+                const pulse = 0.7 + 0.3 * Math.sin(this.pulsePhase);
+                this.size = this.baseSize * pulse;
+
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation);
+                ctx.globalAlpha = this.opacity * pulse;
+                ctx.fillStyle = this.color;
+                ctx.font = `${Math.floor(this.size * 6)}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(this.symbol, 0, 0);
+
+                // Add glow
+                ctx.shadowColor = this.color;
+                ctx.shadowBlur = 12 * pulse;
+                ctx.fillText(this.symbol, 0, 0);
+                ctx.restore();
+            }
+        }
+
+        // Initialize particles
+        for (let i = 0; i < maxParticles; i++) {
+            particles.push(new Particle());
+        }
+
+        // Animation loop
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach(particle => {
+                particle.update();
+                particle.draw();
+            });
+            requestAnimationFrame(animate);
+        }
+
+        // Floating symbols (DOM-based for extra glitter)
+        function createFloatingSymbol() {
+            const container = document.getElementById('symbols-container');
+            const symbol = document.createElement('div');
+            symbol.className = 'symbol';
+            
+            const symbols = ['✦','✧','✩','✫','✬','✭','✮','✯','✰','✵','✶','✷','✸','✹','✺','✻','✼','✽','✾','✿','❀','❁','❂','❃','❈','❉'];
+            symbol.textContent = symbols[Math.floor(Math.random() * symbols.length)];
+
+            // Randomize properties
+            const startX = Math.random() * 100;
+            const duration = Math.random() * 6 + 6;
+            const delay = Math.random() * 3;
+            const colors = ['#00ffff', '#ff00ff', '#ffff00', '#00ff88', '#ff55ff', '#55aaff'];
+            const color = colors[Math.floor(Math.random() * colors.length)];
+
+            symbol.style.left = `${startX}%`;
+            symbol.style.top = '100vh';
+            symbol.style.animationDuration = `${duration}s`;
+            symbol.style.animationDelay = `${delay}s`;
+            symbol.style.color = color;
+            symbol.style.zIndex = '2';
+
+            container.appendChild(symbol);
+
+            // Clean up
+            setTimeout(() => {
+                if (symbol.parentNode) {
+                    symbol.remove();
+                }
+            }, (duration + delay + 1) * 1000);
+        }
+
+        // Create floating symbols
+        setInterval(createFloatingSymbol, 250);
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+
+        // Form submission
+        document.getElementById('login-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const statusBar = document.querySelector('.status-bar');
+            statusBar.textContent = "SYSTEM STATUS: AUTHENTICATING... ∞";
+            statusBar.style.color = "#ffff00";
+
+            // Simulate authentication
+            setTimeout(() => {
+                statusBar.textContent = "SYSTEM STATUS: ACCESS GRANTED ✓";
+                statusBar.style.color = "#00ff99";
+                document.querySelector('.container').style.boxShadow = "0 0 60px rgba(0, 255, 153, 0.7), 0 0 100px rgba(0, 255, 153, 0.3)";
+
+                console.log("User authenticated successfully");
+            }, 2500);
+        });
+
+        // Start animations
+        animate();
+    </script>
+</body>
+</html>

@@ -223,6 +223,13 @@
                 color: #ff8b8b;
                 margin-bottom: 2px;
             }
+            
+            .console-stack {
+                color: #a0a0a0; /* Slightly different color for stack trace */
+                font-size: 0.9em;
+                margin-top: 4px;
+                white-space: pre-wrap;
+            }
             /* ---------- End console styles ---------- */
 
         </style>
@@ -246,11 +253,15 @@
             <div class="toolbar-separator"></div>
             <button id="btn-editor-code" title="Editor Code">&#x2B9D;</button>
             <div class="toolbar-separator"></div>
+            <button id="btn-clear-cache-by-name" style="display: none;" title="Clear Current Cache">&#x2716;</button>
+            <div class="toolbar-separator" id="separator-clear-cache" style="display: none;"></div>
             <button id="btn-settings" title="Settings">&#x2699;</button>
             <div class="toolbar-separator"></div>
             <button id="btn-load" title="Load Project">&#x1F4E5;</button>
             <div class="toolbar-separator"></div>
             <button id="btn-save" title="Save Project">&#x1F4BE;</button>
+            <div class="toolbar-separator"></div>
+            <button id="btn-clear-console" title="Clear Console">&#x1F5D1;</button>
         </div>
 
         <div id="main-container">
@@ -404,7 +415,8 @@ return floor(
                 handleSaveFile,
                 handleSaveStl,
                 exportSTL,
-                clearAllCache
+                clearAllCache,
+                clearCurrentCacheByName
             } from './js/editorCsg.js'
 
             let settings
@@ -429,6 +441,7 @@ return floor(
             window.handleLoadFile = handleLoadFile
             window.handleSaveFile = handleSaveFile
             window.handleSaveStl = handleSaveStl
+            window.clearCurrentCacheByName = clearCurrentCacheByName
 
             function openModal(id) {
                 document.getElementById(id).style.display = 'flex'
@@ -523,14 +536,8 @@ return floor(
                     -halfLength,
                     halfWidth,
                     0,
-                    -halfLength,
-                    halfWidth,
-                    0,
                     halfLength,
                     halfWidth,
-                    0,
-                    halfLength,
-                    -halfWidth,
                     0,
                     halfLength,
                     -halfWidth,
@@ -582,7 +589,9 @@ return floor(
                     btn3D: document.getElementById('btn-3d'),
                     btnCode: document.getElementById('btn-code'),
                     btnEditorCode: document.getElementById('btn-editor-code'),
-                    btnSettings: document.getElementById('btn-settings')
+                    btnSettings: document.getElementById('btn-settings'),
+                    btnClearCacheByName: document.getElementById('btn-clear-cache-by-name'),
+                    separatorClearCache: document.getElementById('separator-clear-cache')
                 }
 
                 dom.codePanel.style.display = 'none'
@@ -595,15 +604,25 @@ return floor(
                 dom.btnEditorCode.style.backgroundColor = '#3498db'
                 dom.btnSettings.style.backgroundColor = '#3498db'
 
+                // Hide the new button and separator by default
+                dom.btnClearCacheByName.style.display = 'none';
+                dom.separatorClearCache.style.display = 'none';
+
                 if (id === '3d') {
                     dom.viewPanel.style.display = 'block'
                     dom.btn3D.style.backgroundColor = '#e74c3c'
                 } else if (id === 'code') {
                     dom.codePanel.style.display = 'block'
                     dom.btnCode.style.backgroundColor = '#e74c3c'
+                    // Show the new button for code view
+                    dom.btnClearCacheByName.style.display = 'block';
+                    dom.separatorClearCache.style.display = 'block';
                 } else if (id === 'editor-code') {
                     dom.editorCodePanel.style.display = 'block'
                     dom.btnEditorCode.style.backgroundColor = '#e74c3c'
+                    // Show the new button for editor code view
+                    dom.btnClearCacheByName.style.display = 'block';
+                    dom.separatorClearCache.style.display = 'block';
                 } else if (id === 'settings') {
                     dom.settingsPanel.style.display = 'block'
                     dom.btnSettings.style.backgroundColor = '#e74c3c'
@@ -653,6 +672,7 @@ return floor(
                     btnSettings: document.getElementById('btn-settings'),
                     btnLoad: document.getElementById('btn-load'),
                     btnSave: document.getElementById('btn-save'),
+                    clearConsoleBtn: document.getElementById('btn-clear-console'),
                     widthInput: document.getElementById('width-input'),
                     lengthInput: document.getElementById('length-input'),
                     gridSizeInput: document.getElementById('grid-size-input'),
@@ -708,7 +728,6 @@ return floor(
                 //animate();
 
                 // Set up event listeners
-                window.addEventListener('resize', resizeRenderer)
                 domElements.btn3D.addEventListener('click', () =>
                     showView('3d')
                 )
@@ -724,6 +743,12 @@ return floor(
                 domElements.btnLoad.addEventListener('click', () =>
                     openModal('load-code-modal')
                 )
+                // New event listener for the Clear Console button
+                domElements.clearConsoleBtn.addEventListener('click', () => {
+                    document.getElementById('console-panel').innerHTML = '';
+                });
+                // New event listener for the Clear Cache button
+                document.getElementById('btn-clear-cache-by-name').addEventListener('click', clearCurrentCacheByName);
 
                 // Corrected Save Button Logic
                 domElements.btnSave.addEventListener('click', () => {
@@ -766,4 +791,3 @@ return floor(
         </script>
     </body>
 </html>
-

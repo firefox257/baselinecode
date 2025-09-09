@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cubic Curve Interpolation</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #1a1a1a;
+            color: #f0f0f0;
+            font-family: 'Inter', sans-serif;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem;
+            background-color: #2c2c2c;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
+            border: 1px solid #444;
+        }
+
+        h1 {
+            color: #fff;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+
+        canvas {
+            background-color: #222;
+            border: 1px solid #555;
+            border-radius: 8px;
+            touch-action: none; /* Prevent default touch behavior */
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+            color: #ccc;
+        }
+
+        input[type="range"] {
+            width: 70%;
+            -webkit-appearance: none;
+            height: 8px;
+            background: #444;
+            border-radius: 4px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #fff;
+            border-radius: 50%;
+            border: 2px solid #66b2ff;
+            box-shadow: 0 0 2px #66b2ff;
+        }
+
+        #numPointsOutput {
+            font-weight: bold;
+            color: #66b2ff;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Cubic Curve Interpolation</h1>
+    <canvas id="myCanvas" width="600" height="400"></canvas>
+    <div class="controls">
+        <label for="numPoints">
+            Number of Points:
+            <input type="range" id="numPoints" min="2" max="100" value="20">
+            <span id="numPointsOutput">20</span>
+        </label>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const canvas = document.getElementById('myCanvas');
+        const ctx = canvas.getContext('2d');
+        const numPointsSlider = document.getElementById('numPoints');
+        const numPointsOutput = document.getElementById('numPointsOutput');
+
+        // Initial points for the cubic curve
+        let p0 = { x: 50, y: 350 };  // Start point
+        let p1 = { x: 150, y: 50 };  // Control point 1
+        let p2 = { x: 450, y: 50 };  // Control point 2
+        let p3 = { x: 550, y: 350 }; // End point
+
+        const pointRadius = 6;
+        const curveColor = '#888';
+        const interpolatedPointColor = '#66b2ff';
+        const handleColor = '#ccc';
+
+        let activePoint = null;
+
+        // Function to draw the cubic curve
+        function drawCurve() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw the control points and handles
+            drawPoint(p0, handleColor, 'P0');
+            drawPoint(p1, handleColor, 'P1');
+            drawPoint(p2, handleColor, 'P2');
+            drawPoint(p3, handleColor, 'P3');
+
+            // Draw the lines to the control points
+            ctx.beginPath();
+            ctx.setLineDash([5, 5]);
+            ctx.strokeStyle = curveColor;
+            ctx.moveTo(p0.x, p0.y);
+            ctx.lineTo(p1.x, p1.y);
+            ctx.moveTo(p2.x, p2.y);
+            ctx.lineTo(p3.x, p3.y);
+            ctx.stroke();
+
+            // Draw the main cubic curve
+            ctx.beginPath();
+            ctx.setLineDash([]);
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.moveTo(p0.x, p0.y);
+            ctx.bezierCurveTo(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
+            ctx.stroke();
+
+            // Draw the interpolated points
+            drawInterpolatedPoints();
+        }
+
+        // Function to draw a point on the canvas
+        function drawPoint(point, color, label) {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(point.x, point.y, pointRadius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.font = '12px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(label, point.x, point.y - 15);
+        }
+
+        // Function to get a point on a cubic curve at a given t value
+        function getPointOnCurve(t, p0, p1, p2, p3) {
+            const oneMinusT = 1 - t;
+            const x = oneMinusT**3 * p0.x + 3 * oneMinusT**2 * t * p1.x + 3 * oneMinusT * t**2 * p2.x + t**3 * p3.x;
+            const y = oneMinusT**3 * p0.y + 3 * oneMinusT**2 * t * p1.y + 3 * oneMinusT * t**2 * p2.y + t**3 * p3.y;
+            return { x, y };
+        }
+
+        // Function to get the total length of the cubic curve
+        function getCurveLength(p0, p1, p2, p3, numSegments = 1000) {
+            let totalLength = 0;
+            let lastPoint = getPointOnCurve(0, p0, p1, p2, p3);
+
+            for (let i = 1; i <= numSegments; i++) {
+                const t = i / numSegments;
+                const currentPoint = getPointOnCurve(t, p0, p1, p2, p3);
+                const dx = currentPoint.x - lastPoint.x;
+                const dy = currentPoint.y - lastPoint.y;
+                totalLength += Math.sqrt(dx * dx + dy * dy);
+                lastPoint = currentPoint;
+            }
+            return totalLength;
+        }
+
+        // Function to draw points at equal distance along the curve
+        function drawInterpolatedPoints() {
+            const numPoints = parseInt(numPointsSlider.value);
+            const totalLength = getCurveLength(p0, p1, p2, p3);
+            const segmentLength = totalLength / (numPoints - 1);
+            let currentLength = 0;
+            let lastT = 0;
+            let currentPoint;
+
+            // Always draw the first point
+            drawPoint(getPointOnCurve(0, p0, p1, p2, p3), interpolatedPointColor);
+
+            for (let i = 1; i < numPoints; i++) {
+                currentLength += segmentLength;
+                let t = lastT;
+                let step = 0.001;
+                
+                // Find the 't' value that corresponds to the desired length
+                while (t <= 1) {
+                    currentPoint = getPointOnCurve(t, p0, p1, p2, p3);
+                    const dx = currentPoint.x - getPointOnCurve(lastT, p0, p1, p2, p3).x;
+                    const dy = currentPoint.y - getPointOnCurve(lastT, p0, p1, p2, p3).y;
+                    const segmentDistance = Math.sqrt(dx * dx + dy * dy);
+
+                    if (segmentDistance >= segmentLength) {
+                        // We've found the 't' value for this point
+                        drawPoint(currentPoint, interpolatedPointColor);
+                        lastT = t;
+                        break;
+                    }
+                    t += step;
+                }
+            }
+        }
+
+        // Event listeners for user interaction
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            if (isInside(mouseX, mouseY, p0)) {
+                activePoint = p0;
+            } else if (isInside(mouseX, mouseY, p1)) {
+                activePoint = p1;
+            } else if (isInside(mouseX, mouseY, p2)) {
+                activePoint = p2;
+            } else if (isInside(mouseX, mouseY, p3)) {
+                activePoint = p3;
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (activePoint) {
+                const rect = canvas.getBoundingClientRect();
+                activePoint.x = e.clientX - rect.left;
+                activePoint.y = e.clientY - rect.top;
+                drawCurve();
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            activePoint = null;
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            activePoint = null;
+        });
+
+        // Touch event listeners for mobile devices
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            const touchX = touch.clientX - rect.left;
+            const touchY = touch.clientY - rect.top;
+
+            if (isInside(touchX, touchY, p0)) {
+                activePoint = p0;
+            } else if (isInside(touchX, touchY, p1)) {
+                activePoint = p1;
+            } else if (isInside(touchX, touchY, p2)) {
+                activePoint = p2;
+            } else if (isInside(touchX, touchY, p3)) {
+                activePoint = p3;
+            }
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (activePoint) {
+                const touch = e.touches[0];
+                const rect = canvas.getBoundingClientRect();
+                activePoint.x = touch.clientX - rect.left;
+                activePoint.y = touch.clientY - rect.top;
+                drawCurve();
+            }
+        });
+
+        canvas.addEventListener('touchend', () => {
+            activePoint = null;
+        });
+
+        // Helper function to check if a point is within the radius of a control point
+        function isInside(x, y, point) {
+            const dx = x - point.x;
+            const dy = y - point.y;
+            return Math.sqrt(dx * dx + dy * dy) < pointRadius * 2;
+        }
+
+        // Listen for changes on the number of points slider
+        numPointsSlider.addEventListener('input', () => {
+            numPointsOutput.textContent = numPointsSlider.value;
+            drawCurve();
+        });
+
+        // Initial draw
+        drawCurve();
+    });
+</script>
+
+</body>
+</html>

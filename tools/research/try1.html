@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Access</title>
+    <style>
+        body {
+            background-image: url('https://image.pollinations.ai/prompt/a action scene from the matrix movie?nologo=true&model=none&private=true&seed=13754'); /* Replace with actual image URL */
+            background-size: cover;
+            background-position: center;
+            font-family: 'Courier New', monospace;
+            color: #00ff00;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            position: relative;
+        }
+        #matrix-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 0;
+            background-color: transparent;
+        }
+        .container {
+            background-color: rgba(0, 17, 0, 0.7); /* Semi-transparent background */
+            padding: 2rem;
+            border: 1px solid #00ff00;
+            box-shadow: 0 0 20px #00ff00;
+            animation: glow 2s infinite;
+            position: relative;
+            z-index: 1;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 2rem;
+            text-shadow: 0 0 10px #00ff00;
+            animation: typing 3s steps(30);
+            white-space: nowrap;
+            overflow: hidden;
+        }
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+        input {
+            width: 100%;
+            padding: 0.5rem;
+            background-color: #002200;
+            border: 1px solid #00ff00;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+        }
+        input:focus {
+            outline: none;
+            box-shadow: 0 0 10px #00ff00;
+        }
+        button {
+            width: 100%;
+            padding: 0.5rem;
+            background-color: #002200;
+            border: 1px solid #00ff00;
+            color: #00ff00;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        button:hover {
+            background-color: #00ff00;
+            color: #000000;
+        }
+        @keyframes glow {
+            0% { box-shadow: 0 0 10px #00ff00; }
+            50% { box-shadow: 0 0 20px #00ff00; }
+            100% { box-shadow: 0 0 10px #00ff00; }
+        }
+        @keyframes typing {
+            from { width: 0 }
+            to { width: 100% }
+        }
+        .scan-line {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: rgba(0, 255, 0, 0.3);
+            animation: scan 4s linear infinite;
+        }
+        @keyframes scan {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(1000%); }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="matrix-canvas"></canvas>
+    <div class="container">
+        <div class="scan-line"></div>
+        <h1>SYSTEM ACCESS</h1>
+        <form>
+            <div class="form-group">
+                <label for="username">USERNAME:</label>
+                <input type="text" id="username" name="username" placeholder="ENTER ACCESS ID" required>
+            </div>
+            <div class="form-group">
+                <label for="password">PASSWORD:</label>
+                <input type="password" id="password" name="password" placeholder="***********" required>
+            </div>
+            <button type="submit">AUTHENTICATE</button>
+        </form>
+    </div>
+    <script>
+        // Matrix rain effect
+        const canvas = document.getElementById('matrix-canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // Alien symbols Unicode range
+        const alienChars = [
+            '\u2640', '\u2642', '\u2605', '\u2606', '\u2607', '\u261D', '\u261E', '\u261F',
+            '\u2620', '\u2621', '\u2622', '\u2623', '\u2624', '\u2625', '\u2626', '\u2627',
+            '\u2628', '\u2629', '\u262A', '\u262B', '\u262C', '\u262D', '\u262E', '\u262F',
+            '\u2630', '\u2631', '\u2632', '\u2633', '\u2634', '\u2635', '\u2636', '\u2637',
+            '\u2638', '\u2639', '\u263A', '\u263B', '\u263C', '\u263D', '\u263E', '\u263F',
+            '\u2640', '\u2641', '\u2642', '\u2643', '\u2644', '\u2645', '\u2646', '\u2647',
+            '\u2648', '\u2649', '\u264A', '\u264B', '\u264C', '\u264D', '\u264E', '\u264F'
+        ];
+        const fontSize = 14;
+        let columns = Math.floor(canvas.width / fontSize);
+        const drops = [];
+        const trails = []; // To store the trail of characters for each column
+
+        // Initialize drops array
+        for (let x = 0; x < columns; x++) {
+            drops[x] = Math.random() * -100; // Start at random positions above the canvas
+            trails[x] = []; // Initialize empty trail for each column
+        }
+
+        // Main drawing function
+        function draw() {
+            // Clear the canvas completely to maintain transparency
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Set the color for the characters
+            ctx.fillStyle = '#0F0'; // Matrix green
+            ctx.font = fontSize + 'px monospace';
+            
+            // Draw each drop and its trail
+            for (let i = 0; i < drops.length; i++) {
+                // Add current position to trail
+                if (drops[i] > 0) {
+                    trails[i].push({
+                        y: drops[i],
+                        char: alienChars[Math.floor(Math.random() * alienChars.length)],
+                        alpha: 1.0
+                    });
+                    
+                    // Limit trail length
+                    if (trails[i].length > 15) {
+                        trails[i].shift();
+                    }
+                }
+                
+                // Draw the trail for this column
+                for (let j = 0; j < trails[i].length; j++) {
+                    const trailItem = trails[i][j];
+                    // Fade out older trail items
+                    const alpha = 1 - (j / trails[i].length);
+                    ctx.globalAlpha = alpha;
+                    ctx.fillText(trailItem.char, i * fontSize, trailItem.y * fontSize);
+                }
+                
+                // Reset globalAlpha to 1 for the head character
+                ctx.globalAlpha = 1.0;
+                
+                // Get a random character for the head
+                const text = alienChars[Math.floor(Math.random() * alienChars.length)];
+                
+                // Draw the head character (brightest)
+                ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+                
+                // Move the drop down
+                drops[i]++;
+                
+                // Reset if it's gone too far down (with a random chance)
+                if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                    drops[i] = 0;
+                    trails[i] = [];
+                }
+                
+                // Randomly reset some drops to create more variation
+                if (Math.random() > 0.99) {
+                    drops[i] = 0;
+                    trails[i] = [];
+                }
+            }
+            
+            // Reset globalAlpha to 1
+            ctx.globalAlpha = 1.0;
+            
+            requestAnimationFrame(draw);
+        }
+
+        // Adjust for window resize
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            columns = Math.floor(canvas.width / fontSize);
+            
+            // Reset drops array for new dimensions
+            while (drops.length < columns) {
+                drops.push(Math.random() * -100);
+                trails.push([]);
+            }
+            drops.length = columns; // Truncate if necessary
+            trails.length = columns; // Truncate if necessary
+        });
+
+        // Start animation
+        draw();
+    </script>
+</body>
+</html>

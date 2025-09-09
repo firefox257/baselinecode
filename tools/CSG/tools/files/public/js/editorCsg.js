@@ -1,6 +1,5 @@
 
 
-
 /*
 Do not remove
 ./js/esitorCsg.js
@@ -29,6 +28,84 @@ let currentObjects;
 
 let project; // global instance
 
+
+// Helper function to recursively traverse the target and apply color
+
+const applyFilter = (item, checkFunction,applyFunction, ...args) => {
+   //if(item==undefined||item==null) return;
+	
+	// Case 1: The item is a single mesh (THREE.Mesh or Brush)
+    if (checkFunction(item)) {
+        applyFunction(item, ...args);
+    }
+    // Case 2: The item is an array. Recursively process each element.
+    else if (Array.isArray(item)) {
+        item.forEach((subItem) => applyFilter(subItem, checkFunction, applyFunction, ...args))
+    }
+    // Case 3: The item is a generic object. Recursively process its properties.
+    else if (item !== null&& item !== undefined && typeof item === 'object') {
+        for (const key in item) {
+            if (Object.prototype.hasOwnProperty.call(item, key)) {
+                applyFilter(item[key], checkFunction, applyFunction, ...args)
+            }
+        }
+    }
+    // All other data types (strings, numbers, etc.) are ignored.
+}
+
+function isMesh(item) 
+{     
+	return item && (item instanceof THREE.Mesh || item instanceof Brush)
+}
+
+function isJsonMesh(item) {
+	if (typeof item === 'object' && item !== null)
+	{
+		if(item.$jsonMesh!=undefined && item.$jsonMesh!=null) return true;
+	}
+	return false;
+}
+
+const applyToMesh = (item, applyFunction, ...args) => applyFilter(item, isMesh, applyFunction, ...args);
+
+
+const cloneFilter = (item, checkFunction, applyFunction, ...args) => {
+    //if(item==undefined||item==null) return item;
+	
+	// Case 1: The item is a single mesh (THREE.Mesh or Brush)
+    if (checkFunction(item)) {
+        return applyFunction(item, ...args);
+    }
+    // Case 2: The item is an array. Recursively process each element.
+    else if (Array.isArray(item)) {
+		var arr=[];
+        item.forEach((subItem) => {
+			arr.push(
+				cloneFilter(subItem, checkFunction, applyFunction, ...args)
+			);
+		});
+		return arr;
+    }
+    // Case 3: The item is a generic object. Recursively process its properties.
+    else if (item !== null&& item !== undefined && typeof item === 'object') {
+		var obj={};
+        for (const key in item) {
+           if (Object.prototype.hasOwnProperty.call(item, key)) {
+				console.log("key: "+ key)
+                obj[key]=cloneFilter(item[key], checkFunction, applyFunction, ...args);
+            }
+			//obj[key]= cloneFilter(item[key], checkFunction, applyFunction, ...args);
+        }
+		return obj;
+    }
+	
+    // All other data types (strings, numbers, etc.) are returened.
+	return item;
+}
+
+
+
+
 //
 // Class-based project with caches
 //
@@ -50,7 +127,7 @@ class ScadProject {
     }
 
     get codeValues() {
-        if (this._codeEditorRef && Array.isArray(this._codeEditorRef.values)) return this._codeEditorRef.values;
+        if (this._codeEditorRef && Array.isArray(this._codeEditorRef.values)) return this._eitorCodeEditorRef.values;
         return this._codeValues || [];
     }
 
@@ -95,7 +172,7 @@ class ScadProject {
             this.fileCache[fullPath] = subProject;
             return subProject;
         } catch (err) {
-            console.error(`❌ Failed to load file '${fullPath}':`, err);
+            PrintError(`❌ Failed to load file '${fullPath}':`, err);
             alert(`External Project Load Error:\n` + err.message);
             return null;
         }
@@ -111,16 +188,16 @@ class ScadProject {
         }
 
         const idx = this.csgValues.findIndex(p => p.title === name);
-        if (idx === -1) { console.error(`Page '${name}' not found.`); return null; }
+        if (idx === -1) { PrintError(`Page '${name}' not found.`); return null; }
         const requestedPage = this.csgValues[idx];
         const requestedPageName = requestedPage.title;
 
         if (this.meshCache[requestedPageName] && this.meshCache[requestedPageName].updated) {
-            console.log(`✅ Loading cached mesh for page: ${requestedPageName}`);
+            PrintLog(`✅ Loading cached mesh for page: ${requestedPageName}`);
             return this.meshCache[requestedPageName].mesh;
         }
 
-        console.log(`🔍 Re-evaluating code for page: ${requestedPageName}`);
+        PrintLog(`🔍 Re-evaluating code for page: ${requestedPageName}`);
         try {
             const script = new Function(...exportedCSG.names, 'get', 'include', 'path',
                 `return (async () => { ${requestedPage.content} })();`
@@ -129,7 +206,7 @@ class ScadProject {
             this.meshCache[requestedPageName] = { mesh: result, updated: true };
             return result;
         } catch (err) {
-            console.error(`❌ CSG Error for page '${requestedPageName}':`, err);
+            PrintError(`❌ CSG Error for page '${requestedPageName}':`, err.message, err);
             alert(`CSG Error for page '${requestedPageName}':\n` + err.message);
             return null;
         }
@@ -148,9 +225,9 @@ class ScadProject {
         if (this.codeCache[cacheKey] && this.codeCache[cacheKey].updated) return this.codeCache[cacheKey].result;
 
         const pageData = this.codeValues.find(p => p.title === name);
-        if (!pageData) { console.error(`Include error: Page '${name}' not found.`); return null; }
+        if (!pageData) { PrintError(`Include error: Page '${name}' not found.`); return null; }
 
-        console.log(`🔍 Compiling included code for page: ${name}`);
+        PrintLog(`🔍 Compiling included code for page: ${name}`);
         try {
             const script = new Function(...exportedCSG.names, 'get', 'include', 'path',
                 `return (async () => { ${pageData.content} })();`
@@ -159,9 +236,25 @@ class ScadProject {
             this.codeCache[cacheKey] = { result, updated: true };
             return result;
         } catch (err) {
-            console.error(`❌ Include error for page '${name}':`, err);
+            PrintError(`❌ Include error for page '${name}':`, err.message, err);
             alert(`Include Error for page '${name}':\n` + err.message);
             return null;
+        }
+    }
+
+    // New function to clear a single mesh cache entry
+    clearMeshCache(name) {
+        if (this.meshCache[name]) {
+            delete this.meshCache[name];
+            PrintLog(`✅ Cleared mesh cache for: ${name}`);
+        }
+    }
+    
+    // New function to clear a single code cache entry
+    clearCodeCache(name) {
+        if (this.codeCache[name]) {
+            delete this.codeCache[name];
+            PrintLog(`✅ Cleared code cache for: ${name}`);
         }
     }
 
@@ -183,42 +276,67 @@ export async function handleLoadFile(event, filePath) {
         const fileContent = await api.readFile(filePath);
         const projectData = JSON.parse(fileContent);
 
+        // compute and set base path
         const pathSegments = filePath.split('/');
         pathSegments.pop();
         const newBasePath = pathSegments.join('/') + '/';
         csgEditor.basePath = newBasePath;
-        project.setBasePath(newBasePath);
+        project.setBasePath(newBasePath); // keep the class in sync with UI
 
-        if (projectData.csgCode) { csgEditor.values = projectData.csgCode; csgEditor.setAttribute('active', '0'); }
-        if (projectData.editorCode) { editorCodeEditor.values = projectData.editorCode; editorCodeEditor.setAttribute('active', '0'); }
+        // Load code into editors (project uses LIVE refs, so it sees changes automatically)
+        if (projectData.csgCode) {
+            csgEditor.values = projectData.csgCode;
+            csgEditor.setAttribute('active', '0');
+        }
+        if (projectData.editorCode) {
+            editorCodeEditor.values = projectData.editorCode;
+            editorCodeEditor.setAttribute('active', '0');
+        }
 
+        // Rehydrate mesh cache if present
         const objectLoader = new THREE.ObjectLoader();
         if (projectData.meshCache) {
             for (const pageName in projectData.meshCache) {
                 const cachedData = projectData.meshCache[pageName];
                 let rehydratedMesh = null;
+
                 if (cachedData.mesh) {
-                    if (cachedData.mesh.isBrush) { rehydratedMesh = new Brush(objectLoader.parse(cachedData.mesh.mesh)); }
-                    else if (cachedData.mesh.geometries || cachedData.mesh.object) { rehydratedMesh = objectLoader.parse(cachedData.mesh); }
-                    else if (typeof cachedData.mesh === 'object') {
+                    if (cachedData.mesh.isBrush) {
+                        const mesh = objectLoader.parse(cachedData.mesh.mesh);
+                        rehydratedMesh = new Brush(mesh);
+						
+						
+                    } else if (cachedData.mesh.geometries || cachedData.mesh.object) {
+                        rehydratedMesh = objectLoader.parse(cachedData.mesh);
+                    } else if (typeof cachedData.mesh === 'object' && cachedData.mesh !== null) {
                         const rehydratedSubmeshes = {};
                         for (const subKey in cachedData.mesh) {
                             const item = cachedData.mesh[subKey];
                             if (item && item.data) {
-                                rehydratedSubmeshes[subKey] = {
-                                    data: item.data.isBrush ? new Brush(objectLoader.parse(item.data.mesh)) : objectLoader.parse(item.data),
-                                    show: item.show
-                                };
+                                let subMesh = null;
+                                if (item.data.isBrush) {
+                                    const mesh = objectLoader.parse(item.data.mesh);
+                                    subMesh = new Brush(mesh);
+                                } else {
+                                    subMesh = objectLoader.parse(item.data);
+                                }
+                                rehydratedSubmeshes[subKey] = { data: subMesh, show: item.show };
                             }
                         }
                         rehydratedMesh = rehydratedSubmeshes;
                     }
                 }
                 project.meshCache[pageName] = { mesh: rehydratedMesh, updated: true };
+				//project.meshCache[pageName].mesh.userData
             }
         }
 
-        if (csgEditor.values[csgEditor.valuesIndex]) runCSGCode();
+        const csgEditorValues = csgEditor.values;
+        const activeIndex = csgEditor.valuesIndex;
+        if (csgEditorValues && csgEditorValues[activeIndex]) {
+            runCSGCode();
+        }
+
         alert(`Project loaded successfully from: ${filePath}`);
     } catch (error) {
         alert(`Failed to load project: ${error.message}`);
@@ -228,29 +346,51 @@ export async function handleLoadFile(event, filePath) {
 
 export async function handleSaveFile(event, filePath) {
     try {
-        if (!csgEditor.basePath) { const pathSegments = filePath.split('/'); pathSegments.pop(); csgEditor.basePath = pathSegments.join('/') + '/'; }
+        let finalPath = filePath;
+
+        // ensure basePath exists and keep project in sync
+        if (!csgEditor.basePath) {
+            const pathSegments = filePath.split('/');
+            pathSegments.pop();
+            csgEditor.basePath = pathSegments.join('/') + '/';
+        }
         project.setBasePath(csgEditor.basePath);
 
-        const projectData = { csgCode: csgEditor.values, editorCode: editorCodeEditor.values, meshCache: {} };
+        const projectData = {
+            csgCode: csgEditor.values,
+            editorCode: editorCodeEditor.values,
+            meshCache: {}
+        };
+
         for (const pageName in project.meshCache) {
             const cachedItem = project.meshCache[pageName];
             if (cachedItem.updated && cachedItem.mesh) {
-                if (cachedItem.mesh instanceof THREE.Object3D) projectData.meshCache[pageName] = { mesh: cachedItem.mesh.toJSON(), updated: true };
-                else if (cachedItem.mesh instanceof Brush) projectData.meshCache[pageName] = { mesh: { isBrush: true, mesh: cachedItem.mesh.mesh.toJSON() }, updated: true };
-                else if (typeof cachedItem.mesh === 'object') {
+                if (cachedItem.mesh instanceof THREE.Object3D) {
+                    projectData.meshCache[pageName] = { mesh: cachedItem.mesh.toJSON(), updated: true };
+                } else if (cachedItem.mesh instanceof Brush) {
+                    if (cachedItem.mesh.mesh instanceof THREE.Object3D) {
+                        projectData.meshCache[pageName] = { mesh: { isBrush: true, mesh: cachedItem.mesh.mesh.toJSON() }, updated: true };
+                    }
+                } else if (typeof cachedItem.mesh === 'object' && cachedItem.mesh !== null) {
                     const serializedSubmeshes = {};
                     for (const subKey in cachedItem.mesh) {
                         const item = cachedItem.mesh[subKey];
-                        if (item && item.data instanceof THREE.Object3D) serializedSubmeshes[subKey] = { data: item.data.toJSON(), show: item.show };
-                        else if (item && item.data instanceof Brush) serializedSubmeshes[subKey] = { data: { isBrush: true, mesh: item.data.mesh.toJSON() }, show: item.show };
+                        if (item && item.data instanceof THREE.Object3D) {
+                            serializedSubmeshes[subKey] = { data: item.data.toJSON(), show: item.show };
+                        } else if (item && item.data instanceof Brush) {
+                            serializedSubmeshes[subKey] = { data: { isBrush: true, mesh: item.data.mesh.toJSON() }, show: item.show };
+                        }
                     }
                     projectData.meshCache[pageName] = { mesh: serializedSubmeshes, updated: true };
                 }
+				
+				//projectData.meshCache[pageName].mesh.userData=cachedItem.mesh.userData;
             }
         }
 
-        await api.saveFile(filePath, JSON.stringify(projectData, null, 2));
-        alert(`Project saved successfully to: ${filePath}`);
+        const projectDataString = JSON.stringify(projectData, null, 2);
+        await api.saveFile(finalPath, projectDataString);
+        alert(`Project saved successfully to: ${finalPath}`);
     } catch (error) {
         alert(`Failed to save project: ${error.message}`);
     }
@@ -268,23 +408,48 @@ export async function runEditorScript() {
 export async function runCSGCode() {
     currentObjects.forEach(obj => scene.remove(obj));
     currentObjects = [];
-
+	
     const pageData = csgEditor.values[csgEditor.valuesIndex];
     if (!pageData) return;
-
+	
     const activeMesh = await project.get(pageData.title);
-    if (!activeMesh) return;
+	
+	var meshes=[];
+	applyToMesh(activeMesh,(item)=>{
+		meshes.push(item)
+	});
+	
+	meshes.forEach((item)=>{
+		if(item.userData.$csgShow==undefined||item.$csgShow)
+		{
+			scene.add(item);
+			currentObjects.push(item);
+		}
+	});
+	
+}
 
-    if (activeMesh instanceof THREE.Object3D || activeMesh instanceof Brush) {
-        scene.add(activeMesh); currentObjects.push(activeMesh);
-    } else if (typeof activeMesh === 'object') {
-        for (const subKey in activeMesh) {
-            const item = activeMesh[subKey];
-            if (item && item.data && (item.data instanceof THREE.Object3D || item.data instanceof Brush) && item.show) {
-                scene.add(item.data);
-                currentObjects.push(item.data);
-            }
-        }
+// New function to clear the cache of the current active file
+export function clearCurrentCacheByName() {
+    const codePanel = document.getElementById('code-panel');
+    const editorCodePanel = document.getElementById('editor-code-panel');
+
+    let currentTitle = null;
+
+    if (codePanel.style.display === 'block' && csgEditor.values[csgEditor.valuesIndex]) {
+        currentTitle = csgEditor.values[csgEditor.valuesIndex].title;
+        project.clearMeshCache(currentTitle);
+    } else if (editorCodePanel.style.display === 'block' && editorCodeEditor.values[editorCodeEditor.valuesIndex]) {
+        currentTitle = editorCodeEditor.values[editorCodeEditor.valuesIndex].title;
+        project.clearCodeCache(currentTitle);
+    }
+
+    if (currentTitle) {
+        PrintLog(`Cache for "${currentTitle}" cleared.`);
+        alert(`Cache for "${currentTitle}" cleared. Please click "Run" to re-render.`);
+    } else {
+        PrintWarn('No active file to clear cache for.');
+        alert('No active file to clear cache for.');
     }
 }
 
@@ -373,10 +538,15 @@ export function initialize(domElements) {
     });
 }
 
+
+
+
 //
 // --- Console panel setup ---
 //
-(function setupConsolePanel() {
+
+
+(() => {
     const panel = document.getElementById("console-panel");
     const container = document.getElementById("console-container");
     const resizer = document.getElementById("console-resizer");
@@ -425,18 +595,44 @@ export function initialize(domElements) {
         function onTouchMove(e) { if (e.touches.length > 0) moveResize(e.touches[0].clientY); e.preventDefault(); }
         function onTouchEnd() { stopResize(); document.removeEventListener("touchmove", onTouchMove); document.removeEventListener("touchend", onTouchEnd); }
 
-        const origLog = console.log.bind(console);
-        const origWarn = console.warn.bind(console);
-        const origError = console.error.bind(console);
+        //const origLog = console.log.bind(console);
+        //const origWarn = console.warn.bind(console);
+        //const origError = console.error.bind(console);
 
         function formatArgs(args) { try { return Array.from(args).map(a => typeof a === "string" ? a : JSON.stringify(a)).join(' '); } catch { return String(args); } }
-        function logToPanel(type, args) { const msg = document.createElement("div"); msg.className = "console-" + type; msg.textContent = formatArgs(args); panelEl.appendChild(msg); panelEl.scrollTop = panelEl.scrollHeight; }
+        function logToPanel(type, args, stack = null) {
+            const msg = document.createElement("div");
+            msg.className = "console-" + type;
+            msg.textContent = formatArgs(args);
+            panelEl.appendChild(msg);
 
-        console.log = function () { logToPanel("log", arguments); origLog(...arguments); };
-        console.warn = function () { logToPanel("warn", arguments); origWarn(...arguments); };
-        console.error = function () { logToPanel("error", arguments); origError(...arguments); };
+            if (stack) {
+                const stackEl = document.createElement("div");
+                stackEl.className = "console-stack";
+                stackEl.textContent = "Stack Trace:\n" + stack;
+                panelEl.appendChild(stackEl);
+            }
+            panelEl.scrollTop = panelEl.scrollHeight;
+        }
+		
+        
+		globalThis.PrintLog = function () { logToPanel("log", arguments); console.log(...arguments); };
+		globalThis.PrintWarn = function () { logToPanel("warn", arguments); console.warn(...arguments); };
+		globalThis.PrintError = function () {
+            let stack = null;
+            const args = Array.from(arguments);
+            for (const arg of args) {
+                if (arg instanceof Error && arg.stack) {
+                    stack = arg.stack;
+                    break;
+                }
+            }
+            logToPanel("error", args, stack);
+            console.log(arguments[0].message, ...arguments);
+        };
 
         mainContainer.style.height = (window.innerHeight - containerEl.offsetHeight -40) + "px";
         window.addEventListener('resize', () => { mainContainer.style.height = (window.innerHeight - containerEl.offsetHeight) + "px"; resizeRenderer(); });
     }
+	
 })();

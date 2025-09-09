@@ -1,0 +1,35 @@
+// 1. Parse the JSON data
+const cylinderData = {
+  "uuid": "915c795e-2061-4e1b-afa7-f7aac5361006",
+  "type": "CylinderGeometry",
+  "radiusTop": 5,
+  "radiusBottom": 5,
+  "height": 20,
+  "radialSegments": 50,
+  "heightSegments": 1,
+  "openEnded": false,
+  "thetaStart": 0,
+  "thetaLength": 6.283185307179586
+};
+
+// 2. Create a new CylinderGeometry using the parsed data
+const cylinderGeometry = new THREE.CylinderGeometry(
+  cylinderData.radiusTop,
+  cylinderData.radiusBottom,
+  cylinderData.height,
+  cylinderData.radialSegments,
+  cylinderData.heightSegments,
+  cylinderData.openEnded,
+  cylinderData.thetaStart,
+  cylinderData.thetaLength
+);
+
+// 3. Convert the geometry to a BufferGeometry
+// In modern Three.js, geometry types like CylinderGeometry are already subclasses of BufferGeometry.
+// So, the geometry you created is already a BufferGeometry.
+// You can use the geometry directly with a Mesh.
+const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+const cylinderMesh = new THREE.Mesh(cylinderGeometry, material);
+
+// You can explicitly convert it using the BufferGeometry() constructor if needed for older versions.
+const bufferGeometry = new THREE.BufferGeometry().fromGeometry(cylinderGeometry);
