@@ -1,0 +1,95 @@
+{
+  "csgCode": [
+    {
+      "title": "CSG Script",
+      "content": "// Edit and save to update!\n/*\nreturn floor(\n\tdifference(\n\t\tcolor(0x0000ffff,sphere({ r: 20, fn:100 })),\n\t\ttranslate([15, 0, 0], cube([20, 20, 20])),\n\t\ttranslate([0, 0, 15], cylinder({ r: 20, h: 30 , fn:100}))\n\t)\n);\n*/\n//return cube([40, 50, 60]);\n\n\nvar b1= floor(\n\ttranslate([30,0,0],\n\t\tcube([5,5,5])\n\t)\n);\n\nvar b2= floor(\n\ttranslate([0,0,0],\n\t\tcube([10,10,10])\n\t)\n);\n\nreturn {\n\tb1:hide(b1),\n\tb2:b2,\n};\n//*/\n\nreturn floor(\n\ttranslate([30,0,0],\n\t\tunion(\n\n\t\t\ttranslate([5,5,0],\n\t\t\t\tcolor(0xffff0000, cube([10,10,10]))\n\t\t\t),\n\t\t\ttranslate([0,0,0],\n\t\t\t\tcube([10,10,10])\n\t\t\t)\n\t\t)\n\t)\n);"
+    }
+  ],
+  "editorCode": [
+    {
+      "title": "Editor Script",
+      "content": "// Place reusable functions and objects here. // Access from\n                    CSG Script with include(\"page name\"); /* var constants = {\n                    PI: Math.PI, E: Math.E }; return { constants }; */"
+    }
+  ],
+  "meshCache": {
+    "CSG Script": {
+      "mesh": {
+        "b1": {
+          "$jsonMesh": {
+            "mesh": {
+              "positions": "AAACQgAAIEAAACBAAAACQgAAIEAAACDAAAACQgAAIMAAACBAAAACQgAAIMAAACDAAADcQQAAIEAAACDAAADcQQAAIEAAACBAAADcQQAAIMAAACDAAADcQQAAIMAAACBAAADcQQAAIEAAACDAAAACQgAAIEAAACDAAADcQQAAIEAAACBAAAACQgAAIEAAACBAAADcQQAAIMAAACBAAAACQgAAIMAAACBAAADcQQAAIMAAACDAAAACQgAAIMAAACDAAADcQQAAIEAAACBAAAACQgAAIEAAACBAAADcQQAAIMAAACBAAAACQgAAIMAAACBAAAACQgAAIEAAACDAAADcQQAAIEAAACDAAAACQgAAIMAAACDAAADcQQAAIMAAACDA",
+              "normals": "AACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/",
+              "indices": "AAACAAEAAgADAAEABAAGAAUABgAHAAUACAAKAAkACgALAAkADAAOAA0ADgAPAA0AEAASABEAEgATABEAFAAWABUAFgAXABUA",
+              "materials": [
+                {
+                  "color": "#ffcc00",
+                  "roughness": 0.6,
+                  "metalness": 0.2,
+                  "side": 2,
+                  "flatShading": true,
+                  "type": "MeshStandardMaterial"
+                }
+              ],
+              "groups": [],
+              "position": [
+                0,
+                2.5,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ]
+            },
+            "userData": {
+              "$csgShow": false
+            }
+          }
+        },
+        "b2": {
+          "$jsonMesh": {
+            "mesh": {
+              "positions": "AACgQAAAoEAAAKBAAACgQAAAoEAAAKDAAACgQAAAoMAAAKBAAACgQAAAoMAAAKDAAACgwAAAoEAAAKDAAACgwAAAoEAAAKBAAACgwAAAoMAAAKDAAACgwAAAoMAAAKBAAACgwAAAoEAAAKDAAACgQAAAoEAAAKDAAACgwAAAoEAAAKBAAACgQAAAoEAAAKBAAACgwAAAoMAAAKBAAACgQAAAoMAAAKBAAACgwAAAoMAAAKDAAACgQAAAoMAAAKDAAACgwAAAoEAAAKBAAACgQAAAoEAAAKBAAACgwAAAoMAAAKBAAACgQAAAoMAAAKBAAACgQAAAoEAAAKDAAACgwAAAoEAAAKDAAACgQAAAoMAAAKDAAACgwAAAoMAAAKDA",
+              "normals": "AACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/",
+              "indices": "AAACAAEAAgADAAEABAAGAAUABgAHAAUACAAKAAkACgALAAkADAAOAA0ADgAPAA0AEAASABEAEgATABEAFAAWABUAFgAXABUA",
+              "materials": [
+                {
+                  "color": "#ffcc00",
+                  "roughness": 0.6,
+                  "metalness": 0.2,
+                  "side": 2,
+                  "flatShading": true,
+                  "type": "MeshStandardMaterial"
+                }
+              ],
+              "groups": [],
+              "position": [
+                0,
+                5,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ]
+            },
+            "userData": {}
+          }
+        }
+      },
+      "updated": true
+    }
+  }
+}

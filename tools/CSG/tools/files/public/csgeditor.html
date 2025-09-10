@@ -281,10 +281,11 @@ return floor(
 );
 */
 //return cube([40, 50, 60]);
-/*
+
+
 var b1= floor(
 	translate([30,0,0],
-		cylinder({d:10, h:20, fn:50})
+		cube([5,5,5])
 	)
 );
 
@@ -295,16 +296,10 @@ var b2= floor(
 );
 
 return {
-	b1:{
-	data:b1,
-	show:true
-	},
-	b2:{
-		data:b2,
-		show:true
-		}
-	};
-	*/
+	b1:b1,
+	b2:b2,
+};
+//*/
 
 return floor(
 	translate([30,0,0],

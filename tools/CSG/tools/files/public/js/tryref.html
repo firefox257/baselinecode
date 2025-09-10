@@ -1,35 +1,58 @@
-// 1. Parse the JSON data
-const cylinderData = {
-  "uuid": "915c795e-2061-4e1b-afa7-f7aac5361006",
-  "type": "CylinderGeometry",
-  "radiusTop": 5,
-  "radiusBottom": 5,
-  "height": 20,
-  "radialSegments": 50,
-  "heightSegments": 1,
-  "openEnded": false,
-  "thetaStart": 0,
-  "thetaLength": 6.283185307179586
+// Function to convert a Float32Array to a Base64 string
+function floatArrayToBase64(floatArray) {
+    // Create a Uint8Array from the Float32Array
+    const uint8Array = new Uint8Array(floatArray.buffer);
+    let binaryString = '';
+    for (let i = 0; i < uint8Array.length; i++) {
+        binaryString += String.fromCharCode(uint8Array[i]);
+    }
+    return btoa(binaryString); // Use the built-in btoa() function
+}
+
+// Function to convert a Base64 string back to a Float32Array
+function base64ToFloatArray(base64String) {
+    const binaryString = atob(base64String);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+    }
+    return new Float32Array(bytes.buffer);
+}
+
+const cloneAndStripMesh = (mesh) => {
+    if (mesh instanceof THREE.Mesh) {
+        // ...
+        return {
+            $jsonMesh: {
+                mesh: {
+                    // Embed a custom attribute to indicate Base64 encoding
+                    attributes: {
+                        position: {
+                            array: floatArrayToBase64(mesh.geometry.attributes.position.array),
+                            itemSize: 3
+                        },
+                        normal: {
+                            array: floatArrayToBase64(mesh.geometry.attributes.normal.array),
+                            itemSize: 3
+                        }
+                    }
+                }
+            }
+        };
+    }
+    // ... handle Brush objects similarly ...
 };
 
-// 2. Create a new CylinderGeometry using the parsed data
-const cylinderGeometry = new THREE.CylinderGeometry(
-  cylinderData.radiusTop,
-  cylinderData.radiusBottom,
-  cylinderData.height,
-  cylinderData.radialSegments,
-  cylinderData.heightSegments,
-  cylinderData.openEnded,
-  cylinderData.thetaStart,
-  cylinderData.thetaLength
-);
+const handleSaveFile = async (event, filePath) => {
+    // ...
+    const projectData = {
+        csgCode: csgEditor.values,
+        editorCode: editorCodeEditor.values,
+        // The cloneFilter will now save Base64 strings
+        meshCache: cloneFilter(project.meshCache, isMesh, cloneAndStripMesh)
+    };
+    // ...
+};
 
-// 3. Convert the geometry to a BufferGeometry
-// In modern Three.js, geometry types like CylinderGeometry are already subclasses of BufferGeometry.
-// So, the geometry you created is already a BufferGeometry.
-// You can use the geometry directly with a Mesh.
-const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-const cylinderMesh = new THREE.Mesh(cylinderGeometry, material);
-
-// You can explicitly convert it using the BufferGeometry() constructor if needed for older versions.
-const bufferGeometry = new THREE.BufferGeometry().fromGeometry(cylinderGeometry);
+// You'd also need a corresponding function to load the Base64 data
+// from the JSON and convert it back into a Float32Array for the geometry.

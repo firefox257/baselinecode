@@ -78,6 +78,7 @@ const cloneFilter = (item, checkFunction, applyFunction, ...args) => {
     }
     // Case 2: The item is an array. Recursively process each element.
     else if (Array.isArray(item)) {
+		console.log("array");
 		var arr=[];
         item.forEach((subItem) => {
 			arr.push(
@@ -104,6 +105,68 @@ const cloneFilter = (item, checkFunction, applyFunction, ...args) => {
 }
 
 
+// Function to convert a Float32Array to a Base64 string
+function floatArrayToBase64(floatArray) {
+    // Create a Uint8Array from the Float32Array
+    const uint8Array = new Uint8Array(floatArray.buffer);
+    let binaryString = '';
+    for (let i = 0; i < uint8Array.length; i++) {
+        binaryString += String.fromCharCode(uint8Array[i]);
+    }
+    return btoa(binaryString); // Use the built-in btoa() function
+}
+
+// Function to convert a Base64 string back to a Float32Array
+function base64ToFloatArray(base64String) {
+    const binaryString = atob(base64String);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+    }
+    return new Float32Array(bytes.buffer);
+}
+
+/**
+ * Converts a Uint16Array to a Base64 string.
+ * This is useful for serializing binary data for transmission or storage.
+ * @param {Uint16Array} uint16Array The input Uint16Array.
+ * @returns {string} The Base64 encoded string.
+ */
+function uint16ToBase64(uint16Array) {
+	console.log("here3")
+    // Create a Uint8Array view of the Uint16Array's underlying ArrayBuffer.
+    const uint8Array = new Uint8Array(uint16Array.buffer);
+	console.log("here4")
+    // Convert the Uint8Array to a string of characters.
+    let binaryString = '';
+    for (let i = 0; i < uint8Array.length; i++) {
+        binaryString += String.fromCharCode(uint8Array[i]);
+    }
+	
+    // Encode the binary string to Base64.
+    return btoa(binaryString);
+}
+
+/**
+ * Converts a Base64 string back into a Uint16Array.
+ * @param {string} base64String The Base64 encoded string.
+ * @returns {Uint16Array} The reconstructed Uint16Array.
+ */
+function base64ToUint16(base64String) {
+    // Decode the Base64 string back to a binary string.
+    const binaryString = atob(base64String);
+
+    // Create a new Uint16Array with the correct length.
+    const uint16Array = new Uint16Array(binaryString.length / 2);
+
+    // Populate the Uint16Array from the binary string.
+    const view = new DataView(uint16Array.buffer);
+    for (let i = 0; i < binaryString.length; i++) {
+        view.setUint8(i, binaryString.charCodeAt(i));
+    }
+
+    return uint16Array;
+}
 
 
 //
@@ -268,6 +331,154 @@ class ScadProject {
     }
 }
 
+
+/**
+ * Extracts position, normal, index, and material data from a Three.js Mesh.
+ * @param {THREE.Mesh} mesh The mesh to extract data from.
+ * @returns {object|null} An object containing the extracted data, or null if invalid.
+ */
+function extractMeshData(mesh) {
+    try {
+        if (!mesh || !mesh.geometry) {
+            console.error("Invalid mesh provided. It must have a geometry.");
+            return null;
+        }
+
+        const geometry = mesh.geometry;
+        const data = {};
+
+        // --- Extract Geometry Data (same as before) ---
+        const positionAttribute = geometry.getAttribute('position');
+        if (positionAttribute) {
+            data.positions = floatArrayToBase64(positionAttribute.array);
+        }
+		
+        const normalAttribute = geometry.getAttribute('normal');
+        if (normalAttribute) {
+			
+            data.normals = floatArrayToBase64(normalAttribute.array);
+			
+        }
+		
+        const indexAttribute = geometry.getIndex();
+		
+        if (indexAttribute) {
+            data.indices = uint16ToBase64(indexAttribute.array);
+        }
+        
+        // --- NEW: Extract Material and Group Data ---
+        // Handle both single material and array of materials
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        data.materials = materials.map(m => ({
+            color: m.color ? '#' + m.color.getHexString() : '#ffffff',
+            roughness: m.roughness,
+            metalness: m.metalness,
+            side: m.side,
+            flatShading: m.flatShading,
+            type: m.type
+        }));
+
+        // Always add the groups array, even if it's empty
+        data.groups = geometry.groups && geometry.groups.length > 0 ? geometry.groups : [];
+
+        // --- Extract Transformation Data (same as before) ---
+        data.position = [mesh.position.x, mesh.position.y, mesh.position.z];
+        data.rotation = [mesh.rotation.x, mesh.rotation.y, mesh.rotation.z];
+        data.scale = [mesh.scale.x, mesh.scale.y, mesh.scale.z];
+		
+        return data;
+
+    } catch (error) {
+        console.log("Failed to extract mesh data:", error);
+        return null;
+    }
+}
+
+
+
+/**
+ * Recreates a Three.js Mesh from an object containing geometry and transformation data.
+ * @param {object} data An object with geometry, material, group, and transformation data.
+ * @returns {THREE.Mesh|null} The new Three.js Mesh, or null if the data is invalid.
+ */
+function recreateMeshFromData(data) {
+    try {
+        if (!data || !data.positions) {
+            console.error("Invalid data provided. 'positions' array is required.");
+            return null;
+        }
+
+        const geometry = new THREE.BufferGeometry();
+        
+        // --- Set Geometry Attributes (same as before) ---
+        const positions = base64ToFloatArray(data.positions);
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        
+        if (data.normals) {
+            const normals = base64ToFloatArray(data.normals);
+            geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+        }
+
+        if (data.indices) {
+            const indices = base64ToUint16(data.indices);
+            geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+        }
+
+        // --- NEW: Recreate Materials and Set Groups ---
+        let materials = [];
+        if (data.materials && data.materials.length > 0) {
+            materials = data.materials.map(m => {
+                const materialProps = {
+                    color: new THREE.Color(m.color),
+                    roughness: m.roughness,
+                    metalness: m.metalness,
+                    side: m.side,
+                    flatShading: m.flatShading
+                };
+                if (m.type === 'MeshBasicMaterial') {
+                    return new THREE.MeshBasicMaterial(materialProps);
+                } else {
+                    return new THREE.MeshStandardMaterial(materialProps);
+                }
+            });
+
+            // Only add groups if the data contains them
+            if (data.groups && data.groups.length > 0) {
+                data.groups.forEach(group => {
+                    geometry.addGroup(group.start, group.count, group.materialIndex);
+                });
+            }
+
+        } else {
+            materials.push(new THREE.MeshStandardMaterial({ color: 0xffcc00 }));
+        }
+
+        // Create the new mesh
+        const newMesh = new THREE.Mesh(geometry, materials.length === 1 ? materials[0] : materials);
+        
+        // --- Re-apply Transformation Data (same as before) ---
+        if (data.position) {
+            newMesh.position.set(data.position[0], data.position[1], data.position[2]);
+        }
+        
+        if (data.rotation) {
+            newMesh.rotation.set(data.rotation[0], data.rotation[1], data.rotation[2]);
+        }
+        
+        if (data.scale) {
+            newMesh.scale.set(data.scale[0], data.scale[1], data.scale[2]);
+        }
+
+        return newMesh;
+
+    } catch (error) {
+        console.error("Failed to recreate mesh from data:", error);
+        return null;
+    }
+}
+
+
+
 //
 // File handling
 //
@@ -297,52 +508,26 @@ export async function handleLoadFile(event, filePath) {
         const objectLoader = new THREE.ObjectLoader();
         if (projectData.meshCache) {
 			
-			/*
-            for (const pageName in projectData.meshCache) 
-			{
-                const cachedData = projectData.meshCache[pageName];
-                let rehydratedMesh = null;
-
-                if (cachedData.mesh) {
-                    if (cachedData.mesh.isBrush) {
-                        const mesh = objectLoader.parse(cachedData.mesh.mesh);
-                        rehydratedMesh = new Brush(mesh);
-						
-						
-                    } else if (cachedData.mesh.geometries || cachedData.mesh.object) {
-                        rehydratedMesh = objectLoader.parse(cachedData.mesh);
-                    } else if (typeof cachedData.mesh === 'object' && cachedData.mesh !== null) {
-                        const rehydratedSubmeshes = {};
-                        for (const subKey in cachedData.mesh) {
-                            const item = cachedData.mesh[subKey];
-                            if (item && item.data) {
-                                let subMesh = null;
-                                if (item.data.isBrush) {
-                                    const mesh = objectLoader.parse(item.data.mesh);
-                                    subMesh = new Brush(mesh);
-                                } else {
-                                    subMesh = objectLoader.parse(item.data);
-                                }
-                                rehydratedSubmeshes[subKey] = { data: subMesh, show: item.show };
-                            }
-                        }
-                        rehydratedMesh = rehydratedSubmeshes;
-                    }
-                }
-                project.meshCache[pageName] = { mesh: rehydratedMesh, updated: true };
-				//project.meshCache[pageName].mesh.userData
-            }
-			//*/
-			
 			project.meshCache = cloneFilter(projectData.meshCache, isJsonMesh,(item)=>{
 				if(item.isBrush) {
-					const mesh = objectLoader.parse(item.$jsonMesh.mesh);
-                    return new Brush(mesh);
-					
+					//const mesh = objectLoader.parse(item.$jsonMesh.mesh);
+                    
+					const mesh = recreateMeshFromData(item.$jsonMesh.mesh);
+					if(item.$jsonMesh.userData!=undefined)
+					{
+						mesh.userData = item.$jsonMesh.userData;
+					}
+					return new Brush(mesh);
 				} 
 				else
 				{
-					return objectLoader.parse(item.$jsonMesh.mesh);
+					//return objectLoader.parse(item.$jsonMesh.mesh);
+					const mesh = recreateMeshFromData(item.$jsonMesh.mesh);
+					if(item.$jsonMesh.userData!=undefined)
+					{
+						mesh.userData = item.$jsonMesh.userData;
+					}
+					return mesh;
 				}
 			});
         }
@@ -359,6 +544,7 @@ export async function handleLoadFile(event, filePath) {
     }
     closeModal('load-code-modal');
 }
+
 
 export async function handleSaveFile(event, filePath) {
     try {
@@ -377,9 +563,14 @@ export async function handleSaveFile(event, filePath) {
             editorCode: editorCodeEditor.values,
             meshCache: cloneFilter(project.meshCache, isMesh, (item)=>{
 				if(item instanceof THREE.Mesh) {
+					
+					
+					
 					return {
 						$jsonMesh:{
-							mesh:item.toJSON()
+							//mesh:item.toJSON()
+							mesh:extractMeshData(item),
+							userData:item.userData
 						}
 					};
 				} 
@@ -387,7 +578,9 @@ export async function handleSaveFile(event, filePath) {
 					return {
 						$jsonMesh:{
 							isBrush:true,
-							mesh:item.mesh.toJSON()
+							//mesh:item.mesh.toJSON()
+							mesh:extractMeshData(item.mesh),
+							userData:item.userData
 						}
 					};
 				}
@@ -395,38 +588,7 @@ export async function handleSaveFile(event, filePath) {
 			})
         };
 		
-		/*
-        for (const pageName in project.meshCache) 
-		{
-            const cachedItem = project.meshCache[pageName];
-            if (cachedItem.updated && cachedItem.mesh) {
-                if (cachedItem.mesh instanceof THREE.Object3D) {
-                    projectData.meshCache[pageName] = { mesh: cachedItem.mesh.toJSON(), updated: true };
-                } else if (cachedItem.mesh instanceof Brush) {
-                    if (cachedItem.mesh.mesh instanceof THREE.Object3D) {
-                        projectData.meshCache[pageName] = { mesh: { isBrush: true, mesh: cachedItem.mesh.mesh.toJSON() }, updated: true };
-                    }
-                } else if (typeof cachedItem.mesh === 'object' && cachedItem.mesh !== null) {
-                    const serializedSubmeshes = {};
-                    for (const subKey in cachedItem.mesh) {
-                        const item = cachedItem.mesh[subKey];
-                        if (item && item.data instanceof THREE.Object3D) {
-                            serializedSubmeshes[subKey] = { data: item.data.toJSON(), show: item.show };
-                        } else if (item && item.data instanceof Brush) {
-                            serializedSubmeshes[subKey] = { data: { isBrush: true, mesh: item.data.mesh.toJSON() }, show: item.show };
-                        }
-                    }
-                    projectData.meshCache[pageName] = { mesh: serializedSubmeshes, updated: true };
-                }
-				
-				//projectData.meshCache[pageName].mesh.userData=cachedItem.mesh.userData;
-            }
-        }
-		//*/
 		
-		
-		
-
         const projectDataString = JSON.stringify(projectData, null, 2);
         await api.saveFile(finalPath, projectDataString);
         alert(`Project saved successfully to: ${finalPath}`);

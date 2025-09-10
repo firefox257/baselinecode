@@ -91,7 +91,7 @@ const cloneFilter = (item, checkFunction, applyFunction, ...args) => {
 		var obj={};
         for (const key in item) {
            if (Object.prototype.hasOwnProperty.call(item, key)) {
-				console.log("key: "+ key)
+				//console.log("key: "+ key)
                 obj[key]=cloneFilter(item[key], checkFunction, applyFunction, ...args);
             }
 			//obj[key]= cloneFilter(item[key], checkFunction, applyFunction, ...args);
@@ -104,7 +104,26 @@ const cloneFilter = (item, checkFunction, applyFunction, ...args) => {
 }
 
 
+// Function to convert a Float32Array to a Base64 string
+function floatArrayToBase64(floatArray) {
+    // Create a Uint8Array from the Float32Array
+    const uint8Array = new Uint8Array(floatArray.buffer);
+    let binaryString = '';
+    for (let i = 0; i < uint8Array.length; i++) {
+        binaryString += String.fromCharCode(uint8Array[i]);
+    }
+    return btoa(binaryString); // Use the built-in btoa() function
+}
 
+// Function to convert a Base64 string back to a Float32Array
+function base64ToFloatArray(base64String) {
+    const binaryString = atob(base64String);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+    }
+    return new Float32Array(bytes.buffer);
+}
 
 //
 // Class-based project with caches
@@ -268,68 +287,6 @@ class ScadProject {
     }
 }
 
-
-
-
-/**
- * Custom toJSON function that applies geometry transformations before serialization.
- * This "bakes" the transformations into the mesh's matrix.
- * @param {THREE.Mesh | Brush} item The mesh or brush to serialize.
- * @returns {Object} The JSON representation of the object.
- */
-function customToJson(item) {
-    let meshToSerialize = null;
-    let isBrush = false;
-
-    if (item instanceof THREE.Mesh) {
-        meshToSerialize = item;
-    } else if (item instanceof Brush) {
-        meshToSerialize = item.mesh;
-        isBrush = true;
-    }
-
-    if (!meshToSerialize) {
-        return null;
-    }
-
-    const geometry = meshToSerialize.geometry.clone();
-    const material = meshToSerialize.material.clone();
-
-    const transformedMesh = new THREE.Mesh(geometry, material);
-    transformedMesh.copy(meshToSerialize);
-
-    // Apply geometry transformations to the mesh's matrix
-    transformedMesh.updateMatrix();
-    transformedMesh.matrixAutoUpdate = false;
-
-    const jsonData = transformedMesh.toJSON();
-    if (isBrush) {
-        return { isBrush: true, mesh: jsonData };
-    }
-    return jsonData;
-}
-
-/**
- * Custom parse function for handling the rehydrated JSON.
- * Since the geometry is already "baked," the standard THREE.ObjectLoader
- * will parse it correctly. This function is a wrapper for clarity.
- * @param {Object} data The JSON data to parse.
- * @param {THREE.ObjectLoader} loader The Three.js object loader.
- * @returns {THREE.Mesh | Brush} The rehydrated object.
- */
-function customParse(data, loader) {
-    if (data && data.isBrush) {
-        const mesh = loader.parse(data.mesh);
-        return new Brush(mesh);
-    }
-    return loader.parse(data);
-}
-
-
-
-
-
-
 //
 // File handling
 //
@@ -358,7 +315,10 @@ export async function handleLoadFile(event, filePath) {
         // Rehydrate mesh cache if present
         const objectLoader = new THREE.ObjectLoader();
         if (projectData.meshCache) {
-            for (const pageName in projectData.meshCache) {
+			
+			/*
+            for (const pageName in projectData.meshCache) 
+			{
                 const cachedData = projectData.meshCache[pageName];
                 let rehydratedMesh = null;
 
@@ -391,6 +351,19 @@ export async function handleLoadFile(event, filePath) {
                 project.meshCache[pageName] = { mesh: rehydratedMesh, updated: true };
 				//project.meshCache[pageName].mesh.userData
             }
+			//*/
+			
+			project.meshCache = cloneFilter(projectData.meshCache, isJsonMesh,(item)=>{
+				if(item.isBrush) {
+					const mesh = objectLoader.parse(item.$jsonMesh.mesh);
+                    return new Brush(mesh);
+					
+				} 
+				else
+				{
+					return objectLoader.parse(item.$jsonMesh.mesh);
+				}
+			});
         }
 
         const csgEditorValues = csgEditor.values;
@@ -421,10 +394,29 @@ export async function handleSaveFile(event, filePath) {
         const projectData = {
             csgCode: csgEditor.values,
             editorCode: editorCodeEditor.values,
-            meshCache: {}
+            meshCache: cloneFilter(project.meshCache, isMesh, (item)=>{
+				if(item instanceof THREE.Mesh) {
+					return {
+						$jsonMesh:{
+							mesh:item.toJSON()
+						}
+					};
+				} 
+				else if(item instanceof Brush) {
+					return {
+						$jsonMesh:{
+							isBrush:true,
+							mesh:item.mesh.toJSON()
+						}
+					};
+				}
+				
+			})
         };
-
-        for (const pageName in project.meshCache) {
+		
+		/*
+        for (const pageName in project.meshCache) 
+		{
             const cachedItem = project.meshCache[pageName];
             if (cachedItem.updated && cachedItem.mesh) {
                 if (cachedItem.mesh instanceof THREE.Object3D) {
@@ -449,6 +441,10 @@ export async function handleSaveFile(event, filePath) {
 				//projectData.meshCache[pageName].mesh.userData=cachedItem.mesh.userData;
             }
         }
+		//*/
+		
+		
+		
 
         const projectDataString = JSON.stringify(projectData, null, 2);
         await api.saveFile(finalPath, projectDataString);

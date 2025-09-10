@@ -327,7 +327,7 @@ function line3d(points2d, start, end, fn = 12) {
     return new THREE.Mesh(geom, defaultMaterial.clone())
 }
 
-function linePaths3d(points2d, points3d, fn = 12) {
+function linePaths3d(points2d, points3d) {
     if (!points2d || points2d.length < 3) {
         console.warn(
             'linePaths3d requires at least 3 points to form a closed 2D shape.'
