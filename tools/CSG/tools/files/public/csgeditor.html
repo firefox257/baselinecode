@@ -271,6 +271,45 @@
                     title="CSG Script"
                     onrun="runCSGCode();">
  // Edit and save to update!
+
+ 
+ 
+ ////////////////
+ 
+ 
+ 
+ // The data for the star's outer shape remains the same.
+const myStarShapeData = {
+	paths: [
+		'm', 0, 10,
+		'l', 2.5, 2.5,
+		'l', 10, 2.5,
+		'l', 5, -2.5,
+		'l', 7.5, -10,
+		'l', 0, -5,
+		'l', -7.5, -10,
+		'l', -5, -2.5,
+		'l', -10, 2.5,
+		'l', -2.5, 2.5,
+		'l', 0, 10
+	],
+	// Add the 'holes' property to the object.
+	holes: [
+		// A circular hole with a radius of 2, centered at (0, 0).
+		// The 'a' command specifies a center point, a radius,
+		// a start and end angle, and a clockwise flag.
+		['a', 0, 0, 2, 0, Math.PI * 2, true]
+	]
+};
+
+// Recreate the shape using the deserializePath function.
+const myStarShapeWithHole = shape(myStarShapeData);
+
+// Extrude the star with the hole along the Z-axis.
+return line3d(myStarShapeWithHole, [0, 0, 0], [0, 0, 20]);
+
+ //////////////
+ 
 /*
 return floor(
 	difference(

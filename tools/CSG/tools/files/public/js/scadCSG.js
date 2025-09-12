@@ -59,7 +59,6 @@ const applyToMesh = (item, applyFunction, ...args) =>
     applyFilter(item, isMesh, applyFunction, ...args)
 
 function convertGeometry(item) {
-    
     //Create a new BufferGeometry and set its attributes
     const bufferGeometry = new THREE.BufferGeometry()
     bufferGeometry.setAttribute(
@@ -79,10 +78,166 @@ function convertGeometry(item) {
     if (item.index) {
         bufferGeometry.setIndex(item.index)
     }
-	return bufferGeometry;
+    return bufferGeometry
     // Now `bufferGeometry` is the object you need. You can inspect its `attributes.position.array` to get the desired output.
     //console.log(bufferGeometry.attributes.position.array)
 }
+
+
+
+//////////////
+
+
+
+
+
+
+/**
+ * Maps THREE.Curve types to single-letter abbreviations to minimize data size.
+ */
+const ABBREVIATE_CURVE_TYPES = {
+    LineCurve: 'l',
+    QuadraticBezierCurve: 'q',
+    CubicBezierCurve: 'c',
+    ArcCurve: 'a',
+    EllipseCurve: 'e'
+};
+
+/**
+ * Serializes a THREE.Path into a compact array of commands and values,
+ * including support for Line, Quadratic, Cubic, Arc, and Ellipse curves.
+ * e.g., ['m', 1, 2, 'l', 10, 10, 'a', 5, 5, 3, 0, 1.5, false, ...].
+ * @param {THREE.Path} path The THREE.Path object to serialize.
+ * @returns {Array<string | number | boolean>} A flat array of commands and coordinates.
+ */
+function serializePath(path) {
+    const data = [];
+    if (path.curves.length === 0) return data;
+
+    // The starting point for the path (the first moveTo)
+    const startPoint = path.curves[0].v1 || new THREE.Vector2(path.curves[0].aX, path.curves[0].aY);
+    data.push('m', startPoint.x, startPoint.y);
+
+    path.curves.forEach(curve => {
+        const type = curve.type;
+        const abbreviation = ABBREVIATE_CURVE_TYPES[type];
+
+        // Ensure the path is continuous; if not, add an explicit moveTo command.
+        if (curve.v1 && path.currentPoint && curve.v1.distanceTo(path.currentPoint) > 0.0001) {
+            data.push('m', curve.v1.x, curve.v1.y);
+        }
+
+        if (abbreviation) {
+            data.push(abbreviation);
+
+            if (type === 'LineCurve') {
+                data.push(curve.v2.x, curve.v2.y);
+            } else if (type === 'QuadraticBezierCurve') {
+                data.push(curve.v1.x, curve.v1.y, curve.v2.x, curve.v2.y);
+            } else if (type === 'CubicBezierCurve') {
+                data.push(curve.v1.x, curve.v1.y, curve.v2.x, curve.v2.y, curve.v3.x, curve.v3.y);
+            } else if (type === 'ArcCurve') {
+                data.push(curve.aX, curve.aY, curve.aRadius, curve.aStartAngle, curve.aEndAngle, curve.aClockwise);
+            } else if (type === 'EllipseCurve') {
+                data.push(curve.aX, curve.aY, curve.xRadius, curve.yRadius, curve.aStartAngle, curve.aEndAngle, curve.aClockwise, curve.aRotation);
+            }
+        }
+        // Update the current point for the next iteration to check for continuity
+        path.currentPoint = curve.v2 || curve.v3 || new THREE.Vector2(curve.aX + curve.xRadius * Math.cos(curve.aEndAngle), curve.aY + curve.yRadius * Math.sin(curve.aEndAngle));
+    });
+
+    return data;
+}
+
+
+
+
+/**
+ * Recreates a THREE.Path object from serialized data, now including ArcCurve and EllipseCurve.
+ * @param {Array<string | number>} data The array of serialized commands.
+ * @returns {THREE.Path} A new THREE.Path object.
+ */
+function deserializePath(data) {
+    const path = new THREE.Path();
+    let i = 0;
+    while (i < data.length) {
+        const command = data[i];
+        i++;
+
+        switch (command) {
+            case 'm':
+                path.moveTo(data[i++], data[i++]);
+                break;
+            case 'l':
+                path.lineTo(data[i++], data[i++]);
+                break;
+            case 'q':
+                path.quadraticCurveTo(data[i++], data[i++], data[i++], data[i++]);
+                break;
+            case 'c':
+                path.bezierCurveTo(data[i++], data[i++], data[i++], data[i++], data[i++], data[i++]);
+                break;
+            case 'a':
+                // Corrected ArcCurve (a specialized EllipseCurve)
+                path.absarc(data[i++], data[i++], data[i++], data[i++], data[i++], data[i++]);
+                break;
+            case 'e':
+                // EllipseCurve
+                path.absellipse(data[i++], data[i++], data[i++], data[i++], data[i++], data[i++], data[i++], data[i++]);
+                break;
+            default:
+                console.error('Unknown command:', command);
+                break;
+        }
+    }
+    return path;
+}
+
+
+
+/**
+ * Serializes a THREE.Shape object into a plain JavaScript object with
+ * compact array formats for paths and holes.
+ * @param {THREE.Shape} shape The THREE.Shape object to serialize.
+ * @returns {object} The serialized shape data.
+ */
+function serializeShape(shape) {
+    const pathsData = serializePath(shape);
+    const holesData = shape.holes.map((holePath) => serializePath(holePath));
+    return {
+        paths: pathsData,
+        holes: holesData,
+    };
+}
+
+
+/**
+ * Deserializes a plain JavaScript object back into a THREE.Shape.
+ * @param {object} data The serialized shape data.
+ * @returns {THREE.Shape} A new THREE.Shape object.
+ */
+function deserializeShape(data) {
+    const newShape = new THREE.Shape();
+    // Recreating the main path from the serialized data
+    const mainPath = deserializePath(data.paths);
+    newShape.curves = mainPath.curves;
+
+    // Correctly recreates the holes from the serialized data
+    if (data.holes) {
+        newShape.holes = data.holes.map(holeData => deserializePath(holeData));
+    }
+    return newShape;
+}
+
+
+
+
+
+
+////////////////////////
+
+
+
 
 /**
  * Applies a color to one or more Three.js meshes.
@@ -112,26 +267,31 @@ function color(c, target) {
     })
 
     applyToMesh(target, (item) => {
-        item.material = newMaterial;
+        item.material = newMaterial
     })
 
     // Return the original target object with the new material applied.
     return target
 }
 
+function shape(data) {
+	return deserializeShape(data);
+}
+
+
 // --- Primitive Geometries (Corrected) ---
 function sphere({ r, d, fn } = {}) {
     if (d !== undefined) r = d / 2
     r = r || 1
     fn = fn || 32
-    const geom =convertGeometry( new THREE.SphereGeometry(r, fn, fn));
-	
+    const geom = convertGeometry(new THREE.SphereGeometry(r, fn, fn))
+
     return new THREE.Mesh(geom, defaultMaterial.clone())
 }
 
 function cube([x = 1, y = 1, z = 1] = [1, 1, 1]) {
-    const geom = convertGeometry(new THREE.BoxGeometry(x, z, y));
-    
+    const geom = convertGeometry(new THREE.BoxGeometry(x, z, y))
+
     return new THREE.Mesh(geom, defaultMaterial.clone())
 }
 
@@ -175,8 +335,10 @@ function cylinder({ d, dt, db, r, rt, rb, h, fn } = {}) {
     h = h || 1
     fn = fn || 32
 
-    const geom = convertGeometry(new THREE.CylinderGeometry(topRadius, bottomRadius, h, fn));
-	
+    const geom = convertGeometry(
+        new THREE.CylinderGeometry(topRadius, bottomRadius, h, fn)
+    )
+
     return new THREE.Mesh(geom, defaultMaterial.clone())
 }
 
@@ -219,7 +381,13 @@ function floor(target) {
     return target
 }
 
-function convexHull(...meshes) {
+function convexHull(target){//...meshes) {
+	
+	var meshes =[];
+	applyToMesh(target, (item) => {
+        meshes.push(item);
+    })
+	
     if (meshes.length === 0) {
         return null
     }
@@ -250,8 +418,15 @@ function convexHull(...meshes) {
     return new THREE.Mesh(hullGeometry, defaultMaterial.clone())
 }
 
-function align(config = {}, ...meshes) {
-    const newMeshes = []
+function align(config = {}, target) { // ...meshes) {
+    
+	var meshes =[];
+	
+	applyToMesh(target, (item) => {
+        meshes.push(item);
+    })
+	
+	const newMeshes = []
 
     const alignMesh = (mesh) => {
         if (!mesh || !mesh.geometry) {
@@ -298,23 +473,11 @@ function align(config = {}, ...meshes) {
     return newMeshes.length === 1 ? newMeshes[0] : newMeshes
 }
 
-function line3d(points2d, start, end, fn = 12) {
-    if (!points2d || points2d.length < 3) {
-        console.warn(
-            'line3d requires at least 3 points to form a closed shape.'
-        )
-        return null
-    }
-
-    const shape = new THREE.Shape()
-    shape.moveTo(points2d[0][0], points2d[0][1])
-    for (let i = 1; i < points2d.length; i++) {
-        shape.lineTo(points2d[i][0], points2d[i][1])
-    }
-
+function line3d(shape, start, end) {
+    
     const extrudePath = new THREE.LineCurve3(
-        new THREE.Vector3(start[0], start[1], start[2]),
-        new THREE.Vector3(end[0], end[1], end[2])
+        new THREE.Vector3(start[0], start[2], start[1]),
+        new THREE.Vector3(end[0], end[2], end[1])
     )
 
     const extrudeSettings = {
@@ -327,13 +490,14 @@ function line3d(points2d, start, end, fn = 12) {
     return new THREE.Mesh(geom, defaultMaterial.clone())
 }
 
-function linePaths3d(points2d, points3d) {
-    if (!points2d || points2d.length < 3) {
+function linePaths3d(shape, points3d) {
+	
+    /*if (!points2d || points2d.length < 3) {
         console.warn(
             'linePaths3d requires at least 3 points to form a closed 2D shape.'
         )
         return null
-    }
+    }*/
     if (!points3d || points3d.length < 2) {
         console.warn(
             'linePaths3d requires at least 2 points for the 3D extrusion path.'
@@ -341,11 +505,13 @@ function linePaths3d(points2d, points3d) {
         return null
     }
 
-    const shape = new THREE.Shape()
+    /*
+	const shape = new THREE.Shape()
     shape.moveTo(points2d[0][0], points2d[0][1])
     for (let i = 1; i < points2d.length; i++) {
         shape.lineTo(points2d[i][0], points2d[i][1])
     }
+	*/
 
     const extrudePath = new THREE.CurvePath()
     for (let i = 0; i < points3d.length - 1; i++) {
@@ -354,13 +520,13 @@ function linePaths3d(points2d, points3d) {
 
         const startVector = new THREE.Vector3(
             startPoint[0],
-            startPoint[1],
-            startPoint[2]
+            startPoint[2],
+            startPoint[1]
         )
         const endVector = new THREE.Vector3(
             endPoint[0],
-            endPoint[1],
-            endPoint[2]
+            endPoint[2],
+            endPoint[1]
         )
 
         extrudePath.add(new THREE.LineCurve3(startVector, endVector))
@@ -377,7 +543,14 @@ function linePaths3d(points2d, points3d) {
 }
 
 // === Multi-Argument CSG Operations (Corrected) ===
-function union(...meshes) {
+function union(target) {//...meshes) {
+	
+	var meshes =[];
+	
+	applyToMesh(target, (item) => {
+        meshes.push(item);
+    })
+	
     if (meshes.length === 0) return null
     if (meshes.length === 1) return meshes[0]
     const brushA = new Brush(meshes[0].geometry, meshes[0].material)
@@ -399,7 +572,17 @@ function union(...meshes) {
     return result
 }
 
-function difference(mainMesh, ...subMeshes) {
+function difference(mainMesh, target) { //...subMeshes) {
+	
+	
+	
+	var subMeshes =[];
+	
+	applyToMesh(target, (item) => {
+        subMeshes.push(item);
+    })
+	
+	
     if (!mainMesh || subMeshes.length === 0)
         throw new Error('Difference: need base and one or more subtrahends')
     const brushA = new Brush(mainMesh.geometry, mainMesh.material)
@@ -420,7 +603,15 @@ function difference(mainMesh, ...subMeshes) {
     return result
 }
 
-function intersect(...meshes) {
+function intersect(target){//...meshes) {
+	
+	
+	var meshes =[];
+	
+	applyToMesh(target, (item) => {
+        meshes.push(item);
+    })
+	
     if (meshes.length < 2)
         throw new Error('Intersect requires at least 2 meshes')
     const brushA = new Brush(meshes[0].geometry, meshes[0].material)
@@ -486,6 +677,8 @@ function hide(target) {
 // Private object containing all exportable functions
 // This is a private, self-contained list within the module.
 const _exportedFunctions = {
+	THREE,
+	shape,
     sphere,
     cube,
     cylinder,
