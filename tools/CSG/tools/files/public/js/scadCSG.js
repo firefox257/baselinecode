@@ -352,37 +352,64 @@ function align(config = {}, target) {
     return newMeshes.length === 1 ? newMeshes[0] : newMeshes
 }
 
-function line3d(shape, start, end) {
-    // Get the fn value from the shape's userData, defaulting to 30.
-    //const fn = shape.userData && shape.userData.fn ? shape.userData.fn : 30
 
-    // Create the 3D extrusion path.
-    const extrudePath = new THREE.LineCurve3(
-        new THREE.Vector3(start[0], start[2], start[1]),
-        new THREE.Vector3(end[0], end[2], end[1])
-    )
 
-    // Manually extract points from the shape using the fn value.
-    // The divisions parameter here directly controls the smoothness of the curves.
-    //const shapePoints = shape.extractPoints(fn)
 
-    const extrudeSettings = {
-        steps: 1, // Number of steps along the extrusion path
-        bevelEnabled: false,
-        extrudePath: extrudePath
+
+
+
+
+
+
+function line3d(shapes, start, end) {
+    const meshes = [] // An array to store all the created meshes
+
+    // Iterate through each shape in the input array.
+    for (const shape of shapes) {
+        // Get the fn value from the shape's userData, defaulting to 30.
+        const fn = shape.userData && shape.userData.fn ? shape.userData.fn : 30
+
+        // Create the 3D extrusion path.
+        const extrudePath = new THREE.LineCurve3(
+            new THREE.Vector3(start[0], start[2], start[1]),
+            new THREE.Vector3(end[0], end[2], end[1])
+        )
+
+        // Manually extract points from the shape using the fn value.
+        const shapePoints = shape.extractPoints(fn)
+
+        const extrudeSettings = {
+            steps: 1,
+            bevelEnabled: false,
+            extrudePath: extrudePath
+        }
+
+        // Create a new Shape with the extracted points.
+        const extrudedShape = new THREE.Shape(shapePoints.shape)
+
+        // Add the holes, also extracting their points with the correct fn.
+        extrudedShape.holes = shapePoints.holes.map((hole) => new THREE.Path(hole))
+
+        // Create the geometry from the new shape.
+        const geometry = new THREE.ExtrudeGeometry(extrudedShape, extrudeSettings)
+
+        // Create a mesh and add it to our list.
+        const mesh = new THREE.Mesh(geometry, defaultMaterial.clone())
+        meshes.push(mesh)
     }
 
-    // Create a new Shape with the extracted points.
-    //const extrudedShape = new THREE.Shape(shapePoints.shape)
-
-    // Add the holes, also extracting their points with the correct fn.
-    //extrudedShape.holes = shapePoints.holes.map((hole) => new THREE.Path(hole))
-
-    // Create the geometry from the new shape with the correct tessellation.
-    const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings)
-
-    return new THREE.Mesh(geometry, defaultMaterial.clone())
+    // Return the array of meshes instead of a single mesh.
+    return meshes
 }
+
+
+
+
+
+
+
+
+
 
 function linePaths3d(shape, points3d) {
     /*if (!points2d || points2d.length < 3) {
@@ -578,6 +605,9 @@ function shape(shapeData) {
     const rawPath = shapeData.path;
     const allPaths = [];
     
+    // === NEW === Get fn from input data
+    const fnValue = shapeData.fn || 30; // Use provided fn, or default to 30
+
     function getBoundingBox(path) {
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         let i = 0;
@@ -814,6 +844,10 @@ function shape(shapeData) {
     hierarchy.forEach(mainPathObj => {
         const threeShape = new THREE.Shape();
         parseCommands(mainPathObj.path, threeShape);
+        
+        // === NEW === Add fn to userData
+        threeShape.userData = { fn: fnValue }; 
+        
         finalShapes.push(threeShape);
 
         if (mainPathObj.children) {
@@ -827,18 +861,6 @@ function shape(shapeData) {
 
     return finalShapes;
 }
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
