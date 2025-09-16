@@ -161,6 +161,30 @@ const api = {
         }
         return makeApiCall('GET', '/', { 'X-Read-File': filePath });
     },
+    
+    /**
+     * Reads the content of a file as a binary ArrayBuffer.
+     * @param {string} filePath - The path to the file to read, relative to the server's 'files' root.
+     * @returns {Promise<ArrayBuffer>} - A promise that resolves to the file's content as an ArrayBuffer.
+     */
+    readFileBinary: async (filePath) => {
+        if (!filePath) {
+            throw new Error("ReadFileBinary: File path is required.");
+        }
+        const response = await fetch('/', {
+            method: 'GET',
+            headers: {
+                'X-Read-File-Binary': filePath
+            }
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`API Error ${response.status}: ${errorText}`);
+        }
+
+        return await response.arrayBuffer();
+    },
 
     /**
      * Saves content to a file. Creates or overwrites the file.
@@ -249,8 +273,3 @@ const api = {
 };
 
 export { api };
-
-
-
-
-

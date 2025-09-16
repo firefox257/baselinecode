@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Opentype.js Letter Contours</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #1e1e1e;
+            color: #f8f8f8;
+            font-family: sans-serif;
+            gap: 20px;
+        }
+        canvas {
+            border: 2px solid #555;
+            background-color: #2b2b2b;
+        }
+        input, button {
+            padding: 8px 12px;
+            border: 1px solid #555;
+            border-radius: 5px;
+            background-color: #333;
+            color: #f8f8f8;
+            font-size: 16px;
+        }
+        input {
+            width: 50px;
+            text-align: center;
+        }
+        button {
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #444;
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="canvas" width="400" height="400"></canvas>
+<div>
+    <label for="letterInput">Enter a single letter:</label>
+    <input type="text" id="letterInput" value="C" maxlength="1">
+    <button id="drawButton">Draw</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js"></script>
+<script type="module">
+    import { api } from './js/apiCalls.js';
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const letterInput = document.getElementById('letterInput');
+        const drawButton = document.getElementById('drawButton');
+
+        let font;
+
+        // Function to load the font using apiCalls
+        async function loadFont() {
+            try {
+                const fontBuffer = await api.readFileBinary('/fonts/space-age.ttf');
+                font = opentype.parse(fontBuffer);
+                console.log('Font loaded successfully.');
+            } catch (err) {
+                console.error('Font could not be loaded:', err);
+            }
+        }
+        
+        await loadFont();
+        drawLetter(letterInput.value);
+
+        // Function to draw the letter contours
+        function drawLetter(letter) {
+            if (!font) {
+                console.error('Font is not loaded.');
+                return;
+            }
+
+            // Clear the canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#f8f8f8';
+            ctx.strokeStyle = '#61afef';
+            ctx.lineWidth = 2;
+
+            // Get the glyph path from the font
+            const fontSize = 200;
+            const x = canvas.width / 2;
+            const y = canvas.height / 2 + fontSize / 4; // Adjust y to center vertically
+            const path = font.getPath(letter, x, y, fontSize);
+
+            // Draw the path to the canvas context
+            path.draw(ctx);
+        }
+
+        // Event listener for the button
+        drawButton.addEventListener('click', () => {
+            const letter = letterInput.value.toUpperCase();
+            if (letter.length === 1) {
+                drawLetter(letter);
+            }
+        });
+
+        // Event listener for the input field (pressing Enter)
+        letterInput.addEventListener('keyup', (event) => {
+            if (event.key === 'Enter') {
+                drawButton.click();
+            }
+        });
+    });
+</script>
+
+</body>
+</html>

@@ -233,7 +233,11 @@
             /* ---------- End console styles ---------- */
 
         </style>
-
+		<script src ="./js/opentype.js"></script>
+		<script>
+		
+		globalThis.opentype=opentype;
+		</script>
         <script type="importmap">
             {
                 "imports": {
@@ -274,41 +278,62 @@
 
  
  
- ////////////////
+ 
+ /////////////
+ 
+ var f1= await font("/fonts/space-age.ttf");
+ var ts= text({
+	 font:f1,
+	 text:"0",
+	 fn:30,
+	 fontSize:40
+ });
+//PrintLog(JSON.stringify(ts));
+var s1=shape(ts);
+ 
+return line3d(s1, [0, 0, 0], [0, 0, 0.1]);
  
  
+ /////////
  
- // The data for the star's outer shape remains the same.
+ 
+ //////////
+ 
+ 
+ // A single, flattened array containing both the star and the circular hole.
+// The newShape function will automatically classify these based on their nesting.
 const myStarShapeData = {
-	paths: [
-		'm', 0, 10,
-		'l', 2.5, 2.5,
-		'l', 10, 2.5,
-		'l', 5, -2.5,
-		'l', 7.5, -10,
-		'l', 0, -5,
-		'l', -7.5, -10,
-		'l', -5, -2.5,
-		'l', -10, 2.5,
-		'l', -2.5, 2.5,
-		'l', 0, 10
-	],
-	// Add the 'holes' property to the object.
-	holes: [
-		// A circular hole with a radius of 2, centered at (0, 0).
-		// The 'a' command specifies a center point, a radius,
-		// a start and end angle, and a clockwise flag.
-		['a', 0, 0, 2, 0, Math.PI * 2, true]
-	]
+    path: [
+        'm', 0, 10,
+        'l', 2.5, 2.5,
+        'l', 10, 2.5,
+        'l', 5, -2.5,
+        'l', 7.5, -10,
+        'l', 0, -5,
+        'l', -7.5, -10,
+        'l', -5, -2.5,
+        'l', -10, 2.5,
+        'l', -2.5, 2.5,
+        'l', 0, 10, // Closes the star path
+
+        //do mot do Start of the circular hole path. The new 'm' command signifies a new sub-path.
+        'm', 2, 0,
+        'a', 0, 0, 2, 0, Math.PI * 2, true // A full circle
+    ]
 };
 
-// Recreate the shape using the deserializePath function.
-const myStarShapeWithHole = shape(myStarShapeData);
+// Create the shape using the newShape function.
+const myStarShape= shape(myStarShapeData);
 
-// Extrude the star with the hole along the Z-axis.
-return line3d(myStarShapeWithHole, [0, 0, 0], [0, 0, 20]);
+// Extrude the shape along the Y-axis (since the Z and Y axes are swapped in this code).
+return line3d(myStarShape, [0, 0, 0], [0, 0, 20]);
 
- //////////////
+ 
+ 
+ 
+ ////////////
+ 
+ 
  
 /*
 return floor(
@@ -353,6 +378,10 @@ return floor(
 		)
 	)
 );
+ 
+ 
+ 
+
                 </textcode>
             </div>
 
@@ -453,7 +482,7 @@ return floor(
                 clearCurrentCacheByName
             } from './js/editorCsg.js'
 
-            let settings
+            globalThis.settings={};
             let currentObjects
 
             var domElements

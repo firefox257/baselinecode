@@ -479,11 +479,6 @@ function recreateMeshFromData(data) {
 
 //////////////
 
-
-
-
-
-
 /**
  * Maps THREE.Curve types to single-letter abbreviations to minimize data size.
  */
@@ -493,7 +488,7 @@ const ABBREVIATE_CURVE_TYPES = {
     CubicBezierCurve: 'c',
     ArcCurve: 'a',
     EllipseCurve: 'e'
-};
+}
 
 /**
  * Serializes a THREE.Path into a compact array of commands and values,
@@ -503,88 +498,152 @@ const ABBREVIATE_CURVE_TYPES = {
  * @returns {Array<string | number | boolean>} A flat array of commands and coordinates.
  */
 function serializePath(path) {
-    const data = [];
-    if (path.curves.length === 0) return data;
+    const data = []
+    if (path.curves.length === 0) return data
 
     // The starting point for the path (the first moveTo)
-    const startPoint = path.curves[0].v1 || new THREE.Vector2(path.curves[0].aX, path.curves[0].aY);
-    data.push('m', startPoint.x, startPoint.y);
+    const startPoint =
+        path.curves[0].v1 ||
+        new THREE.Vector2(path.curves[0].aX, path.curves[0].aY)
+    data.push('m', startPoint.x, startPoint.y)
 
-    path.curves.forEach(curve => {
-        const type = curve.type;
-        const abbreviation = ABBREVIATE_CURVE_TYPES[type];
+    path.curves.forEach((curve) => {
+        const type = curve.type
+        const abbreviation = ABBREVIATE_CURVE_TYPES[type]
 
         // Ensure the path is continuous; if not, add an explicit moveTo command.
-        if (curve.v1 && path.currentPoint && curve.v1.distanceTo(path.currentPoint) > 0.0001) {
-            data.push('m', curve.v1.x, curve.v1.y);
+        if (
+            curve.v1 &&
+            path.currentPoint &&
+            curve.v1.distanceTo(path.currentPoint) > 0.0001
+        ) {
+            data.push('m', curve.v1.x, curve.v1.y)
         }
 
         if (abbreviation) {
-            data.push(abbreviation);
+            data.push(abbreviation)
 
             if (type === 'LineCurve') {
-                data.push(curve.v2.x, curve.v2.y);
+                data.push(curve.v2.x, curve.v2.y)
             } else if (type === 'QuadraticBezierCurve') {
-                data.push(curve.v1.x, curve.v1.y, curve.v2.x, curve.v2.y);
+                data.push(curve.v1.x, curve.v1.y, curve.v2.x, curve.v2.y)
             } else if (type === 'CubicBezierCurve') {
-                data.push(curve.v1.x, curve.v1.y, curve.v2.x, curve.v2.y, curve.v3.x, curve.v3.y);
+                data.push(
+                    curve.v1.x,
+                    curve.v1.y,
+                    curve.v2.x,
+                    curve.v2.y,
+                    curve.v3.x,
+                    curve.v3.y
+                )
             } else if (type === 'ArcCurve') {
-                data.push(curve.aX, curve.aY, curve.aRadius, curve.aStartAngle, curve.aEndAngle, curve.aClockwise);
+                data.push(
+                    curve.aX,
+                    curve.aY,
+                    curve.aRadius,
+                    curve.aStartAngle,
+                    curve.aEndAngle,
+                    curve.aClockwise
+                )
             } else if (type === 'EllipseCurve') {
-                data.push(curve.aX, curve.aY, curve.xRadius, curve.yRadius, curve.aStartAngle, curve.aEndAngle, curve.aClockwise, curve.aRotation);
+                data.push(
+                    curve.aX,
+                    curve.aY,
+                    curve.xRadius,
+                    curve.yRadius,
+                    curve.aStartAngle,
+                    curve.aEndAngle,
+                    curve.aClockwise,
+                    curve.aRotation
+                )
             }
         }
         // Update the current point for the next iteration to check for continuity
-        path.currentPoint = curve.v2 || curve.v3 || new THREE.Vector2(curve.aX + curve.xRadius * Math.cos(curve.aEndAngle), curve.aY + curve.yRadius * Math.sin(curve.aEndAngle));
-    });
+        path.currentPoint =
+            curve.v2 ||
+            curve.v3 ||
+            new THREE.Vector2(
+                curve.aX + curve.xRadius * Math.cos(curve.aEndAngle),
+                curve.aY + curve.yRadius * Math.sin(curve.aEndAngle)
+            )
+    })
 
-    return data;
+    return data
 }
-
-
-
 
 /**
  * Recreates a THREE.Path object from serialized data, now including ArcCurve and EllipseCurve.
  * @param {Array<string | number>} data The array of serialized commands.
  * @returns {THREE.Path} A new THREE.Path object.
  */
-function deserializePath(data) {
-    const path = new THREE.Path();
-    let i = 0;
+function deserializePath(data, fn) {
+	
+	alert(fn);
+	if(!fn) fn =30;
+    const path = new THREE.Path()
+    let i = 0
     while (i < data.length) {
-        const command = data[i];
-        i++;
+        const command = data[i]
+        i++
 
         switch (command) {
             case 'm':
-                path.moveTo(data[i++], data[i++]);
-                break;
+                path.moveTo(data[i++], data[i++])
+                break
             case 'l':
-                path.lineTo(data[i++], data[i++]);
-                break;
+                path.lineTo(data[i++], data[i++])
+                break
             case 'q':
-                path.quadraticCurveTo(data[i++], data[i++], data[i++], data[i++]);
-                break;
+                path.quadraticCurveTo(
+                    data[i++],
+                    data[i++],
+                    data[i++],
+                    data[i++]
+                )
+                break
             case 'c':
-                path.bezierCurveTo(data[i++], data[i++], data[i++], data[i++], data[i++], data[i++]);
-                break;
+                path.bezierCurveTo(
+                    data[i++],
+                    data[i++],
+                    data[i++],
+                    data[i++],
+                    data[i++],
+                    data[i++]
+                )
+                break
             case 'a':
-                // ArcCurve (a specialized EllipseCurve)
-                path.absarc(data[i++], data[i++], data[i++], data[i++], data[i++], data[i++]);
-                break;
+                // Corrected ArcCurve (a specialized EllipseCurve)
+                path.absarc(
+                    data[i++],
+                    data[i++],
+                    data[i++],
+                    data[i++],
+                    data[i++],
+                    data[i++],
+					fn
+                )
+                break
             case 'e':
                 // EllipseCurve
-                path.absellipse(data[i++], data[i++], data[i++], data[i++], data[i++], data[i++], data[i++], data[i++]);
-                break;
+                path.absellipse(
+                    data[i++],
+                    data[i++],
+                    data[i++],
+                    data[i++],
+                    data[i++],
+                    data[i++],
+                    data[i++],
+                    data[i++],
+					fn
+                )
+                break
             default:
-                console.error('Unknown command:', command);
-                break;
+                console.error('Unknown command:', command)
+                break
         }
     }
-    return path;
+    return path
 }
-
 
 /**
  * Serializes a THREE.Shape object into a plain JavaScript object with
@@ -593,14 +652,20 @@ function deserializePath(data) {
  * @returns {object} The serialized shape data.
  */
 function serializeShape(shape) {
-    const pathsData = serializePath(shape);
-    const holesData = shape.holes.map((holePath) => serializePath(holePath));
-    return {
-        paths: pathsData,
-        holes: holesData,
-    };
-}
+    const pathsData = serializePath(shape)
+    const holesData = shape.holes.map((holePath) => serializePath(holePath))
+	const fn=30;
+	if(shape.userData&&shape.userData.fn)
+	{
+		shape.userData.fn
+	}
 
+   return {
+        paths: pathsData,
+        holes: holesData, 
+		fn: fn
+    }
+}
 
 /**
  * Deserializes a plain JavaScript object back into a THREE.Shape.
@@ -609,19 +674,21 @@ function serializeShape(shape) {
  */
 function deserializeShape(data) {
     const newShape = new THREE.Shape();
+    const fn = data.fn || 30; // Default to 30 if fn is not provided
+
     // Recreating the main path from the serialized data
-    const mainPath = deserializePath(data.paths);
+    const mainPath = deserializePath(data.paths, fn);
     newShape.curves = mainPath.curves;
-	
-    // Recreating the holes from the serialized data
-	if(data.holes) {
-		newShape.holes = data.holes.map((holeData) => deserializePath(holeData));
-	}
+
+    if (data.holes) {
+        newShape.holes = data.holes.map((holeData) => deserializePath(holeData, fn));
+    }
+    
+    // Store fn in userData to be accessed later
+    newShape.userData = { fn: fn };
+
     return newShape;
 }
-
-
-
 
 ////////////////////////
 
@@ -641,6 +708,7 @@ export async function handleLoadFile(event, filePath) {
         pathSegments.pop();
         const newBasePath = pathSegments.join('/') + '/';
         csgEditor.basePath = newBasePath;
+		globalThis.settings.basePath=newBasePath;
         project.setBasePath(newBasePath); // keep the class in sync with UI
 
         // Load code into editors (project uses LIVE refs, so it sees changes automatically)

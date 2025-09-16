@@ -11,6 +11,10 @@ import {
     INTERSECTION
 } from 'three-bvh-csg'
 import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js'
+import { api } from '../js/apiCalls.js' // Assuming apiCalls.js is in the same directory
+
+//opentype is IIFE
+//settings is on globalThis
 
 globalThis.inch = 25.4
 
@@ -27,6 +31,33 @@ const defaultMaterial = new THREE.MeshStandardMaterial({
 })
 
 // Helper function to recursively traverse the target and apply color
+
+function $path(filepath) {
+    if (!filepath) return null
+    if (filepath.startsWith('/')) return filepath
+
+    const libraryPath =
+        typeof settings !== 'undefined' && settings.libraryPath
+            ? settings.libraryPath
+            : '/csgLib'
+    if (filepath.startsWith('$lib/'))
+        return libraryPath + '/' + filepath.substring(5)
+
+    const base = globalThis.settings.basePath
+    if (!base) {
+        alert('Error: Cannot use relative paths. Load or save a project first.')
+        return null
+    }
+
+    const parts = base.split('/').filter(Boolean)
+    const fileParts = filepath.split('/')
+    for (const part of fileParts) {
+        if (part === '..') {
+            if (parts.length > 0) parts.pop()
+        } else if (part !== '.' && part !== '') parts.push(part)
+    }
+    return '/' + parts.join('/')
+}
 
 const applyFilter = (item, checkFunction, applyFunction, ...args) => {
     if (item == undefined || item == null) return
@@ -83,161 +114,10 @@ function convertGeometry(item) {
     //console.log(bufferGeometry.attributes.position.array)
 }
 
-
-
 //////////////
 
 
-
-
-
-
-/**
- * Maps THREE.Curve types to single-letter abbreviations to minimize data size.
- */
-const ABBREVIATE_CURVE_TYPES = {
-    LineCurve: 'l',
-    QuadraticBezierCurve: 'q',
-    CubicBezierCurve: 'c',
-    ArcCurve: 'a',
-    EllipseCurve: 'e'
-};
-
-/**
- * Serializes a THREE.Path into a compact array of commands and values,
- * including support for Line, Quadratic, Cubic, Arc, and Ellipse curves.
- * e.g., ['m', 1, 2, 'l', 10, 10, 'a', 5, 5, 3, 0, 1.5, false, ...].
- * @param {THREE.Path} path The THREE.Path object to serialize.
- * @returns {Array<string | number | boolean>} A flat array of commands and coordinates.
- */
-function serializePath(path) {
-    const data = [];
-    if (path.curves.length === 0) return data;
-
-    // The starting point for the path (the first moveTo)
-    const startPoint = path.curves[0].v1 || new THREE.Vector2(path.curves[0].aX, path.curves[0].aY);
-    data.push('m', startPoint.x, startPoint.y);
-
-    path.curves.forEach(curve => {
-        const type = curve.type;
-        const abbreviation = ABBREVIATE_CURVE_TYPES[type];
-
-        // Ensure the path is continuous; if not, add an explicit moveTo command.
-        if (curve.v1 && path.currentPoint && curve.v1.distanceTo(path.currentPoint) > 0.0001) {
-            data.push('m', curve.v1.x, curve.v1.y);
-        }
-
-        if (abbreviation) {
-            data.push(abbreviation);
-
-            if (type === 'LineCurve') {
-                data.push(curve.v2.x, curve.v2.y);
-            } else if (type === 'QuadraticBezierCurve') {
-                data.push(curve.v1.x, curve.v1.y, curve.v2.x, curve.v2.y);
-            } else if (type === 'CubicBezierCurve') {
-                data.push(curve.v1.x, curve.v1.y, curve.v2.x, curve.v2.y, curve.v3.x, curve.v3.y);
-            } else if (type === 'ArcCurve') {
-                data.push(curve.aX, curve.aY, curve.aRadius, curve.aStartAngle, curve.aEndAngle, curve.aClockwise);
-            } else if (type === 'EllipseCurve') {
-                data.push(curve.aX, curve.aY, curve.xRadius, curve.yRadius, curve.aStartAngle, curve.aEndAngle, curve.aClockwise, curve.aRotation);
-            }
-        }
-        // Update the current point for the next iteration to check for continuity
-        path.currentPoint = curve.v2 || curve.v3 || new THREE.Vector2(curve.aX + curve.xRadius * Math.cos(curve.aEndAngle), curve.aY + curve.yRadius * Math.sin(curve.aEndAngle));
-    });
-
-    return data;
-}
-
-
-
-
-/**
- * Recreates a THREE.Path object from serialized data, now including ArcCurve and EllipseCurve.
- * @param {Array<string | number>} data The array of serialized commands.
- * @returns {THREE.Path} A new THREE.Path object.
- */
-function deserializePath(data) {
-    const path = new THREE.Path();
-    let i = 0;
-    while (i < data.length) {
-        const command = data[i];
-        i++;
-
-        switch (command) {
-            case 'm':
-                path.moveTo(data[i++], data[i++]);
-                break;
-            case 'l':
-                path.lineTo(data[i++], data[i++]);
-                break;
-            case 'q':
-                path.quadraticCurveTo(data[i++], data[i++], data[i++], data[i++]);
-                break;
-            case 'c':
-                path.bezierCurveTo(data[i++], data[i++], data[i++], data[i++], data[i++], data[i++]);
-                break;
-            case 'a':
-                // Corrected ArcCurve (a specialized EllipseCurve)
-                path.absarc(data[i++], data[i++], data[i++], data[i++], data[i++], data[i++]);
-                break;
-            case 'e':
-                // EllipseCurve
-                path.absellipse(data[i++], data[i++], data[i++], data[i++], data[i++], data[i++], data[i++], data[i++]);
-                break;
-            default:
-                console.error('Unknown command:', command);
-                break;
-        }
-    }
-    return path;
-}
-
-
-
-/**
- * Serializes a THREE.Shape object into a plain JavaScript object with
- * compact array formats for paths and holes.
- * @param {THREE.Shape} shape The THREE.Shape object to serialize.
- * @returns {object} The serialized shape data.
- */
-function serializeShape(shape) {
-    const pathsData = serializePath(shape);
-    const holesData = shape.holes.map((holePath) => serializePath(holePath));
-    return {
-        paths: pathsData,
-        holes: holesData,
-    };
-}
-
-
-/**
- * Deserializes a plain JavaScript object back into a THREE.Shape.
- * @param {object} data The serialized shape data.
- * @returns {THREE.Shape} A new THREE.Shape object.
- */
-function deserializeShape(data) {
-    const newShape = new THREE.Shape();
-    // Recreating the main path from the serialized data
-    const mainPath = deserializePath(data.paths);
-    newShape.curves = mainPath.curves;
-
-    // Correctly recreates the holes from the serialized data
-    if (data.holes) {
-        newShape.holes = data.holes.map(holeData => deserializePath(holeData));
-    }
-    return newShape;
-}
-
-
-
-
-
-
 ////////////////////////
-
-
-
 
 /**
  * Applies a color to one or more Three.js meshes.
@@ -274,10 +154,7 @@ function color(c, target) {
     return target
 }
 
-function shape(data) {
-	return deserializeShape(data);
-}
-
+ 
 
 // --- Primitive Geometries (Corrected) ---
 function sphere({ r, d, fn } = {}) {
@@ -381,13 +258,14 @@ function floor(target) {
     return target
 }
 
-function convexHull(target){//...meshes) {
-	
-	var meshes =[];
-	applyToMesh(target, (item) => {
-        meshes.push(item);
+function convexHull(target) {
+    //...meshes) {
+
+    var meshes = []
+    applyToMesh(target, (item) => {
+        meshes.push(item)
     })
-	
+
     if (meshes.length === 0) {
         return null
     }
@@ -418,15 +296,16 @@ function convexHull(target){//...meshes) {
     return new THREE.Mesh(hullGeometry, defaultMaterial.clone())
 }
 
-function align(config = {}, target) { // ...meshes) {
-    
-	var meshes =[];
-	
-	applyToMesh(target, (item) => {
-        meshes.push(item);
+function align(config = {}, target) {
+    // ...meshes) {
+
+    var meshes = []
+
+    applyToMesh(target, (item) => {
+        meshes.push(item)
     })
-	
-	const newMeshes = []
+
+    const newMeshes = []
 
     const alignMesh = (mesh) => {
         if (!mesh || !mesh.geometry) {
@@ -474,24 +353,38 @@ function align(config = {}, target) { // ...meshes) {
 }
 
 function line3d(shape, start, end) {
-    
+    // Get the fn value from the shape's userData, defaulting to 30.
+    //const fn = shape.userData && shape.userData.fn ? shape.userData.fn : 30
+
+    // Create the 3D extrusion path.
     const extrudePath = new THREE.LineCurve3(
         new THREE.Vector3(start[0], start[2], start[1]),
         new THREE.Vector3(end[0], end[2], end[1])
     )
 
+    // Manually extract points from the shape using the fn value.
+    // The divisions parameter here directly controls the smoothness of the curves.
+    //const shapePoints = shape.extractPoints(fn)
+
     const extrudeSettings = {
-        steps: 1,
+        steps: 1, // Number of steps along the extrusion path
         bevelEnabled: false,
         extrudePath: extrudePath
     }
 
-    const geom = new THREE.ExtrudeGeometry(shape, extrudeSettings)
-    return new THREE.Mesh(geom, defaultMaterial.clone())
+    // Create a new Shape with the extracted points.
+    //const extrudedShape = new THREE.Shape(shapePoints.shape)
+
+    // Add the holes, also extracting their points with the correct fn.
+    //extrudedShape.holes = shapePoints.holes.map((hole) => new THREE.Path(hole))
+
+    // Create the geometry from the new shape with the correct tessellation.
+    const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings)
+
+    return new THREE.Mesh(geometry, defaultMaterial.clone())
 }
 
 function linePaths3d(shape, points3d) {
-	
     /*if (!points2d || points2d.length < 3) {
         console.warn(
             'linePaths3d requires at least 3 points to form a closed 2D shape.'
@@ -543,14 +436,15 @@ function linePaths3d(shape, points3d) {
 }
 
 // === Multi-Argument CSG Operations (Corrected) ===
-function union(target) {//...meshes) {
-	
-	var meshes =[];
-	
-	applyToMesh(target, (item) => {
-        meshes.push(item);
+function union(target) {
+    //...meshes) {
+
+    var meshes = []
+
+    applyToMesh(target, (item) => {
+        meshes.push(item)
     })
-	
+
     if (meshes.length === 0) return null
     if (meshes.length === 1) return meshes[0]
     const brushA = new Brush(meshes[0].geometry, meshes[0].material)
@@ -572,17 +466,15 @@ function union(target) {//...meshes) {
     return result
 }
 
-function difference(mainMesh, target) { //...subMeshes) {
-	
-	
-	
-	var subMeshes =[];
-	
-	applyToMesh(target, (item) => {
-        subMeshes.push(item);
+function difference(mainMesh, target) {
+    //...subMeshes) {
+
+    var subMeshes = []
+
+    applyToMesh(target, (item) => {
+        subMeshes.push(item)
     })
-	
-	
+
     if (!mainMesh || subMeshes.length === 0)
         throw new Error('Difference: need base and one or more subtrahends')
     const brushA = new Brush(mainMesh.geometry, mainMesh.material)
@@ -603,15 +495,15 @@ function difference(mainMesh, target) { //...subMeshes) {
     return result
 }
 
-function intersect(target){//...meshes) {
-	
-	
-	var meshes =[];
-	
-	applyToMesh(target, (item) => {
-        meshes.push(item);
+function intersect(target) {
+    //...meshes) {
+
+    var meshes = []
+
+    applyToMesh(target, (item) => {
+        meshes.push(item)
     })
-	
+
     if (meshes.length < 2)
         throw new Error('Intersect requires at least 2 meshes')
     const brushA = new Brush(meshes[0].geometry, meshes[0].material)
@@ -674,11 +566,363 @@ function hide(target) {
     return target
 }
 
+
+
+
+/**
+ * Creates a THREE.Shape from a custom SVG-like path data format.
+ * @param {object} shapeData - The data object containing path and fn.
+ * @returns {Array<THREE.Shape>} An array of constructed Three.js shape objects.
+ */
+function shape(shapeData) {
+    const rawPath = shapeData.path;
+    const allPaths = [];
+    
+    function getBoundingBox(path) {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        let i = 0;
+        let currentX = 0, currentY = 0;
+
+        while (i < path.length) {
+            const command = path[i];
+            i++;
+
+            switch (command) {
+                case 'm':
+                case 'l':
+                    currentX = path[i];
+                    currentY = path[i + 1];
+                    minX = Math.min(minX, currentX);
+                    minY = Math.min(minY, currentY);
+                    maxX = Math.max(maxX, currentX);
+                    maxY = Math.max(maxY, currentY);
+                    i += 2;
+                    break;
+                case 'q':
+                    currentX = path[i + 2];
+                    currentY = path[i + 3];
+                    minX = Math.min(minX, currentX);
+                    minY = Math.min(minY, currentY);
+                    maxX = Math.max(maxX, currentX);
+                    maxY = Math.max(maxY, currentY);
+                    i += 4;
+                    break;
+                case 'c':
+                    currentX = path[i + 4];
+                    currentY = path[i + 5];
+                    minX = Math.min(minX, currentX);
+                    minY = Math.min(minY, currentY);
+                    maxX = Math.max(maxX, currentX);
+                    maxY = Math.max(maxY, currentY);
+                    i += 6;
+                    break;
+                case 'a':
+                case 'e':
+                    currentX = path[i];
+                    currentY = path[i + 1];
+                    if (command === 'a') i += 6;
+                    else i += 7;
+                    break;
+            }
+        }
+        return { minX, minY, maxX, maxY, area: (maxX - minX) * (maxY - minY) };
+    }
+
+    function isInside(boxA, boxB) {
+        const epsilon = 1e-6;
+        return boxA.minX >= boxB.minX - epsilon &&
+               boxA.maxX <= boxB.maxX + epsilon &&
+               boxA.minY >= boxB.minY - epsilon &&
+               boxA.maxY <= boxB.maxY + epsilon;
+    }
+
+    function getTestPoint(path) {
+        let i = 0;
+        while (i < path.length) {
+            const command = path[i];
+            if (command === 'm' || command === 'l') {
+                return { x: path[i + 1], y: path[i + 2] };
+            }
+            i++;
+        }
+        return { x: 0, y: 0 };
+    }
+
+    function scanlineIsInside(point, testPath) {
+        let intersections = 0;
+        let i = 0;
+        let currentX = 0, currentY = 0;
+        let startX = 0, startY = 0;
+
+        while (i < testPath.length) {
+            const command = testPath[i];
+            i++;
+
+            if (command === 'm') {
+                currentX = testPath[i];
+                currentY = testPath[i + 1];
+                startX = currentX;
+                startY = currentY;
+                i += 2;
+            } else if (command === 'l') {
+                const nextX = testPath[i];
+                const nextY = testPath[i + 1];
+
+                if (((currentY <= point.y && nextY > point.y) || (currentY > point.y && nextY <= point.y)) &&
+                    (point.x < (nextX - currentX) * (point.y - currentY) / (nextY - currentY) + currentX)) {
+                    intersections++;
+                }
+                currentX = nextX;
+                currentY = nextY;
+                i += 2;
+            } else if (command === 'q' || command === 'c' || command === 'a' || command === 'e') {
+                // Simplified handling for curved paths: just move to the end point
+                const endX = testPath[i + (command === 'q' ? 2 : (command === 'c' ? 4 : (command === 'a' ? 4 : 5)))];
+                const endY = testPath[i + (command === 'q' ? 3 : (command === 'c' ? 5 : (command === 'a' ? 5 : 6)))];
+
+                if (((currentY <= point.y && endY > point.y) || (currentY > point.y && endY <= point.y)) &&
+                    (point.x < (endX - currentX) * (point.y - currentY) / (endY - currentY) + currentX)) {
+                    intersections++;
+                }
+
+                currentX = endX;
+                currentY = endY;
+                i += (command === 'q' ? 4 : (command === 'c' ? 6 : (command === 'a' ? 6 : 7)));
+            }
+        }
+        return intersections % 2 === 1;
+    }
+
+    function parseCommands(pathArray, threeObject) {
+        let i = 0;
+        while (i < pathArray.length) {
+            const command = pathArray[i];
+            i++;
+
+            switch (command) {
+                case 'm':
+                    threeObject.moveTo(pathArray[i], pathArray[i + 1]);
+                    i += 2;
+                    break;
+                case 'l':
+                    threeObject.lineTo(pathArray[i], pathArray[i + 1]);
+                    i += 2;
+                    break;
+                case 'q':
+                    threeObject.quadraticCurveTo(pathArray[i], pathArray[i + 1], pathArray[i + 2], pathArray[i + 3]);
+                    i += 4;
+                    break;
+                case 'c':
+                    threeObject.bezierCurveTo(pathArray[i], pathArray[i + 1], pathArray[i + 2], pathArray[i + 3], pathArray[i + 4], pathArray[i + 5]);
+                    i += 6;
+                    break;
+                case 'a':
+                    threeObject.absarc(pathArray[i], pathArray[i + 1], pathArray[i + 2], pathArray[i + 3], pathArray[i + 4], pathArray[i + 5]);
+                    i += 6;
+                    break;
+                case 'e':
+                    threeObject.absellipse(pathArray[i], pathArray[i + 1], pathArray[i + 2], pathArray[i + 3], pathArray[i + 4], pathArray[i + 5], pathArray[i + 6]);
+                    i += 7;
+                    break;
+            }
+        }
+    }
+    
+    // Step 1: Deconstruct raw path into individual sub-paths
+    let currentPath = [];
+    for (let i = 0; i < rawPath.length; ) {
+        const command = rawPath[i];
+        if (command === 'm' && currentPath.length > 0) {
+            allPaths.push({ path: currentPath, box: getBoundingBox(currentPath) });
+            currentPath = [];
+        }
+        let commandLength = 0;
+        switch (command) {
+            case 'm': case 'l': commandLength = 3; break;
+            case 'q': commandLength = 5; break;
+            case 'c': commandLength = 7; break;
+            case 'a': commandLength = 7; break;
+            case 'e': commandLength = 8; break;
+            default: commandLength = 1;
+        }
+        for (let j = 0; j < commandLength && i < rawPath.length; j++) {
+            currentPath.push(rawPath[i]);
+            i++;
+        }
+    }
+    if (currentPath.length > 0) {
+        allPaths.push({ path: currentPath, box: getBoundingBox(currentPath) });
+    }
+
+    // Step 2: Build parent-child hierarchy using bounding box containment
+    const hierarchy = [];
+    allPaths.forEach(pathObj => {
+        let parent = null;
+        let smallestParentArea = Infinity;
+
+        allPaths.forEach(potentialParent => {
+            if (pathObj === potentialParent) return;
+            if (isInside(pathObj.box, potentialParent.box)) {
+                if (potentialParent.box.area < smallestParentArea) {
+                    parent = potentialParent;
+                    smallestParentArea = potentialParent.box.area;
+                }
+            }
+        });
+
+        if (parent) {
+            if (!parent.children) parent.children = [];
+            parent.children.push(pathObj);
+        } else {
+            hierarchy.push(pathObj);
+        }
+    });
+
+    // Step 3: Use scanline test to classify child paths as holes or solids
+    const finalShapes = [];
+    
+    function processHierarchy(pathObj, isContainedInAHole) {
+        const testPoint = getTestPoint(pathObj.path);
+        
+        let isHole = false;
+        if (isContainedInAHole) {
+            isHole = !scanlineIsInside(testPoint, pathObj.parent.path);
+        } else {
+            isHole = scanlineIsInside(testPoint, pathObj.parent.path);
+        }
+
+        if (isHole) {
+            const holePath = new THREE.Path();
+            parseCommands(pathObj.path, holePath);
+            pathObj.parent.threeShape.holes.push(holePath);
+
+        } else {
+            const solidShape = new THREE.Shape();
+            parseCommands(pathObj.path, solidShape);
+            finalShapes.push(solidShape);
+        }
+        
+        if (pathObj.children) {
+            pathObj.children.forEach(child => {
+                child.parent = pathObj;
+                child.parent.threeShape = pathObj.parent.threeShape;
+                processHierarchy(child, isHole);
+            });
+        }
+    }
+
+    hierarchy.forEach(mainPathObj => {
+        const threeShape = new THREE.Shape();
+        parseCommands(mainPathObj.path, threeShape);
+        finalShapes.push(threeShape);
+
+        if (mainPathObj.children) {
+            mainPathObj.children.forEach(child => {
+                child.parent = mainPathObj;
+                child.parent.threeShape = threeShape;
+                processHierarchy(child, false);
+            });
+        }
+    });
+
+    return finalShapes;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/**
+ * Fetches and loads a font file using opentype.js.
+ * @param {string} fontPath - The path to the font file.
+ * @returns {Promise<opentype.Font>} A promise that resolves to the loaded font object.
+ */
+async function font(fontPath) {
+    try {
+        const buffer = await api.readFileBinary(fontPath)
+        const font = opentype.parse(buffer)
+        console.log(`Successfully loaded font from ${fontPath}`)
+        return font
+    } catch (error) {
+        console.error('Font loading error:', error)
+        throw error
+    }
+}
+
+
+/**
+ * Converts text to a single, flattened path data array using opentype.js.
+ * All sub-paths are concatenated into one long array, with 'm' commands
+ * marking the start of each new sub-path.
+ *
+ * @param {object} textData - The object containing font, text, and fontSize.
+ * @param {object} textData.font - The opentype.js font object.
+ * @param {string} textData.text - The text string to render.
+ * @param {number} textData.fontSize - The font size.
+ * @returns {Array<string|number>} A single array of all path commands.
+ */
+function text(textData) {
+    let xOffset = 0;
+    const allCommands = [];
+
+    // Helper function to convert opentype.js commands to the custom format
+    function convertPathToCustomFormat(pathCommands) {
+        const customFormatPath = [];
+        for (const cmd of pathCommands) {
+            switch (cmd.type) {
+                case 'M': customFormatPath.push('m', cmd.x, -cmd.y); break;
+                case 'L': customFormatPath.push('l', cmd.x, -cmd.y); break;
+                case 'Q': customFormatPath.push('q', cmd.x1, -cmd.y1, cmd.x, -cmd.y); break;
+                case 'C': customFormatPath.push('c', cmd.x1, -cmd.y1, cmd.x2, -cmd.y2, cmd.x, -cmd.y); break;
+                // 'Z' commands are implicitly handled by the next 'M'
+            }
+        }
+        return customFormatPath;
+    }
+
+    const glyphs = textData.font.stringToGlyphs(textData.text);
+
+    for (const glyph of glyphs) {
+        const opentypePath = glyph.getPath(xOffset, 0, textData.fontSize);
+        const commands = opentypePath.commands;
+        let currentPathCommands = [];
+
+        for (let i = 0; i < commands.length; i++) {
+            const command = commands[i];
+            if (command.type === 'M' && currentPathCommands.length > 0) {
+                allCommands.push(...convertPathToCustomFormat(currentPathCommands));
+                currentPathCommands = [command];
+            } else {
+                currentPathCommands.push(command);
+            }
+        }
+        if (currentPathCommands.length > 0) {
+            allCommands.push(...convertPathToCustomFormat(currentPathCommands));
+        }
+        
+        xOffset += glyph.advanceWidth * (textData.fontSize / textData.font.unitsPerEm);
+    }
+
+    return { path: allCommands, fn: textData.fn || 40 }; // Include fn here for consistency
+}
+
+
 // Private object containing all exportable functions
 // This is a private, self-contained list within the module.
 const _exportedFunctions = {
-	THREE,
-	shape,
+    THREE,
     sphere,
     cube,
     cylinder,
@@ -696,7 +940,10 @@ const _exportedFunctions = {
     linePaths3d,
     scaleTo,
     show,
-    hide
+    hide,
+    font,
+    text,
+    shape
 }
 
 // --- Revised `ezport` function ---

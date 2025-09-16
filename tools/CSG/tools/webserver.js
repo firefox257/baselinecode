@@ -95,7 +95,7 @@ const allowHead = {
         'OPTIONS, POST, GET, PUT, PATCH, DELETE',
     'Access-Control-Max-Age': 2592000, //30 days
     'Access-Control-Allow-Headers':
-        'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-LS-Path, X-Read-File, X-Save-File, X-File-Path, X-File-Content, X-MKPATH, X-MV-Source, X-MV-Destination, X-DEL-Path, X-COPY-Source, X-COPY-Destination, X-RN-Source, X-RN-Destination'
+        'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-LS-Path, X-Read-File, X-Read-File-Binary, X-Save-File, X-File-Path, X-File-Content, X-MKPATH, X-MV-Source, X-MV-Destination, X-DEL-Path, X-COPY-Source, X-COPY-Destination, X-RN-Source, X-RN-Destination'
 }
 
 globalThis.sendPlainTextResponse = function (res, message, statusCode = 200, headers = {}) {
@@ -313,6 +313,35 @@ async function handleReadFile(res, filePathHeader) {
         }
     }
 }
+
+async function handleReadFileBinary(req, res, filePathHeader) {
+    const fullPath = path.join(FILES_ROOT, filePathHeader);
+
+    if (!fullPath.startsWith(FILES_ROOT)) {
+        return sendPlainTextResponse(res, 'Access Denied: Invalid file path.', 403);
+    }
+
+    try {
+        const stats = await stat(fullPath);
+        if (stats.isDirectory()) {
+            return sendPlainTextResponse(res, 'READFILE Error: Cannot read a directory.', 400);
+        }
+        
+        const ext = path.extname(fullPath).toLowerCase();
+        const contentType = _mimetype[ext] || 'application/octet-stream';
+
+        streamFile(req, res, fullPath, contentType);
+
+    } catch (error) {
+        if (error.code === 'ENOENT') {
+            sendPlainTextResponse(res, `READFILE Error: File not found: ${filePathHeader}`, 404);
+        } else {
+            console.error(`READFILE Error: ${error.message}`);
+            sendPlainTextResponse(res, `READFILE Internal Server Error: ${error.message}`, 500);
+        }
+    }
+}
+
 
 async function handleSaveFile(req, res, filePathHeader) {
     const fullPath = path.join(FILES_ROOT, filePathHeader);
@@ -649,6 +678,7 @@ function webHandler(req, res) {
 
     const lsPath = req.headers['x-ls-path'];
     const readFileHeader = req.headers['x-read-file'];
+    const readFileBinaryHeader = req.headers['x-read-file-binary'];
     const saveFileHeader = req.headers['x-save-file'];
     const mkPathHeader = req.headers['x-mkpath'];
     const mvSourceHeader = req.headers['x-mv-source'];
@@ -667,6 +697,11 @@ function webHandler(req, res) {
 
     if (readFileHeader) {
         handleReadFile(res, readFileHeader);
+        return;
+    }
+    
+    if (readFileBinaryHeader) {
+        handleReadFileBinary(req, res, readFileBinaryHeader);
         return;
     }
 

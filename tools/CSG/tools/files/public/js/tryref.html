@@ -1,58 +1,194 @@
-// Function to convert a Float32Array to a Base64 string
-function floatArrayToBase64(floatArray) {
-    // Create a Uint8Array from the Float32Array
-    const uint8Array = new Uint8Array(floatArray.buffer);
-    let binaryString = '';
-    for (let i = 0; i < uint8Array.length; i++) {
-        binaryString += String.fromCharCode(uint8Array[i]);
-    }
-    return btoa(binaryString); // Use the built-in btoa() function
-}
 
-// Function to convert a Base64 string back to a Float32Array
-function base64ToFloatArray(base64String) {
-    const binaryString = atob(base64String);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-    }
-    return new Float32Array(bytes.buffer);
-}
 
-const cloneAndStripMesh = (mesh) => {
-    if (mesh instanceof THREE.Mesh) {
-        // ...
-        return {
-            $jsonMesh: {
-                mesh: {
-                    // Embed a custom attribute to indicate Base64 encoding
-                    attributes: {
-                        position: {
-                            array: floatArrayToBase64(mesh.geometry.attributes.position.array),
-                            itemSize: 3
-                        },
-                        normal: {
-                            array: floatArrayToBase64(mesh.geometry.attributes.normal.array),
-                            itemSize: 3
+
+
+import { Evaluator, ADDITION, SUBTRACTION, INTERSECTION, Brush } from 'three-bvh-csg';
+
+// Global CSG Evaluator instance
+const csgEvaluator = new Evaluator();
+
+// A default material used for the meshes
+const defaultMaterial = new THREE.MeshStandardMaterial({
+    color: 0x42a5f5,
+    metalness: 0.2,
+    roughness: 0.6,
+    side: THREE.DoubleSide,
+    flatShading: true
+});
+
+// Helper function to apply a function to a mesh or array/object of meshes.
+function applyToMesh(target, func) {
+    if (target instanceof THREE.Mesh) {
+        func(target);
+    } else if (Array.isArray(target)) {
+        target.forEach(item => {
+            if (item instanceof THREE.Mesh) {
+                func(item);
+            }
+        });
+    } else if (typeof target === 'object' && target !== null) {
+        for (const key in target) {
+            if (target.hasOwnProperty(key)) {
+                const item = target[key];
+                if (item instanceof THREE.Mesh) {
+                    func(item);
+                } else if (Array.isArray(item)) {
+                    item.forEach(subItem => {
+                        if (subItem instanceof THREE.Mesh) {
+                            func(subItem);
                         }
-                    }
+                    });
                 }
             }
-        };
+        }
     }
-    // ... handle Brush objects similarly ...
-};
+}
 
-const handleSaveFile = async (event, filePath) => {
-    // ...
-    const projectData = {
-        csgCode: csgEditor.values,
-        editorCode: editorCodeEditor.values,
-        // The cloneFilter will now save Base64 strings
-        meshCache: cloneFilter(project.meshCache, isMesh, cloneAndStripMesh)
-    };
-    // ...
-};
+// A helper function for creating a cylinder, required by the `thread` function.
+function cylinder({ d, dt, db, r, rt, rb, h, fn } = {}) {
+    let topRadius, bottomRadius
 
-// You'd also need a corresponding function to load the Base64 data
-// from the JSON and convert it back into a Float32Array for the geometry.
+    if (rt !== undefined) {
+        topRadius = rt
+    }
+    if (rb !== undefined) {
+        bottomRadius = rb
+    }
+
+    if (topRadius === undefined && dt !== undefined) {
+        topRadius = dt / 2
+    }
+    if (bottomRadius === undefined && db !== undefined) {
+        bottomRadius = db / 2
+    }
+
+    if (
+        topRadius === undefined &&
+        bottomRadius === undefined &&
+        r !== undefined
+    ) {
+        topRadius = r
+        bottomRadius = r
+    }
+
+    if (
+        topRadius === undefined &&
+        bottomRadius === undefined &&
+        d !== undefined
+    ) {
+        topRadius = d / 2
+        bottomRadius = d / 2
+    }
+
+    topRadius = topRadius || 0.5
+    bottomRadius = bottomRadius || 0.5
+    h = h || 1
+    fn = fn || 32
+
+    const geom = convertGeometry(new THREE.CylinderGeometry(topRadius, bottomRadius, h, fn));
+
+    return new THREE.Mesh(geom, defaultMaterial.clone())
+}
+
+// A helper function to convert a geometry to BufferGeometry.
+function convertGeometry(geom) {
+    if (geom.isBufferGeometry) return geom;
+    return new THREE.BufferGeometry().fromGeometry(geom);
+}
+
+// A helper function for performing a CSG union operation.
+function union(...meshes) {
+    if (meshes.length === 0) return null
+    if (meshes.length === 1) return meshes[0]
+    const brushA = new Brush(meshes[0].geometry, meshes[0].material)
+    brushA.position.copy(meshes[0].position)
+    brushA.rotation.copy(meshes[0].rotation)
+    brushA.scale.copy(meshes[0].scale)
+    brushA.updateMatrixWorld(true)
+
+    let result = brushA
+    for (let i = 1; i < meshes.length; i++) {
+        const mesh = meshes[i]
+        const brushB = new Brush(mesh.geometry, mesh.material)
+        brushB.position.copy(mesh.position)
+        brushB.rotation.copy(mesh.rotation)
+        brushB.scale.copy(mesh.scale)
+        brushB.updateMatrixWorld(true)
+        result = csgEvaluator.evaluate(result, brushB, ADDITION)
+    }
+    return result
+}
+
+/**
+ * Creates a threaded rod mesh.
+ * The function generates a cylindrical core and a helical thread
+ * that are then combined using a CSG union operation.
+ *
+ * @param {object} params
+ * @param {number} params.outerRadius - The outer radius of the thread.
+ * @param {number} params.innerRadius - The inner radius of the thread's core.
+ * @param {number} params.pitchHeight - The distance between two consecutive threads.
+ * @param {number} params.height - The total height of the threaded rod.
+ * @param {number} [params.fn=64] - The number of faces (radial segments) for the rod.
+ * @returns {THREE.Mesh} The final threaded rod mesh.
+ */
+function thread({ outerRadius, innerRadius, pitchHeight, height, fn = 64 }) {
+    // Ensure parameters are valid
+    if (outerRadius <= 0 || innerRadius <= 0 || pitchHeight <= 0 || height <= 0 || innerRadius >= outerRadius) {
+        console.error("Invalid parameters for `thread` function.");
+        return new THREE.Mesh();
+    }
+
+    // Create the cylindrical core of the rod
+    const coreMesh = new THREE.Mesh(
+        new THREE.CylinderGeometry(innerRadius, innerRadius, height, fn),
+        defaultMaterial.clone()
+    );
+
+    // Create the profile of a single thread (a simple triangle shape)
+    const threadProfile = new THREE.Shape();
+    const threadWidth = outerRadius - innerRadius;
+    const threadHeight = pitchHeight / 2; // V-shape half the pitch height for a full thread
+    threadProfile.moveTo(innerRadius, 0);
+    threadProfile.lineTo(outerRadius, threadHeight / 2);
+    threadProfile.lineTo(outerRadius, -threadHeight / 2);
+    threadProfile.lineTo(innerRadius, 0);
+
+    // Define the helix path for extrusion
+    const turns = height / pitchHeight;
+    const helixPath = new THREE.CurvePath();
+    const helixRadius = (outerRadius + innerRadius) / 2;
+
+    for (let i = 0; i <= turns; i++) {
+        // Add points along the helical path. We'll use multiple points per turn for a smoother curve.
+        const segmentsPerTurn = 100;
+        for (let j = 0; j <= segmentsPerTurn; j++) {
+            const angle = (i * 2 * Math.PI) + (j / segmentsPerTurn * 2 * Math.PI);
+            const y = (i * pitchHeight) + (j / segmentsPerTurn * pitchHeight);
+            const x = helixRadius * Math.cos(angle);
+            const z = helixRadius * Math.sin(angle);
+            helixPath.add(new THREE.LineCurve3(
+                new THREE.Vector3(x, y, z),
+                new THREE.Vector3(x, y, z)
+            ));
+        }
+    }
+
+    // Extrude the thread profile along the helix path
+    const threadGeometry = new THREE.ExtrudeGeometry(threadProfile, {
+        steps: 50, // Number of steps along the path
+        bevelEnabled: false,
+        extrudePath: helixPath
+    });
+
+    const threadMesh = new THREE.Mesh(threadGeometry, defaultMaterial.clone());
+
+    // Center the thread mesh along the Y-axis
+    threadMesh.geometry.translate(0, -height / 2, 0);
+
+    // Create the final threaded rod using CSG union operation
+    const rod = union(coreMesh, threadMesh);
+
+    return rod;
+}
+
