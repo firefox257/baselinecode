@@ -594,6 +594,9 @@ function hide(target) {
 }
 
 
+
+
+
 /**
  * Creates a THREE.Shape from a custom SVG-like path data format.
  * @param {object} shapeData - The data object containing path and fn.
@@ -675,6 +678,65 @@ function shape(shapeData) {
         }
         return { x: 0, y: 0 };
     }
+    
+    /**
+     * Helper function to get a series of points along a curve.
+     * This is a simplified flattening method.
+     */
+    function getCurvePoints(command, currentX, currentY, pathArray, i) {
+        const points = [];
+        const numSegments = 30; // Adjust for desired accuracy
+
+        switch (command) {
+            case 'q':
+                const cpX_q = pathArray[i];
+                const cpY_q = pathArray[i + 1];
+                const endX_q = pathArray[i + 2];
+                const endY_q = pathArray[i + 3];
+
+                for (let t = 0; t <= 1; t += 1 / numSegments) {
+                    const x = (1 - t) ** 2 * currentX + 2 * (1 - t) * t * cpX_q + t ** 2 * endX_q;
+                    const y = (1 - t) ** 2 * currentY + 2 * (1 - t) * t * cpY_q + t ** 2 * endY_q;
+                    points.push({ x, y });
+                }
+                break;
+            case 'c':
+                const cp1X = pathArray[i];
+                const cp1Y = pathArray[i + 1];
+                const cp2X = pathArray[i + 2];
+                const cp2Y = pathArray[i + 3];
+                const endX_c = pathArray[i + 4];
+                const endY_c = pathArray[i + 5];
+
+                for (let t = 0; t <= 1; t += 1 / numSegments) {
+                    const x = (1 - t) ** 3 * currentX + 3 * (1 - t) ** 2 * t * cp1X + 3 * (1 - t) * t ** 2 * cp2X + t ** 3 * endX_c;
+                    const y = (1 - t) ** 3 * currentY + 3 * (1 - t) ** 2 * t * cp1Y + 3 * (1 - t) * t ** 2 * cp2Y + t ** 3 * endY_c;
+                    points.push({ x, y });
+                }
+                break;
+            case 'a': // Arc approximation
+            case 'e': // Ellipse approximation
+                const centerX = pathArray[i];
+                const centerY = pathArray[i + 1];
+                const radiusX = pathArray[i + 2];
+                const radiusY = pathArray[i + 3];
+                const startAngle = pathArray[i + 4];
+                const endAngle = pathArray[i + 5];
+                const clockwise = command === 'a' ? pathArray[i + 5] : pathArray[i + 6];
+
+                const angleDiff = endAngle - startAngle;
+                const angleStep = (clockwise ? -1 : 1) * angleDiff / numSegments;
+
+                for (let j = 0; j <= numSegments; j++) {
+                    const angle = startAngle + j * angleStep;
+                    const x = centerX + radiusX * Math.cos(angle);
+                    const y = centerY + radiusY * Math.sin(angle);
+                    points.push({ x, y });
+                }
+                break;
+        }
+        return points;
+    }
 
     function scanlineIsInside(point, testPath) {
         if (!testPath || testPath.length === 0) {
@@ -706,16 +768,20 @@ function shape(shapeData) {
                 currentY = nextY;
                 i += 2;
             } else if (command === 'q' || command === 'c' || command === 'a' || command === 'e') {
-                const endX = testPath[i + (command === 'q' ? 2 : (command === 'c' ? 4 : (command === 'a' ? 4 : 5)))];
-                const endY = testPath[i + (command === 'q' ? 3 : (command === 'c' ? 5 : (command === 'a' ? 5 : 6)))];
+                const curvePoints = getCurvePoints(command, currentX, currentY, testPath, i);
 
-                if (((currentY <= point.y && endY > point.y) || (currentY > point.y && endY <= point.y)) &&
-                    (point.x < (endX - currentX) * (point.y - currentY) / (endY - currentY) + currentX)) {
-                    intersections++;
+                for (let j = 0; j < curvePoints.length - 1; j++) {
+                    const p1 = curvePoints[j];
+                    const p2 = curvePoints[j + 1];
+
+                    if (((p1.y <= point.y && p2.y > point.y) || (p1.y > point.y && p2.y <= point.y)) &&
+                        (point.x < (p2.x - p1.x) * (point.y - p1.y) / (p2.y - p1.y) + p1.x)) {
+                        intersections++;
+                    }
                 }
 
-                currentX = endX;
-                currentY = endY;
+                currentX = curvePoints[curvePoints.length - 1].x;
+                currentY = curvePoints[curvePoints.length - 1].y;
                 i += (command === 'q' ? 4 : (command === 'c' ? 6 : (command === 'a' ? 6 : 7)));
             }
         }
@@ -787,11 +853,24 @@ function shape(shapeData) {
     const hierarchy = [];
     allPaths.sort((a, b) => a.box.area - b.box.area);
 
-    for (let i = 0; i < allPaths.length; i++) {
-        const childPath = allPaths[i];
+    // New Step 1.5: Remove duplicate paths
+    const uniquePaths = [];
+    const pathStrings = new Set();
+    
+    allPaths.forEach(pathObj => {
+        const pathStr = JSON.stringify(pathObj.path);
+        if (!pathStrings.has(pathStr)) {
+            uniquePaths.push(pathObj);
+            pathStrings.add(pathStr);
+        }
+    });
+    
+    
+    for (let i = 0; i < uniquePaths.length; i++) {
+        const childPath = uniquePaths[i];
         let parent = null;
-        for (let j = i + 1; j < allPaths.length; j++) {
-            const potentialParent = allPaths[j];
+        for (let j = i + 1; j < uniquePaths.length; j++) {
+            const potentialParent = uniquePaths[j];
             if (isInside(childPath.box, potentialParent.box)) {
                 parent = potentialParent;
                 break;
