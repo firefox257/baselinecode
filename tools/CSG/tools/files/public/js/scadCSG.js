@@ -594,8 +594,6 @@ function hide(target) {
 }
 
 
-
-
 /**
  * Creates a THREE.Shape from a custom SVG-like path data format.
  * @param {object} shapeData - The data object containing path and fn.
@@ -604,8 +602,8 @@ function hide(target) {
 function shape(shapeData) {
     const rawPath = shapeData.path;
     const allPaths = [];
-    
-    // === NEW === Get fn from input data
+
+    // Get fn from input data
     const fnValue = shapeData.fn || 30; // Use provided fn, or default to 30
 
     function getBoundingBox(path) {
@@ -679,10 +677,13 @@ function shape(shapeData) {
     }
 
     function scanlineIsInside(point, testPath) {
+        if (!testPath || testPath.length === 0) {
+            return false;
+        }
+
         let intersections = 0;
         let i = 0;
         let currentX = 0, currentY = 0;
-        let startX = 0, startY = 0;
 
         while (i < testPath.length) {
             const command = testPath[i];
@@ -691,8 +692,6 @@ function shape(shapeData) {
             if (command === 'm') {
                 currentX = testPath[i];
                 currentY = testPath[i + 1];
-                startX = currentX;
-                startY = currentY;
                 i += 2;
             } else if (command === 'l') {
                 const nextX = testPath[i];
@@ -702,11 +701,11 @@ function shape(shapeData) {
                     (point.x < (nextX - currentX) * (point.y - currentY) / (nextY - currentY) + currentX)) {
                     intersections++;
                 }
+
                 currentX = nextX;
                 currentY = nextY;
                 i += 2;
             } else if (command === 'q' || command === 'c' || command === 'a' || command === 'e') {
-                // Simplified handling for curved paths: just move to the end point
                 const endX = testPath[i + (command === 'q' ? 2 : (command === 'c' ? 4 : (command === 'a' ? 4 : 5)))];
                 const endY = testPath[i + (command === 'q' ? 3 : (command === 'c' ? 5 : (command === 'a' ? 5 : 6)))];
 
@@ -757,13 +756,13 @@ function shape(shapeData) {
             }
         }
     }
-    
-    // Step 1: Deconstruct raw path into individual sub-paths
+
+    // Step 1: Deconstruct raw path into individual sub-paths and get bounding boxes.
     let currentPath = [];
     for (let i = 0; i < rawPath.length; ) {
         const command = rawPath[i];
         if (command === 'm' && currentPath.length > 0) {
-            allPaths.push({ path: currentPath, box: getBoundingBox(currentPath) });
+            allPaths.push({ path: currentPath, box: getBoundingBox(currentPath), children: [] });
             currentPath = [];
         }
         let commandLength = 0;
@@ -781,86 +780,92 @@ function shape(shapeData) {
         }
     }
     if (currentPath.length > 0) {
-        allPaths.push({ path: currentPath, box: getBoundingBox(currentPath) });
+        allPaths.push({ path: currentPath, box: getBoundingBox(currentPath), children: [] });
     }
 
-    // Step 2: Build parent-child hierarchy using bounding box containment
+    // Step 2: Build parent-child hierarchy using bounding box containment.
     const hierarchy = [];
-    allPaths.forEach(pathObj => {
+    allPaths.sort((a, b) => a.box.area - b.box.area);
+
+    for (let i = 0; i < allPaths.length; i++) {
+        const childPath = allPaths[i];
         let parent = null;
-        let smallestParentArea = Infinity;
-
-        allPaths.forEach(potentialParent => {
-            if (pathObj === potentialParent) return;
-            if (isInside(pathObj.box, potentialParent.box)) {
-                if (potentialParent.box.area < smallestParentArea) {
-                    parent = potentialParent;
-                    smallestParentArea = potentialParent.box.area;
-                }
+        for (let j = i + 1; j < allPaths.length; j++) {
+            const potentialParent = allPaths[j];
+            if (isInside(childPath.box, potentialParent.box)) {
+                parent = potentialParent;
+                break;
             }
-        });
-
-        if (parent) {
-            if (!parent.children) parent.children = [];
-            parent.children.push(pathObj);
-        } else {
-            hierarchy.push(pathObj);
         }
-    });
+        if (parent) {
+            parent.children.push(childPath);
+        } else {
+            hierarchy.push(childPath);
+        }
+    }
 
-    // Step 3: Use scanline test to classify child paths as holes or solids
+    // Step 3: Classify paths and build THREE.Shapes using recursion.
     const finalShapes = [];
     
-    function processHierarchy(pathObj, isContainedInAHole) {
+    /**
+     * @param {object} pathObj - The current path object from the hierarchy.
+     * @param {THREE.Shape} parentThreeShape - The THREE.Shape object of the immediate solid parent.
+     * @param {boolean} isParentHole - True if the immediate parent path is a hole.
+     */
+    function processPath(pathObj, parentThreeShape, isParentHole) {
         const testPoint = getTestPoint(pathObj.path);
+        const isInsideImmediateParent = scanlineIsInside(testPoint, pathObj.parent ? pathObj.parent.path : null);
         
-        let isHole = false;
-        if (isContainedInAHole) {
-            isHole = !scanlineIsInside(testPoint, pathObj.parent.path);
-        } else {
-            isHole = scanlineIsInside(testPoint, pathObj.parent.path);
-        }
+        // The classification flips based on whether the parent is a hole.
+        const isHole = isInsideImmediateParent !== isParentHole;
 
         if (isHole) {
+            // This path is a hole, so add it to the parent's holes array.
             const holePath = new THREE.Path();
             parseCommands(pathObj.path, holePath);
-            pathObj.parent.threeShape.holes.push(holePath);
+            parentThreeShape.holes.push(holePath);
 
-        } else {
-            const solidShape = new THREE.Shape();
-            parseCommands(pathObj.path, solidShape);
-            finalShapes.push(solidShape);
-        }
-        
-        if (pathObj.children) {
+            // Pass the flipped status to children.
             pathObj.children.forEach(child => {
                 child.parent = pathObj;
-                child.parent.threeShape = pathObj.parent.threeShape;
-                processHierarchy(child, isHole);
+                processPath(child, parentThreeShape, true);
+            });
+
+        } else {
+            // This path is a solid shape. Create a new THREE.Shape object.
+            const solidShape = new THREE.Shape();
+            parseCommands(pathObj.path, solidShape);
+            solidShape.userData = { fn: fnValue };
+            finalShapes.push(solidShape);
+
+            // Children of this solid shape are now potentially holes.
+            pathObj.children.forEach(child => {
+                child.parent = pathObj;
+                processPath(child, solidShape, false);
             });
         }
     }
 
+    // Start processing from the top-level shapes.
     hierarchy.forEach(mainPathObj => {
-        const threeShape = new THREE.Shape();
-        parseCommands(mainPathObj.path, threeShape);
+        // Top-level shapes are always solid.
+        const topLevelShape = new THREE.Shape();
+        parseCommands(mainPathObj.path, topLevelShape);
+        topLevelShape.userData = { fn: fnValue };
+        finalShapes.push(topLevelShape);
         
-        // === NEW === Add fn to userData
-        threeShape.userData = { fn: fnValue }; 
-        
-        finalShapes.push(threeShape);
-
-        if (mainPathObj.children) {
-            mainPathObj.children.forEach(child => {
-                child.parent = mainPathObj;
-                child.parent.threeShape = threeShape;
-                processHierarchy(child, false);
-            });
-        }
+        // Process children of this top-level solid shape.
+        mainPathObj.children.forEach(child => {
+            child.parent = mainPathObj;
+            // The top-level parent is not a hole, so pass false.
+            processPath(child, topLevelShape, false);
+        });
     });
 
     return finalShapes;
 }
+
+
 
 
 
