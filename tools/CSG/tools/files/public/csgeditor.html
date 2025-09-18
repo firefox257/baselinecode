@@ -253,6 +253,8 @@
         <div id="toolbar">
             <button id="btn-3d" title="3D View">&#x1F5BC;</button>
             <div class="toolbar-separator"></div>
+            <button id="btn-wireframe" title="Toggle Wireframe" style="display: none;">&#x1F4CB;</button>
+            <div class="toolbar-separator" id="separator-wireframe" style="display: none;"></div>
             <button id="btn-code" title="CSG Code Editor">&#x1F4BB;</button>
             <div class="toolbar-separator"></div>
             <button id="btn-editor-code" title="Editor Code">&#x2B9D;</button>
@@ -279,21 +281,34 @@
  
  
  
+ 
+
+ 
+ 
+ /*
+ 
+ return subdivide({resolution:3},
+ 	cube([50,50,50])
+ );
+ */
+ 
  /////////////
  
- var f1= await font("/fonts/Dream Orphans.otf");
- var ts= text({
-	 font:f1,
-	 //text:"Dream Orphans0123%#",
-	 text:"0",
-	 fn:30,
-	 fontSize:5
- });
+ var f1= await font("/fonts/advanced_dot_digital-7.ttf");
+var ts= text({
+		font:f1,
+		text:"Dream Orphans0123%#",
+		//text:"0",
+		fn:30,
+		fontSize:5
+	});
+
+ts = translatePath([10,0],ts)
 //PrintLog(JSON.stringify(ts));
 var s1=shape(ts);
- 
+
 return line3d(s1, [0, 0, 0], [0, 0, 0.1]);
- 
+	
  
  /////////
  
@@ -455,13 +470,10 @@ return floor(
             </div>
         </div>
 
-        <!-- ---------- Console (resizable) ---------- -->
         <div id="console-container" aria-live="polite">
             <div id="console-resizer" title="Drag to resize console"></div>
             <div id="console-panel"></div>
         </div>
-        <!-- ---------- End Console ---------- -->
-
         <script type="module" src="/ux/textCode.js"></script>
         <script type="module" src="/ux/filePicker.js"></script>
 
@@ -480,12 +492,12 @@ return floor(
                 handleSaveStl,
                 exportSTL,
                 clearAllCache,
-                clearCurrentCacheByName
+                clearCurrentCacheByName,
+                toggleWireframe
             } from './js/editorCsg.js'
 
             globalThis.settings={};
             let currentObjects
-
             var domElements
             var renderer
             var scene
@@ -655,7 +667,9 @@ return floor(
                     btnEditorCode: document.getElementById('btn-editor-code'),
                     btnSettings: document.getElementById('btn-settings'),
                     btnClearCacheByName: document.getElementById('btn-clear-cache-by-name'),
-                    separatorClearCache: document.getElementById('separator-clear-cache')
+                    separatorClearCache: document.getElementById('separator-clear-cache'),
+                    btnWireframe: document.getElementById('btn-wireframe'),
+                    separatorWireframe: document.getElementById('separator-wireframe')
                 }
 
                 dom.codePanel.style.display = 'none'
@@ -668,13 +682,18 @@ return floor(
                 dom.btnEditorCode.style.backgroundColor = '#3498db'
                 dom.btnSettings.style.backgroundColor = '#3498db'
 
-                // Hide the new button and separator by default
+                // Hide the new buttons and separators by default
                 dom.btnClearCacheByName.style.display = 'none';
                 dom.separatorClearCache.style.display = 'none';
+                dom.btnWireframe.style.display = 'none';
+                dom.separatorWireframe.style.display = 'none';
+
 
                 if (id === '3d') {
                     dom.viewPanel.style.display = 'block'
                     dom.btn3D.style.backgroundColor = '#e74c3c'
+                    dom.btnWireframe.style.display = 'block';
+                    dom.separatorWireframe.style.display = 'block';
                 } else if (id === 'code') {
                     dom.codePanel.style.display = 'block'
                     dom.btnCode.style.backgroundColor = '#e74c3c'
@@ -737,6 +756,7 @@ return floor(
                     btnLoad: document.getElementById('btn-load'),
                     btnSave: document.getElementById('btn-save'),
                     clearConsoleBtn: document.getElementById('btn-clear-console'),
+                    btnWireframe: document.getElementById('btn-wireframe'),
                     widthInput: document.getElementById('width-input'),
                     lengthInput: document.getElementById('length-input'),
                     gridSizeInput: document.getElementById('grid-size-input'),
@@ -813,6 +833,9 @@ return floor(
                 });
                 // New event listener for the Clear Cache button
                 document.getElementById('btn-clear-cache-by-name').addEventListener('click', clearCurrentCacheByName);
+                // New event listener for the Toggle Wireframe button
+                document.getElementById('btn-wireframe').addEventListener('click', toggleWireframe);
+
 
                 // Corrected Save Button Logic
                 domElements.btnSave.addEventListener('click', () => {
@@ -855,3 +878,5 @@ return floor(
         </script>
     </body>
 </html>
+
+

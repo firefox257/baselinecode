@@ -25,6 +25,7 @@ var animate;
 var showView;
 let scene;
 let currentObjects;
+let isWireframeMode = false; // New global state variable
 
 let project; // global instance
 
@@ -854,7 +855,11 @@ export async function runCSGCode() {
 			currentObjects.push(item);
 		}
 	});
-	
+    
+    // Reset wireframe mode after re-rendering
+    isWireframeMode = false;
+    const btn = document.getElementById('btn-wireframe');
+    if (btn) btn.style.backgroundColor = '#3498db';
 }
 
 // New function to clear the cache of the current active file
@@ -878,6 +883,35 @@ export function clearCurrentCacheByName() {
     } else {
         PrintWarn('No active file to clear cache for.');
         alert('No active file to clear cache for.');
+    }
+}
+
+// New function to toggle the wireframe view
+export function toggleWireframe() {
+    isWireframeMode = !isWireframeMode;
+    applyToMesh(currentObjects, (item) => {
+        if (isWireframeMode) {
+            if (!item.userData.originalMaterial) {
+                item.userData.originalMaterial = item.material;
+            }
+            item.material = new THREE.MeshBasicMaterial({
+                color: 0xcccccc,
+                wireframe: true,
+                transparent: true,
+                opacity: 0.5
+            });
+        } else {
+            if (item.userData.originalMaterial) {
+                item.material = item.userData.originalMaterial;
+            }
+        }
+    });
+
+    const btn = document.getElementById('btn-wireframe');
+    if (isWireframeMode) {
+        btn.style.backgroundColor = '#e74c3c';
+    } else {
+        btn.style.backgroundColor = '#3498db';
     }
 }
 

@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Font Awesome 7 Characters</title>
+    <style>
+        /* This rule loads the Font Awesome 7 Free-Regular-400.otf file */
+        @font-face {
+            font-family: 'Font Awesome 7 Free';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url('Lineicons.ttf') format('opentype');
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            margin: 10px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #555;
+            font-size: 1.5rem;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 5px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #fff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            max-width: 100%;
+        }
+
+        .char-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 3px;
+            width: 35px;
+            height: 35px;
+            border: 1px solid #eee;
+            border-radius: 5px;
+            transition: transform 0.2s;
+        }
+
+        .char-box:hover {
+            transform: translateY(-2px);
+            background-color: #fafafa;
+        }
+
+        .character {
+            font-family: 'Font Awesome 7 Free';
+            font-size: 1rem;
+            line-height: 1;
+        }
+
+        .unicode {
+            font-family: monospace;
+            font-size: 0.5rem;
+            color: #777;
+            white-space: nowrap;
+        }
+
+        .navigation {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            gap: 5px;
+            margin-top: 15px;
+        }
+
+        button, input[type="text"], select {
+            padding: 5px 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+            background-color: #fff;
+            transition: background-color 0.2s;
+            font-size: 0.8rem;
+        }
+        
+        button:hover, select:hover {
+            background-color: #e9e9e9;
+        }
+
+        button:active, select:active {
+            background-color: #ddd;
+        }
+
+        input[type="text"] {
+            width: 40px;
+            text-align: center;
+        }
+
+        .page-info {
+            font-size: 0.8rem;
+            color: #555;
+            min-width: 100px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Font Awesome 7 Characters</h1>
+        
+        <div class="navigation">
+            <label for="section-select">Jump to Section:</label>
+            <select id="section-select">
+                <option value="f000">Arrows</option>
+                <option value="f300">App Icons</option>
+                <option value="f400">UI & Editing</option>
+                <option value="f500">Brands</option>
+            </select>
+        </div>
+
+        <div class="grid" id="charGrid">
+            </div>
+
+        <div class="navigation">
+            <button id="prevBtn">&lt;&lt; Prev</button>
+            <span class="page-info" id="pageInfo">Page 1 of ...</span>
+            <input type="text" id="pageInput" placeholder="Go to Page">
+            <button id="goBtn">Go</button>
+            <button id="nextBtn">Next &gt;&gt;</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const charGrid = document.getElementById('charGrid');
+            const pageInfo = document.getElementById('pageInfo');
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            const pageInput = document.getElementById('pageInput');
+            const goBtn = document.getElementById('goBtn');
+            const sectionSelect = document.getElementById('section-select');
+
+            // Correct Unicode range for Font Awesome 7 Free Regular
+            const START_UNICODE = 0xe000;
+            const END_UNICODE = 0xffff;
+            const CHARS_PER_PAGE = 64; // 8x8 grid
+
+            let currentPage = 1;
+            let currentStartUnicode = START_UNICODE;
+            const totalPages = Math.ceil((END_UNICODE - START_UNICODE + 1) / CHARS_PER_PAGE);
+
+            function updatePageInfo() {
+                pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+            }
+
+            function populateCharacters() {
+                charGrid.innerHTML = ''; // Clear previous characters
+                const startChar = currentStartUnicode + (currentPage - 1) * CHARS_PER_PAGE;
+                
+                for (let i = 0; i < CHARS_PER_PAGE; i++) {
+                    const unicode = startChar + i;
+                    if (unicode > END_UNICODE) {
+                        break;
+                    }
+
+                    const hexCode = '\\u' + unicode.toString(16).padStart(4, '0');
+                    const character = String.fromCodePoint(unicode);
+
+                    const charBox = document.createElement('div');
+                    charBox.className = 'char-box';
+                    
+                    const charSpan = document.createElement('div');
+                    charSpan.className = 'character';
+                    charSpan.textContent = character;
+                    
+                    const codeSpan = document.createElement('div');
+                    codeSpan.className = 'unicode';
+                    codeSpan.textContent = hexCode;
+
+                    charBox.appendChild(charSpan);
+                    charBox.appendChild(codeSpan);
+                    charGrid.appendChild(charBox);
+                }
+
+                // Update button states
+                prevBtn.disabled = currentPage === 1;
+                nextBtn.disabled = currentPage === totalPages;
+                updatePageInfo();
+            }
+
+            // Event listener for dropdown selection
+            sectionSelect.addEventListener('change', (event) => {
+                const selectedHex = event.target.value;
+                currentStartUnicode = parseInt(selectedHex, 16);
+                currentPage = 1; // Reset to page 1 for the new section
+                populateCharacters();
+            });
+
+            prevBtn.addEventListener('click', () => {
+                if (currentPage > 1) {
+                    currentPage--;
+                    populateCharacters();
+                }
+            });
+
+            nextBtn.addEventListener('click', () => {
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    populateCharacters();
+                }
+            });
+
+            goBtn.addEventListener('click', () => {
+                const pageNum = parseInt(pageInput.value, 10);
+                if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= totalPages) {
+                    currentPage = pageNum;
+                    populateCharacters();
+                } else {
+                    alert(`Please enter a valid page number between 1 and ${totalPages}.`);
+                }
+            });
+
+            // Initial population
+            populateCharacters();
+        });
+    </script>
+</body>
+</html>
