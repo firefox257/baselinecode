@@ -41,20 +41,6 @@
         ul, ol {
             padding-left: 20px;
         }
-        code {
-            background: #3e4451;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-family: monospace;
-            color: #e6e6e6;
-        }
-        pre {
-            background: #1e2127;
-            padding: 15px;
-            border-radius: 6px;
-            overflow-x: auto;
-            margin: 15px 0;
-        }
         .toc {
             background: #3e4451;
             padding: 20px;
@@ -67,6 +53,14 @@
         }
         .toc li {
             margin: 8px 0;
+        }
+        .toc li ul {
+            padding-left: 20px;
+            list-style-type: disc;
+        }
+        .toc li ul li ul {
+            padding-left: 20px;
+            list-style-type: circle;
         }
         .toc a {
             color: #61afef;
@@ -171,19 +165,113 @@
         <ul>
             <li><a href="#about">1. About</a></li>
             <li><a href="#toolbar">2. How to Use the Toolbar</a></li>
-            <li><a href="#settings">3. Settings</a></li>
-            <li><a href="#textcode">4. How to Use the TextCode Editor</a>
+            <li><a href="#settings">3. Settings</a>
                 <ul>
-                    <li><a href="#toolbar-buttons">4.1 Toolbar Buttons: Icons and Functions</a></li>
-                    <li><a href="#csg-vs-editor">4.2 Difference Between CSG Scripts and Editor Scripts</a></li>
-                    <li><a href="#get-include">How to Use get() and include()</a></li>
-                    <li><a href="#external">External get() and include()</a></li>
-                    <li><a href="#paths">How Paths Work</a></li>
+                    <li><a href="#grid-width">Grid Width</a></li>
+                    <li><a href="#grid-length">Grid Length</a></li>
+                    <li><a href="#grid-spacing">Grid Spacing</a></li>
+                    <li><a href="#library-path">Library Path</a></li>
+                    <li><a href="#settings-buttons">Buttons in Settings Panel</a></li>
                 </ul>
             </li>
-            <li><a href="#path-creation">5. Paths: How to Create Them</a></li>
-            <li><a href="#commands">6. scadCSG Commands and How to Use Them</a></li>
-            <li><a href="#examples">7. Examples</a></li>
+            <li><a href="#textcode">4. How to Use the TextCode Editor</a>
+                <ul>
+                    <li><a href="#editor-interface">Editor Interface & Core Features</a></li>
+                    <li><a href="#toolbar-buttons">4.1 Toolbar Buttons: Icons and Functions</a></li>
+                    <li><a href="#csg-vs-editor">4.2 Difference Between CSG Scripts and Editor Scripts</a>
+                        <ul>
+                            <li><a href="#csg-scripts-section">CSG Scripts</a></li>
+                            <li><a href="#editor-scripts-section">Editor Scripts</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="#get-include">How to Use get() and include()</a>
+                        <ul>
+                            <li><a href="#include-section"><code>include(name)</code></a></li>
+                            <li><a href="#get-section"><code>get(name)</code></a></li>
+                        </ul>
+                    </li>
+                    <li><a href="#external">External get() and include()</a>
+                        <ul>
+                            <li><a href="#external-include"><code>include(name, filepath)</code></a></li>
+                            <li><a href="#external-get"><code>get(name, filepath)</code></a></li>
+                        </ul>
+                    </li>
+                    <li><a href="#paths">How Paths Work</a>
+                        <ul>
+                            <li><a href="#absolute-paths">Absolute Paths</a></li>
+                            <li><a href="#library-paths">Library Paths</a></li>
+                            <li><a href="#relative-paths">Relative Paths</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </li>
+            <li><a href="#path-creation">5. Paths: How to Create Them</a>
+                <ul>
+                    <li><a href="#path-format">Path Format</a></li>
+                    <li><a href="#path-commands">Path Commands Reference</a></li>
+                    <li><a href="#path-usage">Creating and Using Paths</a></li>
+                    <li><a href="#auto-hole">Advanced: Automatic Hole Detection</a></li>
+                    <li><a href="#path-examples">Examples</a></li>
+                </ul>
+            </li>
+            <li><a href="#commands">6. scadCSG Commands and How to Use Them</a>
+                <ul>
+                    <li><a href="#primitives">Primitive Shapes</a>
+                        <ul>
+                            <li><a href="#sphere-section"><code>sphere()</code></a></li>
+                            <li><a href="#cube-section"><code>cube()</code></a></li>
+                            <li><a href="#cylinder-section"><code>cylinder()</code></a></li>
+                        </ul>
+                    </li>
+                    <li><a href="#transformations">Transformations</a>
+                        <ul>
+                            <li><a href="#translate-section"><code>translate()</code></a></li>
+                            <li><a href="#rotate-section"><code>rotate()</code></a></li>
+                            <li><a href="#scale-section"><code>scale()</code></a></li>
+                            <li><a href="#floor-section"><code>floor()</code></a></li>
+                            <li><a href="#align-section"><code>align()</code></a></li>
+                        </ul>
+                    </li>
+                    <li><a href="#csg-operations">CSG Operations</a>
+                        <ul>
+                            <li><a href="#union-section"><code>union()</code></a></li>
+                            <li><a href="#difference-section"><code>difference()</code></a></li>
+                            <li><a href="#intersect-section"><code>intersect()</code></a></li>
+                            <li><a href="#inverse-intersect-section"><code>inverseIntersect()</code></a></li>
+                        </ul>
+                    </li>
+                    <li><a href="#extrusions">2D to 3D Extrusion</a>
+                        <ul>
+                            <li><a href="#shape-section"><code>shape()</code></a></li>
+                            <li><a href="#line3d-section"><code>line3d()</code></a></li>
+                            <li><a href="#linepaths3d-section"><code>linePaths3d()</code></a></li>
+                            <li><a href="#path3d-section"><code>path3d()</code></a></li>
+                            <li><a href="#rotateextrude-section"><code>rotateExtrude()</code></a></li>
+                        </ul>
+                    </li>
+                    <li><a href="#utilities">Utility Functions</a>
+                        <ul>
+                            <li><a href="#color-section"><code>color()</code></a></li>
+                            <li><a href="#convexhull-section"><code>convexHull()</code></a></li>
+                            <li><a href="#subdivide-section"><code>subdivide()</code></a></li>
+                            <li><a href="#show-hide-section"><code>show()</code> and <code>hide()</code></a></li>
+                        </ul>
+                    </li>
+                    <li><a href="#2d-path-manipulation">2D Path Manipulation</a></li>
+                    <li><a href="#text-functions">Text Functions</a></li>
+                </ul>
+            </li>
+            <li><a href="#examples">7. Examples</a>
+                <ul>
+                    <li><a href="#example-cube">Simple Cube</a></li>
+                    <li><a href="#example-sphere-on-cube">Sphere on a Cube</a></li>
+                    <li><a href="#example-hole">Hole in a Cube</a></li>
+                    <li><a href="#example-star">Star with Hole (Using shape())</a></li>
+                    <li><a href="#example-text">Text Extrusion</a></li>
+                    <li><a href="#example-include">Using include() for Reusable Parts</a></li>
+                    <li><a href="#example-vase">Rotational Extrusion (Vase)</a></li>
+                </ul>
+            </li>
         </ul>
     </div>
 
@@ -303,23 +391,23 @@
         <h2>3. Settings</h2>
         <p>The Settings panel allows you to configure the environment for your 3D modeling.</p>
 
-        <h3>Grid Width</h3>
+        <h3 id="grid-width">Grid Width</h3>
         <p>Sets the width (X-axis) of the build plate grid in millimeters. The default is 220mm.</p>
 
-        <h3>Grid Length</h3>
+        <h3 id="grid-length">Grid Length</h3>
         <p>Sets the length (Y-axis) of the build plate grid in millimeters. The default is 220mm.</p>
 
-        <h3>Grid Spacing</h3>
+        <h3 id="grid-spacing">Grid Spacing</h3>
         <p>Sets the distance between grid lines in millimeters. The default is 10mm.</p>
 
-        <h3>Library Path</h3>
+        <h3 id="library-path">Library Path</h3>
         <p>This is the base path used when you use the <code>$lib/</code> prefix in your <code>get()</code> or <code>include()</code> functions. For example, <code>get("MyPart", "$lib/part1.json")</code> will look for the file at <code>/csgLib/part1.json</code> (if the library path is set to <code>/csgLib</code>).</p>
 
         <div class="note">
             <p><strong>Note:</strong> These settings are saved in your browser's local storage and will persist between sessions.</p>
         </div>
 
-        <h3>Buttons in Settings Panel</h3>
+        <h3 id="settings-buttons">Buttons in Settings Panel</h3>
         <div class="button-desc">
             <div class="button-icon" style="background: #28a745;">💾</div>
             <div>
@@ -347,7 +435,7 @@
         <h2>4. How to Use the TextCode Editor</h2>
         <p>The TextCode editor is a powerful, multi-tab code editor built specifically for this application. It features syntax-aware indentation, find/replace, go-to-line, and multi-page support.</p>
 
-        <h3>Editor Interface & Core Features</h3>
+        <h3 id="editor-interface">Editor Interface & Core Features</h3>
         <p>At the top of the editor, you'll find a menu bar with buttons. Below that is your code editing area with line numbers on the left.</p>
         <ul>
             <li><strong>Smart Indentation</strong>: The editor automatically handles indentation for you:
@@ -457,12 +545,12 @@
             <h3>4.2 Difference Between CSG Scripts and Editor Scripts</h3>
             <p>There are two main types of scripts in the CSG Editor, each opened in its own dedicated panel:</p>
 
-            <h4>CSG Scripts (Opened via the 💻 Button)</h4>
+            <h4 id="csg-scripts-section">CSG Scripts (Opened via the 💻 Button)</h4>
             <p>These are your main design files. They contain code that creates and manipulates 3D geometry. When you run a CSG script, it should return a 3D object (or an array of objects) that will be rendered in the 3D view.</p>
             <p><strong>Example of a CSG script:</strong></p>
             <pre><code>return cube([20, 10, 5]);</code></pre>
 
-            <h4>Editor Scripts (Opened via the ⏬ Button)</h4>
+            <h4 id="editor-scripts-section">Editor Scripts (Opened via the ⏬ Button)</h4>
             <p>These are libraries of reusable code. They typically define functions, constants, or complex shapes that you want to use across multiple CSG scripts. An Editor script should return an object containing the things you want to export.</p>
             <p><strong>Example of an Editor script:</strong></p>
             <pre><code>function myCustomCube(size) {
@@ -484,7 +572,7 @@ return {
             <h3>How to Use <code>get()</code> and <code>include()</code></h3>
             <p>These functions allow you to modularize your code and reuse components.</p>
 
-            <h4><code>include(name)</code></h4>
+            <h4 id="include-section"><code>include(name)</code></h4>
             <p>The <code>include()</code> function is used within a <strong>CSG script</strong> to load and execute code from an <strong>Editor script</strong> tab. It returns the object that the Editor script returned.</p>
             <p><strong>Example:</strong></p>
             <pre><code>// In an Editor script tab titled "MyLibrary"
@@ -496,7 +584,7 @@ return { bolt: bolt };</code></pre>
 const lib = include("MyLibrary");
 return lib.bolt(5, 20);</code></pre>
 
-            <h4><code>get(name)</code></h4>
+            <h4 id="get-section"><code>get(name)</code></h4>
             <p>The <code>get()</code> function is used to load and execute another <strong>CSG script</strong> tab. It returns the 3D object (or array of objects) that the target CSG script returned.</p>
             <p><strong>Example:</strong></p>
             <pre><code>// In a CSG script tab titled "BasePlate"
@@ -514,10 +602,10 @@ return union([
             <h3>External <code>get()</code> and <code>include()</code></h3>
             <p>You can also load scripts from external JSON project files using the two-argument form of <code>get()</code> and <code>include()</code>.</p>
 
-            <h4><code>include(name, filepath)</code></h4>
+            <h4 id="external-include"><code>include(name, filepath)</code></h4>
             <p>Loads an Editor script named <code>name</code> from an external project file located at <code>filepath</code>.</p>
 
-            <h4><code>get(name, filepath)</code></h4>
+            <h4 id="external-get"><code>get(name, filepath)</code></h4>
             <p>Loads a CSG script named <code>name</code> from an external project file located at <code>filepath</code>.</p>
 
             <p><strong>Example:</strong></p>
@@ -534,9 +622,9 @@ return gear;</code></pre>
             <h3>How Paths Work</h3>
             <p>When using external files with <code>get()</code> or <code>include()</code>, you can specify the file path. The system resolves paths as follows:</p>
             <ol>
-                <li><strong>Absolute Paths:</strong> If the path starts with <code>/</code>, it is treated as an absolute path from the root of your storage.</li>
-                <li><strong>Library Paths:</strong> If the path starts with <code>$lib/</code>, it is resolved relative to the <strong>Library Path</strong> setting (found in the Settings panel). For example, if your Library Path is <code>/csgLib</code>, then <code>$lib/parts.json</code> resolves to <code>/csgLib/parts.json</code>.</li>
-                <li><strong>Relative Paths:</strong> Any other path is treated as relative to the directory of the currently loaded project. If no project is loaded, relative paths cannot be used.</li>
+                <li id="absolute-paths"><strong>Absolute Paths:</strong> If the path starts with <code>/</code>, it is treated as an absolute path from the root of your storage.</li>
+                <li id="library-paths"><strong>Library Paths:</strong> If the path starts with <code>$lib/</code>, it is resolved relative to the <strong>Library Path</strong> setting (found in the Settings panel). For example, if your Library Path is <code>/csgLib</code>, then <code>$lib/parts.json</code> resolves to <code>/csgLib/parts.json</code>.</li>
+                <li id="relative-paths"><strong>Relative Paths:</strong> Any other path is treated as relative to the directory of the currently loaded project. If no project is loaded, relative paths cannot be used.</li>
             </ol>
 
             <p><strong>Example:</strong></p>
@@ -561,14 +649,14 @@ const helper = include("Utils", "../shared/utils.json"); // Loads from /projects
             <li><code>path</code>: A <strong>flat array</strong> of commands and coordinates that describe the shape.</li>
             <li><code>fn</code>: (Optional) The <strong>number of segments</strong> used when approximating curves (arcs, beziers, ellipses). Default is 30.</li>
         </ul>
-
-        <h3>Path Format</h3>
+        
+        <h3 id="path-format">Path Format</h3>
         <pre><code>{
     path: [
         'm', x, y,           // Move to (x, y)
         'l', x, y,           // Line to (x, y)
         'q', cx, cy, x, y,   // Quadratic Bezier curve to (x, y) with control point (cx, cy)
-        'c', cx1, cy1, cx2, cy2, x, y, // Cubic Bezier curve to (x, y) with control points (cx1, cy1) and (cx2, cy2)
+        'c', cx1, cy1, cx2, cy2, x, y, // Cubic Bezier curve to (x, y) with two control points (cx1, cy1) and (cx2, cy2)
         'a', cx, cy, r, startAngle, endAngle, clockwise, // Arc centered at (cx, cy) with radius r
         'e', cx, cy, rx, ry, startAngle, endAngle, clockwise // Ellipse centered at (cx, cy) with radii rx, ry
     ],
@@ -583,8 +671,8 @@ const helper = include("Utils", "../shared/utils.json"); // Loads from /projects
             </ul>
             <p>This is the standard mathematical/Cartesian coordinate system and matches how Three.js <code>Shape</code> works internally.</p>
         </div>
-
-        <h3>Path Commands Reference</h3>
+        
+        <h3 id="path-commands">Path Commands Reference</h3>
         <p>Here is a complete list of all supported path commands:</p>
 
         <table>
@@ -629,7 +717,7 @@ const helper = include("Utils", "../shared/utils.json"); // Loads from /projects
             </tbody>
         </table>
 
-        <h3>Creating and Using Paths</h3>
+        <h3 id="path-usage">Creating and Using Paths</h3>
         <p>Once you have defined a path object, you use the <code>shape()</code> function to convert it into a 3D-extrudable geometry.</p>
         <ol>
             <li><strong>Define the Path</strong>: Create your path data object.</li>
@@ -637,17 +725,17 @@ const helper = include("Utils", "../shared/utils.json"); // Loads from /projects
             <li><strong>Extrude</strong>: Use <code>line3d()</code>, <code>linePaths3d()</code>, or <code>rotateExtrude()</code> to turn the 2D shape into a 3D object.</li>
         </ol>
 
-        <h3>Advanced: Automatic Hole Detection</h3>
+        <h3 id="auto-hole">Advanced: Automatic Hole Detection</h3>
         <p>The <code>shape()</code> function is intelligent. If you define multiple sub-paths in a single <code>path</code> array (using multiple <code>'m'</code> commands), it will automatically determine which paths are holes based on their nesting and bounding boxes.</p>
         <ul>
             <li>A path that is completely inside another path will be treated as a hole.</li>
             <li>You do <strong>not</strong> need to manually add holes to a shape. Just define all your outlines and cutouts in the <code>path</code> array, and <code>shape()</code> will figure it out.</li>
         </ul>
         <p>This makes creating complex shapes with cutouts very straightforward.</p>
+        
+        <h3 id="path-examples">Examples</h3>
 
-        <h3>Examples</h3>
-
-        <div class="example-block">
+        <div class="example-block" id="simple-triangle-example">
             <div class="example-title">Simple Triangle</div>
             <pre><code>const trianglePath = {
     path: [
@@ -662,7 +750,7 @@ const triangleShape = shape(trianglePath);
 return line3d(triangleShape, [0, 0, 0], [0, 0, 2]); // Extrude 2 units along Z-axis</code></pre>
         </div>
 
-        <div class="example-block">
+        <div class="example-block" id="circle-with-hole-example">
             <div class="example-title">Circle with a Square Hole</div>
             <pre><code>const circleWithHolePath = {
     path: [
@@ -684,7 +772,7 @@ const complexShape = shape(circleWithHolePath);
 return line3d(complexShape, [0, 0, 0], [0, 0, 1]);</code></pre>
         </div>
 
-        <div class="example-block">
+        <div class="example-block" id="heart-shape-example">
             <div class="example-title">Heart Shape (Using Cubic Beziers)</div>
             <pre><code>const heartPath = {
     path: [
@@ -701,7 +789,7 @@ const heartShape = shape(heartPath);
 return line3d(heartShape, [0, 0, 0], [0, 0, 3]);</code></pre>
         </div>
 
-        <div class="example-block">
+        <div class="example-block" id="text-as-path-example">
             <div class="example-title">Using Text as a Path</div>
             <pre><code>// Load a font and convert text to a path
 const myFont = await font("/fonts/arial.ttf");
@@ -717,7 +805,7 @@ const textShape = shape(textPath);
 return line3d(textShape, [0, 0, 0], [0, 0, 0.5]);</code></pre>
         </div>
 
-        <div class="example-block">
+        <div class="example-block" id="manipulating-paths-example">
             <div class="example-title">Manipulating Paths Before Extrusion</div>
             <pre><code>const basePath = {
     path: [
@@ -752,11 +840,11 @@ return line3d(finalShape, [0, 0, 0], [0, 0, 1]);</code></pre>
     <section id="commands">
         <h2>6. scadCSG Commands and How to Use Them</h2>
         <p>This section details the core functions available for creating and manipulating geometry. All these functions are available in your CSG scripts.</p>
-
-        <h3>Primitive Shapes</h3>
+        
+        <h3 id="primitives">Primitive Shapes</h3>
         <p>These functions create basic 3D shapes.</p>
 
-        <h4><code>sphere({ r, d, fn })</code></h4>
+        <h4 id="sphere-section"><code>sphere({ r, d, fn })</code></h4>
         <p>Creates a sphere.</p>
         <ul>
             <li><code>r</code>: Radius of the sphere.</li>
@@ -765,7 +853,7 @@ return line3d(finalShape, [0, 0, 0], [0, 0, 1]);</code></pre>
         </ul>
         <p><strong>Example:</strong> <code>sphere({ r: 10, fn: 50 })</code></p>
 
-        <h4><code>cube([x, y, z])</code></h4>
+        <h4 id="cube-section"><code>cube([x, y, z])</code></h4>
         <p>Creates a cube or rectangular prism.</p>
         <ul>
             <li><code>x</code>: Size along the X-axis.</li>
@@ -774,7 +862,7 @@ return line3d(finalShape, [0, 0, 0], [0, 0, 1]);</code></pre>
         </ul>
         <p><strong>Example:</strong> <code>cube([20, 10, 5])</code></p>
 
-        <h4><code>cylinder({ d, dt, db, r, rt, rb, h, fn })</code></h4>
+        <h4 id="cylinder-section"><code>cylinder({ d, dt, db, r, rt, rb, h, fn })</code></h4>
         <p>Creates a cylinder or cone.</p>
         <ul>
             <li><code>d</code>: Diameter (for both top and bottom).</li>
@@ -787,27 +875,27 @@ return line3d(finalShape, [0, 0, 0], [0, 0, 1]);</code></pre>
             <li><code>fn</code>: Number of segments. Default is 32.</li>
         </ul>
         <p><strong>Example:</strong> <code>cylinder({ r: 5, h: 20 })</code> or <code>cylinder({ rt: 10, rb: 5, h: 15 })</code></p>
-
-        <h3>Transformations</h3>
+        
+        <h3 id="transformations">Transformations</h3>
         <p>These functions modify the geometry of existing objects.</p>
 
-        <h4><code>translate([x, y, z], target)</code></h4>
+        <h4 id="translate-section"><code>translate([x, y, z], target)</code></h4>
         <p>Moves the geometry by the specified offset. Note: This modifies the geometry itself, not the object's position, which is important for CSG operations.</p>
         <p><strong>Example:</strong> <code>translate([10, 0, 5], cube([5, 5, 5]))</code></p>
 
-        <h4><code>rotate([x, y, z], target)</code></h4>
+        <h4 id="rotate-section"><code>rotate([x, y, z], target)</code></h4>
         <p>Rotates the geometry around the local X, then Z, then Y axes (in that order) by the specified angles in radians.</p>
         <p><strong>Example:</strong> <code>rotate([Math.PI/2, 0, 0], cube([5, 5, 5]))</code> (rotates 90 degrees around X-axis)</p>
 
-        <h4><code>scale([x, y, z], target)</code></h4>
+        <h4 id="scale-section"><code>scale([x, y, z], target)</code></h4>
         <p>Scales the geometry by the specified factors along each axis.</p>
         <p><strong>Example:</strong> <code>scale([2, 1, 1], cube([5, 5, 5]))</code> (doubles the size along X-axis)</p>
 
-        <h4><code>floor(target)</code></h4>
+        <h4 id="floor-section"><code>floor(target)</code></h4>
         <p>Translates the object so that its lowest point is at Y=0.</p>
         <p><strong>Example:</strong> <code>floor(sphere({ r: 10 }))</code></p>
 
-        <h4><code>align({ bx, tx, cx, by, ty, cy, bz, tz, cz }, target)</code></h4>
+        <h4 id="align-section"><code>align({ bx, tx, cx, by, ty, cy, bz, tz, cz }, target)</code></h4>
         <p>Aligns the object based on its bounding box. You can specify alignment for each axis independently.</p>
         <ul>
             <li><code>bx</code>: Align bottom (min X) to this X coordinate.</li>
@@ -822,64 +910,89 @@ return line3d(finalShape, [0, 0, 0], [0, 0, 1]);</code></pre>
         </ul>
         <p><strong>Example:</strong> <code>align({ cx: 0, cy: 0, bz: 0 }, cube([10, 10, 10]))</code> (centers on X and Y, places bottom on Z=0)</p>
 
-        <h3>CSG Operations</h3>
+        <h3 id="csg-operations">CSG Operations</h3>
         <p>These functions perform boolean operations on geometry.</p>
 
-        <h4><code>union(target)</code></h4>
+        <h4 id="union-section"><code>union(target)</code></h4>
         <p>Combines multiple objects into a single object. The <code>target</code> can be a single object, an array of objects, or an object with properties that are objects.</p>
         <p><strong>Example:</strong> <code>union([cube([10, 10, 10]), translate([5, 5, 5], sphere({ r: 5 }))])</code></p>
 
-        <h4><code>difference(mainMesh, target)</code></h4>
+        <h4 id="difference-section"><code>difference(mainMesh, target)</code></h4>
         <p>Subtracts one or more objects (<code>target</code>) from a main object (<code>mainMesh</code>).</p>
         <p><strong>Example:</strong> <code>difference(cube([20, 20, 20]), sphere({ r: 10 }))</code></p>
 
-        <h4><code>intersect(target)</code></h4>
+        <h4 id="intersect-section"><code>intersect(target)</code></h4>
         <p>Creates a new object that is the intersection of two or more objects.</p>
         <p><strong>Example:</strong> <code>intersect([cube([20, 20, 20]), translate([10, 10, 10], sphere({ r: 15 }))])</code></p>
 
-        <h4><code>inverseIntersect(target)</code></h4>
+        <h4 id="inverse-intersect-section"><code>inverseIntersect(target)</code></h4>
         <p>Creates the symmetric difference (XOR) of two or more objects. This is the parts that are in either object but not in both.</p>
         <p><strong>Example:</strong> <code>inverseIntersect([cube([20, 20, 20]), translate([10, 10, 10], sphere({ r: 15 }))])</code></p>
 
-        <h3>2D to 3D Extrusion</h3>
+        <h3 id="extrusions">2D to 3D Extrusion</h3>
         <p>These functions allow you to create 3D objects from 2D shapes.</p>
 
-        <h4><code>shape(shapeData)</code></h4>
+        <h4 id="shape-section"><code>shape(shapeData)</code></h4>
         <p>Creates a 2D shape from a custom path data format. The <code>shapeData</code> object should have a <code>path</code> property (an array of commands) and optionally an <code>fn</code> property (number of segments for curves).</p>
         <p>The path format uses single-letter commands: <code>'m'</code> (move), <code>'l'</code> (line), <code>'q'</code> (quadratic bezier), <code>'c'</code> (cubic bezier), <code>'a'</code> (arc), <code>'e'</code> (ellipse).</p>
         <p><strong>Example:</strong> See the "Circle with a Square Hole" example in the Paths section.</p>
 
-        <h4><code>line3d(target, start, end)</code></h4>
+        <h4 id="line3d-section"><code>line3d(target, start, end)</code></h4>
         <p>Extrudes a 2D shape (<code>target</code>) along a straight line from <code>start</code> to <code>end</code>. Both <code>start</code> and <code>end</code> are arrays of 3 coordinates: <code>[x, y, z]</code>.</p>
         <p><strong>Example:</strong> <code>line3d(myShape, [0, 0, 0], [0, 0, 10])</code></p>
 
-        <h4><code>linePaths3d(target, points3d, close)</code></h4>
+        <h4 id="linepaths3d-section"><code>linePaths3d(target, points3d, close)</code></h4>
         <p>Extrudes a 2D shape along a polyline path. <code>points3d</code> is a flat array of coordinates (e.g., <code>[x1, y1, z1, x2, y2, z2, ...]</code>). If <code>close</code> is <code>true</code>, it will add a segment from the last point back to the first.</p>
         <p><strong>Example:</strong> <code>linePaths3d(myShape, [0, 0, 0, 10, 0, 0, 10, 10, 0], true)</code></p>
+        
+        <h4 id="path3d-section"><code>path3d(paths, fn)</code></h4>
+        <p>This function creates a flat array of 3D points from a series of 3D path commands, similar to how <code>shape()</code> works for 2D paths. This is a utility function used to generate complex 3D paths for other operations.</p>
+        <p>The <code>paths</code> parameter is a flat array of commands and coordinates. The commands are:</p>
+        <ul>
+            <li><code>'m', x, y, z</code>: **Move to** a new 3D point.</li>
+            <li><code>'l', x, y, z</code>: **Line to** a new 3D point.</li>
+            <li><code>'q', cx, cy, cz, x, y, z</code>: **Quadratic Bezier** curve to a new 3D point.</li>
+            <li><code>'c', cx1, cy1, cz1, cx2, cy2, cz2, x, y, z</code>: **Cubic Bezier** curve to a new 3D point.</li>
+        </ul>
+        <p>The `fn` parameter is optional and controls the number of segments for curves. It defaults to 30.</p>
+        <div class="note">
+            <p><strong>Note:</strong> The `y` and `z` coordinates are swapped in the 3D path command syntax to align with the editor's Z-up coordinate system. For example, `[x, y, z]` in the `path3d` command corresponds to `[x, z, y]` in the 3D scene.</p>
+        </div>
+        <p><strong>Example:</strong></p>
+        <pre><code>const spiralPath = path3d([
+    'm', 0, 0, 0,
+    'l', 10, 0, 10,
+    'q', 15, 0, 15, 15, 0, 20,
+    'c', 20, 0, 25, 25, 0, 30, 30, 0, 35
+]);
 
-        <h4><code>rotateExtrude({ r, d, fn, start, end, close }, target)</code></h4>
+// This `spiralPath` array can now be used with functions that accept a 3D polyline.
+// For example, to create a line-extruded object along this path:
+// linePaths3d(myShape, spiralPath);</code></pre>
+
+        <h4 id="rotateextrude-section"><code>rotateExtrude({ r, d, fn, start, end, close }, target)</code></h4>
         <p>Creates a solid of revolution by rotating a 2D shape around the Y-axis. You can specify the radius (<code>r</code> or <code>d</code> for diameter), number of segments (<code>fn</code>), start and end angles (<code>start</code>, <code>end</code> in radians), and whether to close the path (<code>close</code>).</p>
         <p><strong>Example:</strong> <code>rotateExtrude({ r: 20, fn: 50 }, myShape)</code></p>
+        
+        <h3 id="utilities">Utility Functions</h3>
 
-        <h3>Utility Functions</h3>
-
-        <h4><code>color(c, target)</code></h4>
+        <h4 id="color-section"><code>color(c, target)</code></h4>
         <p>Applies a color to one or more objects. <code>c</code> can be a hex number (e.g., <code>0xff0000</code> for red), a string (e.g., <code>"red"</code>), or a THREE.Color object.</p>
         <p><strong>Example:</strong> <code>color(0xff0000, cube([10, 10, 10]))</code></p>
 
-        <h4><code>convexHull(target)</code></h4>
+        <h4 id="convexhull-section"><code>convexHull(target)</code></h4>
         <p>Creates a convex hull around one or more objects.</p>
         <p><strong>Example:</strong> <code>convexHull([sphere({ r: 5 }), translate([10, 0, 0], sphere({ r: 5 }))])</code></p>
 
-        <h4><code>subdivide({ resolution }, target)</code></h4>
+        <h4 id="subdivide-section"><code>subdivide({ resolution }, target)</code></h4>
         <p>Subdivides the geometry of an object until all edges are shorter than the specified <code>resolution</code>. This is useful for smoothing or preparing for boolean operations.</p>
         <p><strong>Example:</strong> <code>subdivide({ resolution: 1 }, sphere({ r: 10, fn: 8 }))</code></p>
 
-        <h4><code>show(target)</code> and <code>hide(target)</code></h4>
+        <h4 id="show-hide-section"><code>show(target)</code> and <code>hide(target)</code></h4>
         <p>These functions set a flag on the object that controls whether it is added to the 3D scene. By default, objects are shown. Use <code>hide()</code> to exclude an object from rendering (e.g., for helper geometry).</p>
         <p><strong>Example:</strong> <code>hide(myHelperObject)</code></p>
 
-        <h3>2D Path Manipulation</h3>
+        <h3 id="2d-path-manipulation">2D Path Manipulation</h3>
         <p>These functions operate on 2D path data (objects with <code>path</code> and <code>fn</code> properties) before they are turned into 3D geometry.</p>
 
         <h4><code>translatePath([x, y], pathObject)</code></h4>
@@ -888,8 +1001,8 @@ return line3d(finalShape, [0, 0, 0], [0, 0, 1]);</code></pre>
         <h4><code>scaleToPath({ x, y }, pathObject)</code></h4>
         <h4><code>alignPath({ bx, tx, cx, by, ty, cy }, pathObject)</code></h4>
         <h4><code>boundingBoxPath(pathObject)</code></h4>
-
-        <h3>Text Functions</h3>
+        
+        <h3 id="text-functions">Text Functions</h3>
 
         <h4><code>font(fontPath)</code></h4>
         <p>Loads a font file (e.g., TTF) and returns a font object. This is an async function, so you must use <code>await</code>.</p>
@@ -910,26 +1023,26 @@ return line3d(finalShape, [0, 0, 0], [0, 0, 1]);</code></pre>
         <h2>7. Examples</h2>
         <p>Here are some complete examples to help you get started.</p>
 
-        <div class="example-block">
+        <div class="example-block" id="example-cube">
             <div class="example-title">Simple Cube</div>
             <pre><code>return cube([20, 10, 5]);</code></pre>
         </div>
 
-        <div class="example-block">
+        <div class="example-block" id="example-sphere-on-cube">
             <div class="example-title">Sphere on a Cube</div>
             <pre><code>const base = cube([30, 30, 5]);
 const ball = translate([15, 15, 5], sphere({ r: 10 }));
 return union([base, ball]);</code></pre>
         </div>
 
-        <div class="example-block">
+        <div class="example-block" id="example-hole">
             <div class="example-title">Hole in a Cube</div>
             <pre><code>const block = cube([40, 40, 40]);
 const hole = translate([20, 20, 0], cylinder({ d: 20, h: 50 }));
 return difference(block, hole);</code></pre>
         </div>
 
-        <div class="example-block">
+        <div class="example-block" id="example-star">
             <div class="example-title">Star with Hole (Using shape())</div>
             <pre><code>const myStarShapeData = {
     path: [
@@ -955,7 +1068,7 @@ const myStarShape = shape(myStarShapeData);
 return line3d(myStarShape, [0, 0, 0], [0, 0, 5]);</code></pre>
         </div>
 
-        <div class="example-block">
+        <div class="example-block" id="example-text">
             <div class="example-title">Text Extrusion</div>
             <pre><code>// Load a font
 const f1 = await font("/fonts/advanced_dot_digital-7.ttf");
@@ -973,7 +1086,7 @@ const s1 = shape(ts);
 return line3d(s1, [0, 0, 0], [0, 0, 1]);</code></pre>
         </div>
 
-        <div class="example-block">
+        <div class="example-block" id="example-include">
             <div class="example-title">Using include() for Reusable Parts</div>
             <p><em>First, create an Editor Script tab titled "Hardware":</em></p>
             <pre><code>function bolt(diameter, length) {
@@ -1000,7 +1113,7 @@ const myNut = translate([0, 0, 20], hw.nut(5));
 return union([myBolt, myNut]);</code></pre>
         </div>
 
-        <div class="example-block">
+        <div class="example-block" id="example-vase">
             <div class="example-title">Rotational Extrusion (Vase)</div>
             <pre><code>// Define a 2D profile for a vase
 const vaseProfile = {

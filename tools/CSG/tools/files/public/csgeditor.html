@@ -281,124 +281,28 @@
                     id="csg-code"
                     title="CSG Script"
                     onrun="runCSGCode();">
- // Edit and save to update!
+ // Edit
 
+ // Edit
  
- 
- 
- 
-
- 
- 
- /*
- 
- return subdivide({resolution:3},
- 	cube([50,50,50])
- );
- */
- 
- /////////////
- 
- var f1= await font("/fonts/advanced_dot_digital-7.ttf");
+var f1 = await font("/fonts/ClassicRomanCaps.ttf");
 var ts= text({
 		font:f1,
-		text:"Dream Orphans0123%#",
-		//text:"0",
+		text:"wELCOME!",
 		fn:30,
-		fontSize:5
+		fontSize:9
 	});
-
-ts = translatePath([10,0],ts)
-//PrintLog(JSON.stringify(ts));
+ts= alignPath({cx:0,cy:0},ts)
 var s1=shape(ts);
 
-return linePaths3d(s1, [0, 0, 0, 0, 0, 0.1]);
+return linePaths3d(s1, [0, 0, 0, 0, 0, 2]);
 	
- 
- /////////
- 
- 
- //////////
- 
- 
- // A single, flattened array containing both the star and the circular hole.
-// The newShape function will automatically classify these based on their nesting.
-const myStarShapeData = {
-    path: [
-        'm', 0, 10,
-        'l', 2.5, 2.5,
-        'l', 10, 2.5,
-        'l', 5, -2.5,
-        'l', 7.5, -10,
-        'l', 0, -5,
-        'l', -7.5, -10,
-        'l', -5, -2.5,
-        'l', -10, 2.5,
-        'l', -2.5, 2.5,
-        'l', 0, 10, // Closes the star path
-
-        //do mot do Start of the circular hole path. The new 'm' command signifies a new sub-path.
-        'm', 2, 0,
-        'a', 0, 0, 2, 0, Math.PI * 2, true // A full circle
-    ]
-};
-
-// Create the shape using the newShape function.
-const myStarShape= shape(myStarShapeData);
-
-// Extrude the shape along the Y-axis (since the Z and Y axes are swapped in this code).
-return line3d(myStarShape, [0, 0, 0], [0, 0, 20]);
 
  
  
  
- ////////////
+
  
- 
- 
-/*
-return floor(
-	difference(
-		color(0x0000ffff,sphere({ r: 20, fn:100 })),
-		translate([15, 0, 0], cube([20, 20, 20])),
-		translate([0, 0, 15], cylinder({ r: 20, h: 30 , fn:100}))
-	)
-);
-*/
-//return cube([40, 50, 60]);
-
-
-var b1= floor(
-	translate([30,0,0],
-		cube([5,5,5])
-	)
-);
-
-var b2= floor(
-	translate([0,0,0],
-		cube([10,10,10])
-	)
-);
-
-return {
-	b1:b1,
-	b2:b2,
-};
-//*/
-
-return floor(
-	translate([30,0,0],
-		union(
-
-			translate([5,5,0],
-				color(0xffff0000, cube([10,10,10]))
-			),
-			translate([0,0,0],
-				cube([10,10,10])
-			)
-		)
-	)
-);
  
  
  

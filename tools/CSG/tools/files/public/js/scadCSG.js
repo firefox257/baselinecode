@@ -356,6 +356,70 @@ function align(config = {}, target) {
 }
 
 
+function path3d(paths, fn = 30) {
+    const flatPath = [];
+    let currentPoint = [0, 0, 0];
+    let i = 0;
+
+    // Helper function to add a point to the flat path and update currentPoint
+    const addPoint = (x, y, z) => {
+        flatPath.push(x, y, z);
+        currentPoint = [x, y, z];
+    };
+
+    while (i < paths.length) {
+        const command = paths[i];
+        i++;
+
+        switch (command) {
+            case 'm': // Move to
+                currentPoint = [paths[i], paths[i + 1], paths[i + 2]];
+                addPoint(...currentPoint);
+                i += 3;
+                break;
+
+            case 'l': // Line to
+                addPoint(paths[i], paths[i + 1], paths[i + 2]);
+                i += 3;
+                break;
+
+            case 'q': // Quadratic Bezier curve
+                const cp1 = [paths[i], paths[i + 1], paths[i + 2]];
+                const endPoint_q = [paths[i + 3], paths[i + 4], paths[i + 5]];
+                for (let t = 1 / fn; t <= 1; t += 1 / fn) {
+                    const x = (1 - t) ** 2 * currentPoint[0] + 2 * (1 - t) * t * cp1[0] + t ** 2 * endPoint_q[0];
+                    const y = (1 - t) ** 2 * currentPoint[1] + 2 * (1 - t) * t * cp1[1] + t ** 2 * endPoint_q[1];
+                    const z = (1 - t) ** 2 * currentPoint[2] + 2 * (1 - t) * t * cp1[2] + t ** 2 * endPoint_q[2];
+                    addPoint(x, y, z);
+                }
+                i += 6;
+                break;
+
+            case 'c': // Cubic Bezier curve
+                const cp1_c = [paths[i], paths[i + 1], paths[i + 2]];
+                const cp2_c = [paths[i + 3], paths[i + 4], paths[i + 5]];
+                const endPoint_c = [paths[i + 6], paths[i + 7], paths[i + 8]];
+                for (let t = 1 / fn; t <= 1; t += 1 / fn) {
+                    const x = (1 - t) ** 3 * currentPoint[0] + 3 * (1 - t) ** 2 * t * cp1_c[0] + 3 * (1 - t) * t ** 2 * cp2_c[0] + t ** 3 * endPoint_c[0];
+                    const y = (1 - t) ** 3 * currentPoint[1] + 3 * (1 - t) ** 2 * t * cp1_c[1] + 3 * (1 - t) * t ** 2 * cp2_c[1] + t ** 3 * endPoint_c[1];
+                    const z = (1 - t) ** 3 * currentPoint[2] + 3 * (1 - t) ** 2 * t * cp1_c[2] + 3 * (1 - t) * t ** 2 * cp2_c[2] + t ** 3 * endPoint_c[2];
+                    addPoint(x, y, z);
+                }
+                i += 9;
+                break;
+
+            // TODO: Implement 'a' (arc) and 'e' (ellipse) logic here
+
+            default:
+                console.warn(`Unknown path command: ${command}`);
+                break;
+        }
+    }
+
+    return flatPath;
+}
+
+
 function line3d(target, start, end) {
 	
 	var shapes =[];
@@ -1678,6 +1742,7 @@ const _exportedFunctions = {
     floor,
     convexHull,
     align,
+	path3d,
     line3d,
     linePaths3d,
 	rotateExtrude,
