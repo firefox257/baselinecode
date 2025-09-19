@@ -94,9 +94,7 @@ function isShape(item) {
 }
 const applyToShape = (item, applyFunction, ...args) =>
     applyFilter(item, isShape, applyFunction, ...args)
-	
-	
-	
+		
 	
 function convertGeometry(item) {
     //Create a new BufferGeometry and set its attributes
@@ -123,10 +121,6 @@ function convertGeometry(item) {
     //console.log(bufferGeometry.attributes.position.array)
 }
 
-//////////////
-
-
-////////////////////////
 
 /**
  * Applies a color to one or more Three.js meshes.
@@ -362,7 +356,6 @@ function align(config = {}, target) {
 }
 
 
-
 function line3d(target, start, end) {
 	
 	var shapes =[];
@@ -414,11 +407,8 @@ function line3d(target, start, end) {
 
 
 
-
-
-
 function linePaths3d(target, points3d, close) {
-    
+
 	var shapes =[];
 	applyToShape(target, (item) => {
         shapes.push(item)
@@ -426,54 +416,59 @@ function linePaths3d(target, points3d, close) {
 	
 	const meshes = []; // An array to store all the created meshes
 
-    if (!points3d || points3d.length < 2) {
+    if (!points3d || points3d.length < 6) {
         console.warn(
-            'linePaths3d requires at least 2 points for the 3D extrusion path.'
+            'linePaths3d requires at least 6 numbers (2 points) for the 3D extrusion path.'
         );
         return null;
     }
 
     const extrudePath = new THREE.CurvePath();
-    for (let i = 0; i < points3d.length - 1; i++) {
-        const startPoint = points3d[i];
-        const endPoint = points3d[i + 1];
+
+    // Iterate through the flattened array, jumping by 3 for each point
+    for (let i = 0; i < points3d.length - 3; i += 3) {
+        const startPointIndex = i;
+        const endPointIndex = i + 3;
 
         const startVector = new THREE.Vector3(
-            startPoint[0],
-            startPoint[2],
-            startPoint[1]
+            points3d[startPointIndex],
+            points3d[startPointIndex + 2],
+            points3d[startPointIndex + 1]
         );
         const endVector = new THREE.Vector3(
-            endPoint[0],
-            endPoint[2],
-            endPoint[1]
+            points3d[endPointIndex],
+            points3d[endPointIndex + 2],
+            points3d[endPointIndex + 1]
         );
 
         extrudePath.add(new THREE.LineCurve3(startVector, endVector));
     }
 
     // Add a closing segment if the 'close' parameter is true
-    if (close && points3d.length > 2) {
-        const startPoint = points3d[points3d.length - 1];
-        const endPoint = points3d[0];
+    if (close && points3d.length > 6) {
+        const startPointIndex = points3d.length - 3;
+        const endPointIndex = 0;
 
         const startVector = new THREE.Vector3(
-            startPoint[0],
-            startPoint[2],
-            startPoint[1]
+            points3d[startPointIndex],
+            points3d[startPointIndex + 2],
+            points3d[startPointIndex + 1]
         );
         const endVector = new THREE.Vector3(
-            endPoint[0],
-            endPoint[2],
-            endPoint[1]
+            points3d[endPointIndex],
+            points3d[endPointIndex + 2],
+            points3d[endPointIndex + 1]
         );
 
         extrudePath.add(new THREE.LineCurve3(startVector, endVector));
     }
+    
+    // Calculate the number of points for the steps parameter
+    const numPoints = points3d.length / 3;
 
     const extrudeSettings = {
         // Adjust steps for the new segment if 'close' is true
-        steps: close ? points3d.length : points3d.length - 1,
+        steps: close ? numPoints : numPoints - 1,
         bevelEnabled: false,
         extrudePath: extrudePath
     };
@@ -503,6 +498,59 @@ function linePaths3d(target, points3d, close) {
     // Return the array of meshes.
     return meshes;
 }
+
+function rotateExtrude(config, target) {
+    
+    // Validate the target
+    if (!target) {
+        console.warn('rotateExtrude requires a valid target shape.');
+        return null;
+    }
+
+    // Destructure the config object with default values
+    const {
+        r: radius,
+        d: diameter,
+        fn = 32,
+        start: startAngle = 0,
+        end: endAngle = Math.PI * 2,
+        close
+    } = config || {};
+
+    let actualRadius = radius;
+
+    // Use diameter if radius is not provided
+    if (diameter !== undefined && radius === undefined) {
+        actualRadius = diameter / 2;
+    }
+
+    // Ensure we have a valid radius
+    if (actualRadius === undefined) {
+        console.warn('rotateExtrude requires a radius (r) or diameter (d) parameter.');
+        return null;
+    }
+    
+    const segments = fn;
+    const angleIncrement = (endAngle - startAngle) / segments;
+
+    // Create the circular path points for extrusion
+    const points3d = [];
+    for (let i = 0; i <= segments; i++) {
+        const angle = startAngle + i * angleIncrement;
+        const x = Math.cos(angle) * actualRadius;
+        const z = Math.sin(angle) * actualRadius;
+
+        // Push the 3D point [x, y, z]. Rotation is on the XZ plane.
+        points3d.push([x, 0, z]);
+    }
+    
+    // The close parameter for linePaths3d is now controlled by the config.
+    // If it's not provided, we fall back to the automatic check.
+    const isClosed = close !== undefined ? close : (Math.abs(endAngle - startAngle) >= (Math.PI * 2) - 0.001);
+    
+    return linePaths3d(target, points3d, isClosed);
+}
+
 
 
 
@@ -1536,84 +1584,6 @@ function shape(shapeData) {
 }
 
 
-
-
-function translateShapes(shapesArray, x, y) {
-    // Map over each shape in the array and translate it
-    return shapesArray.map(shape => {
-        const newShape = new THREE.Shape();
-
-        // Translate the main shape's points
-        const translatedShapePoints = shape.getPoints().map(point => {
-            return new THREE.Vector2(point.x + x, point.y + y);
-        });
-        newShape.setFromPoints(translatedShapePoints);
-
-        // Translate the points for each hole
-        if (shape.holes.length > 0) {
-            newShape.holes = shape.holes.map(hole => {
-                const newHole = new THREE.Path();
-                const translatedHolePoints = hole.getPoints().map(point => {
-                    return new THREE.Vector2(point.x + x, point.y + y);
-                });
-                newHole.setFromPoints(translatedHolePoints);
-                return newHole;
-            });
-        }
-
-        // Copy any user data
-        if (shape.userData) {
-            newShape.userData = { ...shape.userData };
-        }
-
-        return newShape;
-    });
-}
-
-
-
-function rotateShapes(shapesArray, angle) {
-    const cos = Math.cos(angle);
-    const sin = Math.sin(angle);
-
-    // Map over each shape in the array and rotate it
-    return shapesArray.map(shape => {
-        const newShape = new THREE.Shape();
-
-        // Rotate the main shape's points
-        const rotatedShapePoints = shape.getPoints().map(point => {
-            const x = point.x * cos - point.y * sin;
-            const y = point.x * sin + point.y * cos;
-            return new THREE.Vector2(x, y);
-        });
-        newShape.setFromPoints(rotatedShapePoints);
-
-        // Rotate the points for each hole
-        if (shape.holes.length > 0) {
-            newShape.holes = shape.holes.map(hole => {
-                const newHole = new THREE.Path();
-                const rotatedHolePoints = hole.getPoints().map(point => {
-                    const x = point.x * cos - point.y * sin;
-                    const y = point.x * sin + point.y * cos;
-                    return new THREE.Vector2(x, y);
-                });
-                newHole.setFromPoints(rotatedHolePoints);
-                return newHole;
-            });
-        }
-
-        // Copy any user data
-        if (shape.userData) {
-            newShape.userData = { ...shape.userData };
-        }
-
-        return newShape;
-    });
-}
-
-
-
-
 /**
  * Fetches and loads a font file using opentype.js.
  * @param {string} fontPath - The path to the font file.
@@ -1710,6 +1680,7 @@ const _exportedFunctions = {
     align,
     line3d,
     linePaths3d,
+	rotateExtrude,
     scaleTo,
     show,
     hide,
@@ -1720,9 +1691,7 @@ const _exportedFunctions = {
 	scalePath,
 	scaleToPath,
 	alignPath,
-    shape,
-	translateShapes,
-	rotateShapes
+    shape
 }
 
 // --- Revised `ezport` function ---

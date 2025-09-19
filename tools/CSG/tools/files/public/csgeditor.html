@@ -1,5 +1,6 @@
 
 
+
 <!DOCTYPE html>
 <html lang="en">
     <head>
@@ -69,7 +70,8 @@
             #code-panel,
             #view-panel,
             #settings-panel,
-            #editor-code-panel {
+            #editor-code-panel,
+            #help-panel {
                 position: absolute;
                 width: 100vw;
                 height: 100%;
@@ -84,7 +86,8 @@
 			 }
 
             #code-panel,
-            #editor-code-panel {
+            #editor-code-panel,
+            #help-panel {
                 background: #1e1e1e;
                 color: #f8f8f8;
             }
@@ -267,6 +270,8 @@
             <div class="toolbar-separator"></div>
             <button id="btn-save" title="Save Project">&#x1F4BE;</button>
             <div class="toolbar-separator"></div>
+            <button id="btn-help" title="Help">&#x2753;</button>
+            <div class="toolbar-separator"></div>
             <button id="btn-clear-console" title="Clear Console">&#x1F5D1;</button>
         </div>
 
@@ -307,7 +312,7 @@ ts = translatePath([10,0],ts)
 //PrintLog(JSON.stringify(ts));
 var s1=shape(ts);
 
-return line3d(s1, [0, 0, 0], [0, 0, 0.1]);
+return linePaths3d(s1, [0, 0, 0, 0, 0, 0.1]);
 	
  
  /////////
@@ -435,6 +440,10 @@ return floor(
                 <button id="save-settings-btn">Save Settings</button>
                 <button id="clear-cache-btn">Clear All Cache</button>
             </div>
+            
+            <div id="help-panel" style="display: none; width: 100vw; height: 100%; background: #282c34; color: white; padding: 20px; box-sizing: border-box; overflow-y: auto;">
+                <iframe src="help.html" style="width: 100%; height: 100%; border: none;"></iframe>
+            </div>
         </div>
 
         <div id="load-code-modal" class="modal-overlay">
@@ -469,7 +478,7 @@ return floor(
                 </filepicker>
             </div>
         </div>
-
+        
         <div id="console-container" aria-live="polite">
             <div id="console-resizer" title="Drag to resize console"></div>
             <div id="console-panel"></div>
@@ -662,10 +671,12 @@ return floor(
                     settingsPanel: document.getElementById('settings-panel'),
                     editorCodePanel:
                         document.getElementById('editor-code-panel'),
+                    helpPanel: document.getElementById('help-panel'),
                     btn3D: document.getElementById('btn-3d'),
                     btnCode: document.getElementById('btn-code'),
                     btnEditorCode: document.getElementById('btn-editor-code'),
                     btnSettings: document.getElementById('btn-settings'),
+                    btnHelp: document.getElementById('btn-help'),
                     btnClearCacheByName: document.getElementById('btn-clear-cache-by-name'),
                     separatorClearCache: document.getElementById('separator-clear-cache'),
                     btnWireframe: document.getElementById('btn-wireframe'),
@@ -676,11 +687,13 @@ return floor(
                 dom.viewPanel.style.display = 'none'
                 dom.settingsPanel.style.display = 'none'
                 dom.editorCodePanel.style.display = 'none'
+                dom.helpPanel.style.display = 'none';
 
                 dom.btn3D.style.backgroundColor = '#3498db'
                 dom.btnCode.style.backgroundColor = '#3498db'
                 dom.btnEditorCode.style.backgroundColor = '#3498db'
                 dom.btnSettings.style.backgroundColor = '#3498db'
+                dom.btnHelp.style.backgroundColor = '#3498db'
 
                 // Hide the new buttons and separators by default
                 dom.btnClearCacheByName.style.display = 'none';
@@ -709,6 +722,9 @@ return floor(
                 } else if (id === 'settings') {
                     dom.settingsPanel.style.display = 'block'
                     dom.btnSettings.style.backgroundColor = '#e74c3c'
+                } else if (id === 'help') {
+                    dom.helpPanel.style.display = 'block'
+                    dom.btnHelp.style.backgroundColor = '#e74c3c'
                 }
             }
 
@@ -755,6 +771,7 @@ return floor(
                     btnSettings: document.getElementById('btn-settings'),
                     btnLoad: document.getElementById('btn-load'),
                     btnSave: document.getElementById('btn-save'),
+                    btnHelp: document.getElementById('btn-help'),
                     clearConsoleBtn: document.getElementById('btn-clear-console'),
                     btnWireframe: document.getElementById('btn-wireframe'),
                     widthInput: document.getElementById('width-input'),
@@ -772,6 +789,7 @@ return floor(
                         document.getElementById('editor-code-panel'),
                     viewPanel: document.getElementById('view-panel'),
                     settingsPanel: document.getElementById('settings-panel'),
+                    helpPanel: document.getElementById('help-panel'),
                     canvas: document.getElementById('three-canvas'),
                     openModal: openModal,
                     closeModal: closeModal,
@@ -835,6 +853,8 @@ return floor(
                 document.getElementById('btn-clear-cache-by-name').addEventListener('click', clearCurrentCacheByName);
                 // New event listener for the Toggle Wireframe button
                 document.getElementById('btn-wireframe').addEventListener('click', toggleWireframe);
+                // NEW: Event listener for the Help button
+                domElements.btnHelp.addEventListener('click', () => showView('help'));
 
 
                 // Corrected Save Button Logic

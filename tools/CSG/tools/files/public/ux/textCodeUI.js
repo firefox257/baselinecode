@@ -463,16 +463,16 @@ export const editorHtml = `
                 </td>
             </tr>
             <tr>
-                <td><button class="undo-btn" title="Undo" disabled>&curvearrowleft;</button></td>
-                <td><button class="redo-btn" title="Redo" disabled>&curvearrowright;</button></td>
-                <td><button class="select-all-btn" title="Select All">&#x25A1;</button></td>
-                <td><button class="goto-btn" title="Go to Line">&#x2318;</button></td>
+                <td><button class="undo-btn" title="Undo" disabled>↩️</button></td>
+                <td><button class="redo-btn" title="Redo" disabled>↪️</button></td>
+                <td><button class="select-all-btn" title="Select All">🅰️</button></td>
+                <td><button class="goto-btn" title="Go to Line">#️⃣</button></td>
                 <td><button class="find-btn" title="Find Text (Ctrl+F)">&#x1F50D;</button></td>
-                <td><button class="pages-btn" title="Pages">&#x1F4C4;</button></td>
+                <td><button class="pages-btn" title="Pages">📄</button></td>
                 <td style="display: none;"><button class="run-btn" title="Run Code">&#x23F5;</button></td>
                 <td style="display: none;"><button class="save-btn" title="Save">&#x1F4BE;</button></td>
                 <td style="display: none;"><button class="close-btn" title="Close Editor">&#x2715;</button></td>
-                <td colspan="4" class="find-input-cell" style="display: none;"><input type="text" placeholder="Find..." class="find-input"></td>
+                <td colspan="4" class="find-input-cell" style="display: none;width:60px;"><input type="text" placeholder="Find..." class="find-input" ></td>
                 <td style="display: none;"><button class="find-prev-btn" title="Previous">&#x25C0;</button></td>
                 <td style="display: none;"><button class="find-next-btn" title="Next">&#x25B6;</button></td>
                 <td style="display: none;"><button class="find-close-btn" title="Close Find">&#x2715;</button></td>
