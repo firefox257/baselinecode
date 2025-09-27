@@ -2,6 +2,27 @@
 ./js/scadCSG.js
 code runs in a browser
 */
+
+
+
+/////
+
+import * as THREE from 'three';
+import {
+    Brush,
+    Evaluator,
+    ADDITION,
+    SUBTRACTION,
+    INTERSECTION
+} from 'three-bvh-csg';
+import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
+import { api } from './apiCalls.js' // Assuming apiCalls.js is in the same directory
+
+
+//////
+
+/*
+
 import * as THREE from 'three'
 import {
     Brush,
@@ -12,6 +33,8 @@ import {
 } from 'three-bvh-csg'
 import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js'
 import { api } from '../js/apiCalls.js' // Assuming apiCalls.js is in the same directory
+import { BufferGeometryUtils } from 'three/addons/utils/BufferGeometryUtils.js';
+*/
 
 //opentype is IIFE
 //settings is on globalThis
@@ -356,68 +379,653 @@ function align(config = {}, target) {
 }
 
 
+
+/* eslint-disable */
+/**
+ * @param {string[]} paths - An array representing the 3D path with 2D transformations.
+ * @param {number} fn - The default number of segments for curves.
+ * @returns {object} An object containing the new path with curves and lines converted to line segments.
+ */
 function path3d(paths, fn = 30) {
-    const flatPath = [];
-    let currentPoint = [0, 0, 0];
-    let i = 0;
-
-    // Helper function to add a point to the flat path and update currentPoint
-    const addPoint = (x, y, z) => {
-        flatPath.push(x, y, z);
-        currentPoint = [x, y, z];
+    
+    var newPath = {
+        p: [], // Points
+        r: [], // Rotations
+        s: [], // Scales
+        n: []  // Normals for cross sections.
     };
+    
+    // Helper function to get points at equal distance along a curve
+    const getPointsAtEqualDistance = (startPoint, endPoint, controlPoints, segments) => {
+        const getBezierPoint = (t, start, end, ...cps) => {
+            if (cps.length === 1) {
+                const cp1 = cps[0];
+                const x = (1 - t) ** 2 * start[0] + 2 * (1 - t) * t * cp1[0] + t ** 2 * end[0];
+                const y = (1 - t) ** 2 * start[1] + 2 * (1 - t) * t * cp1[1] + t ** 2 * end[1];
+                const z = (1 - t) ** 2 * start[2] + 2 * (1 - t) * t * cp1[2] + t ** 2 * end[2];
+                return [x, y, z];
+            } else if (cps.length === 2) {
+                const cp1 = cps[0];
+                const cp2 = cps[1];
+                const x = (1 - t) ** 3 * start[0] + 3 * (1 - t) ** 2 * t * cp1[0] + 3 * (1 - t) * t ** 2 * cp2[0] + t ** 3 * end[0];
+                const y = (1 - t) ** 3 * start[1] + 3 * (1 - t) ** 2 * t * cp1[1] + 3 * (1 - t) * t ** 2 * cp2[1] + t ** 3 * end[1];
+                const z = (1 - t) ** 3 * start[2] + 3 * (1 - t) ** 2 * t * cp1[2] + 3 * (1 - t) * t ** 2 * cp2[2] + t ** 3 * end[2];
+                return [x, y, z];
+            }
+        };
 
+        const points = [];
+        const highResPoints = [];
+        let totalLength = 0;
+        let prevPoint = startPoint;
+        const resolution = 1000;
+
+        for (let t = 1 / resolution; t <= 1; t += 1 / resolution) {
+            const point = getBezierPoint(t, startPoint, endPoint, ...controlPoints);
+            const dist = Math.hypot(point[0] - prevPoint[0], point[1] - prevPoint[1], point[2] - prevPoint[2]);
+            totalLength += dist;
+            highResPoints.push(point);
+            prevPoint = point;
+        }
+
+        const segmentLength = totalLength / segments;
+        let accumulatedLength = 0;
+        let currentPointIndex = 0;
+        let lastPoint = startPoint;
+
+        for (let j = 0; j < segments; j++) {
+            const targetLength = (j + 1) * segmentLength;
+            while (accumulatedLength < targetLength && currentPointIndex < highResPoints.length) {
+                const nextPoint = highResPoints[currentPointIndex];
+                const dist = Math.hypot(nextPoint[0] - lastPoint[0], nextPoint[1] - lastPoint[1], nextPoint[2] - lastPoint[2]);
+                accumulatedLength += dist;
+                lastPoint = nextPoint;
+                currentPointIndex++;
+
+                if (accumulatedLength >= targetLength) {
+                    const overshoot = accumulatedLength - targetLength;
+                    const undershoot = dist - overshoot;
+                    const ratio = undershoot / dist;
+                    const prevPoint = highResPoints[currentPointIndex - 2] || startPoint;
+                    const interpolatedPoint = [
+                        prevPoint[0] + ratio * (nextPoint[0] - prevPoint[0]),
+                        prevPoint[1] + ratio * (nextPoint[1] - prevPoint[1]),
+                        prevPoint[2] + ratio * (nextPoint[2] - prevPoint[2]),
+                    ];
+                    points.push(interpolatedPoint);
+                    break;
+                }
+            }
+        }
+        return points;
+    };
+    
+    var cp = [0, 0, 0];
+    var cr = 0;
+    var cs = [1, 1];
+    var cn = 1;
+    var i = 0;
+
+    var atp;
+    var atr = 0;
+    var ats = [1, 1];
+    var atn = 1;
+
+    // Main processing loop
     while (i < paths.length) {
         const command = paths[i];
-        i++;
 
         switch (command) {
-            case 'm': // Move to
-                currentPoint = [paths[i], paths[i + 1], paths[i + 2]];
-                addPoint(...currentPoint);
+            case 'm':
+                cp = [paths[i + 1], paths[i + 3], paths[i + 2]];
+                newPath.p.push([...cp]);
+                newPath.r.push(cr);
+                newPath.s.push([...cs]);
+                i += 4;
+                break;
+
+            case 'l':
+                atp = [paths[i + 1], paths[i + 3], paths[i + 2]];
+
+                if (atn === 1) {
+                    newPath.p.push([...atp]);
+                    newPath.r.push(atr);
+                    newPath.s.push([...ats]);
+                } else {
+                    for (let v = 1; v <= atn; v++) {
+                        const t = v / atn;
+                        const ix = cp[0] * (1 - t) + atp[0] * t;
+                        const iy = cp[1] * (1 - t) + atp[1] * t;
+                        const iz = cp[2] * (1 - t) + atp[2] * t;
+                        const ir = cr * (1 - t) + atr * t;
+                        const isx = cs[0] * (1 - t) + ats[0] * t;
+                        const isy = cs[1] * (1 - t) + ats[1] * t;
+                        const newPoint = [ix, iy, iz];
+
+                        newPath.p.push([...newPoint]);
+                        newPath.r.push(ir);
+                        newPath.s.push([isx, isy]);
+                    }
+                }
+
+                cp = atp;
+                cr = atr;
+                cs = ats;
+                atn = 1;
+                i += 4;
+                break;
+
+            case 'r':
+                atr = paths[i + 1];
+                i += 2;
+                break;
+
+            case 's':
+                ats = [paths[i + 1], paths[i + 2]];
                 i += 3;
                 break;
 
-            case 'l': // Line to
-                addPoint(paths[i], paths[i + 1], paths[i + 2]);
-                i += 3;
+            case 'n':
+                atn = paths[i + 1];
+                i += 2;
                 break;
 
-            case 'q': // Quadratic Bezier curve
-                const cp1 = [paths[i], paths[i + 1], paths[i + 2]];
-                const endPoint_q = [paths[i + 3], paths[i + 4], paths[i + 5]];
-                for (let t = 1 / fn; t <= 1; t += 1 / fn) {
-                    const x = (1 - t) ** 2 * currentPoint[0] + 2 * (1 - t) * t * cp1[0] + t ** 2 * endPoint_q[0];
-                    const y = (1 - t) ** 2 * currentPoint[1] + 2 * (1 - t) * t * cp1[1] + t ** 2 * endPoint_q[1];
-                    const z = (1 - t) ** 2 * currentPoint[2] + 2 * (1 - t) * t * cp1[2] + t ** 2 * endPoint_q[2];
-                    addPoint(x, y, z);
-                }
-                i += 6;
-                break;
+            case 'q': {
+                const endPoint_q = [paths[i + 4], paths[i + 6], paths[i + 5]];
+                const controlPoints_q = [[paths[i + 1], paths[i + 3], paths[i + 2]]];
+                const segmentsToUse = (atn > 1) ? atn : fn;
+                const segmentPoints_q = getPointsAtEqualDistance(cp, endPoint_q, controlPoints_q, segmentsToUse);
 
-            case 'c': // Cubic Bezier curve
-                const cp1_c = [paths[i], paths[i + 1], paths[i + 2]];
-                const cp2_c = [paths[i + 3], paths[i + 4], paths[i + 5]];
-                const endPoint_c = [paths[i + 6], paths[i + 7], paths[i + 8]];
-                for (let t = 1 / fn; t <= 1; t += 1 / fn) {
-                    const x = (1 - t) ** 3 * currentPoint[0] + 3 * (1 - t) ** 2 * t * cp1_c[0] + 3 * (1 - t) * t ** 2 * cp2_c[0] + t ** 3 * endPoint_c[0];
-                    const y = (1 - t) ** 3 * currentPoint[1] + 3 * (1 - t) ** 2 * t * cp1_c[1] + 3 * (1 - t) * t ** 2 * cp2_c[1] + t ** 3 * endPoint_c[1];
-                    const z = (1 - t) ** 3 * currentPoint[2] + 3 * (1 - t) ** 2 * t * cp1_c[2] + 3 * (1 - t) * t ** 2 * cp2_c[2] + t ** 3 * endPoint_c[2];
-                    addPoint(x, y, z);
-                }
-                i += 9;
-                break;
+                segmentPoints_q.forEach((p, j) => {
+                    const t = (j + 1) / segmentsToUse;
+                    const interpolatedRotation = cr * (1 - t) + atr * t;
+                    const interpolatedScale = [cs[0] * (1 - t) + ats[0] * t, cs[1] * (1 - t) + ats[1] * t];
+                    
+                    newPath.p.push([...p]);
+                    newPath.r.push(interpolatedRotation);
+                    newPath.s.push([...interpolatedScale]);
+                });
 
-            // TODO: Implement 'a' (arc) and 'e' (ellipse) logic here
+                cp = endPoint_q;
+                cr = atr;
+                cs = ats;
+                atn = 1;
+                i += 7;
+                break;
+            }
+
+            case 'c': {
+                const endPoint_c = [paths[i + 7], paths[i + 9], paths[i + 8]];
+                const controlPoints_c = [
+                    [paths[i + 1], paths[i + 3], paths[i + 2]],
+                    [paths[i + 4], paths[i + 6], paths[i + 5]]
+                ];
+                const segmentsToUse = (atn > 1) ? atn : fn;
+                const segmentPoints_c = getPointsAtEqualDistance(cp, endPoint_c, controlPoints_c, segmentsToUse);
+
+                segmentPoints_c.forEach((p, j) => {
+                    const t = (j + 1) / segmentsToUse;
+                    const interpolatedRotation = cr * (1 - t) + atr * t;
+                    const interpolatedScale = [cs[0] * (1 - t) + ats[0] * t, cs[1] * (1 - t) + ats[1] * t];
+
+                    newPath.p.push([...p]);
+                    newPath.r.push(interpolatedRotation);
+                    newPath.s.push([...interpolatedScale]);
+                });
+
+                cp = endPoint_c;
+                cr = atr;
+                cs = ats;
+                atn = 1;
+                i += 10;
+                break;
+            }
 
             default:
                 console.warn(`Unknown path command: ${command}`);
+                i = paths.length;
                 break;
         }
     }
 
-    return flatPath;
+	
+	
+	//vector math for 3d .
+	function vsub(p1, p2)
+	{
+		return [p1[0]-p2[0],p1[1]-p2[1],p1[2]-p2[2]];
+		
+	}
+	
+	function vadd(p1, p2)
+	{
+		return [p1[0]+p2[0],p1[1]+p2[1],p1[2]+p2[2]];
+		
+	}
+	
+	function vdot(p1, p2)
+	{
+		return p1[0]*p2[0] + p1[1]*p2[1] + p1[2]*p2[2]
+	}
+	function vnormalize(p)
+	{
+		var l=Math.sqrt(vdot(p,p));
+		return [p[0]/l, p[1]/l, p[2]/l];
+	}
+	
+	function vabs(p)
+	{
+		return(Math.abs(p[0]), Math.abs(p[1]),Math.abs(p[2]))
+	}
+	
+    // New section to calculate tangents after all points are generated
+    // Helper function to calculate a vector's normal in the XY plane
+    const calculateNormal = (p0, p1, p2) => {
+        //p0 is precious point if undefined then itnis a start end point
+		if(p0 == undefined)
+		{
+			
+			return vnormalize(vsub(p2,p1));
+		}
+		else if (p2 == undefined)
+		{
+			
+			return vnormalize(vsub(p1,p0));
+		}
+		else
+		{
+			var v1=vsub(p1,p0);//[p1[0]-p0[0], p1[1]-p0[1], p1[2]-p0[2]];
+			var v2=vsub(p2,p1);//[p2[0]-p1[0], p2[1]-p1[1], p2[2]-p1[2]];
+			
+			return vnormalize(vadd(v1,v2));
+		}
+		
+    };
+	
+	
+	var isClosed =false;
+	var fp=newPath.p[0];
+	var lp=newPath.p[newPath.p.length-1];
+	//check if first and last are at the same points. 
+	var check=vabs(vsub(fp,lp))//[fp[0]-lp[0],fp[1]-lp[1],fp[2]-lp[2]];
+	const tol=0.001;
+	if(check[0] <= tol && check[1]<=tol&& check[2]<=tol)
+	{
+		isClosed =true;
+	}
+	console.log("isClosed:"+isClosed)
+
+	if(isClosed) 
+	{
+		newPath.n.push(calculateNormal(lp,  fp, newPath.p[1]))
+	}
+	else
+	{
+		newPath.n.push(calculateNormal(undefined,  fp, newPath.p[1]))
+	}
+    // Iterate through the final path points to calculate tangents
+    for (let j = 1; j < newPath.p.length - 1; j++) {
+        const p0 = newPath.p[j-1];
+		const p1 = newPath.p[j];
+        const p2 = newPath.p[j + 1];
+        newPath.n.push(calculateNormal(p0, p1, p2));
+    }
+
+    if(isClosed) 
+	{
+		newPath.n.push(calculateNormal(lp,  fp, newPath.p[1]))
+	}
+	else
+	{
+		newPath.n.push(calculateNormal(newPath.p[newPath.p.length-2],  lp, undefined))
+	}
+	
+	
+	
+
+    return newPath;
 }
+
+
+//*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+ 
+ 
+ 
+ /*
+ 
+ 
+ function path3d(paths, fn = 30) {
+    
+    var newPath = {
+        p: [], // Points
+        r: [], // Rotations
+        s: [], // Scales
+        n: []  // Normals for cross sections.
+    };
+    
+    // Helper function to get points at equal distance along a curve
+    const getPointsAtEqualDistance = (startPoint, endPoint, controlPoints, segments) => {
+        const getBezierPoint = (t, start, end, ...cps) => {
+            if (cps.length === 1) {
+                const cp1 = cps[0];
+                const x = (1 - t) ** 2 * start[0] + 2 * (1 - t) * t * cp1[0] + t ** 2 * end[0];
+                const y = (1 - t) ** 2 * start[1] + 2 * (1 - t) * t * cp1[1] + t ** 2 * end[1];
+                const z = (1 - t) ** 2 * start[2] + 2 * (1 - t) * t * cp1[2] + t ** 2 * end[2];
+                return [x, y, z];
+            } else if (cps.length === 2) {
+                const cp1 = cps[0];
+                const cp2 = cps[1];
+                const x = (1 - t) ** 3 * start[0] + 3 * (1 - t) ** 2 * t * cp1[0] + 3 * (1 - t) * t ** 2 * cp2[0] + t ** 3 * end[0];
+                const y = (1 - t) ** 3 * start[1] + 3 * (1 - t) ** 2 * t * cp1[1] + 3 * (1 - t) * t ** 2 * cp2[1] + t ** 3 * end[1];
+                const z = (1 - t) ** 3 * start[2] + 3 * (1 - t) ** 2 * t * cp1[2] + 3 * (1 - t) * t ** 2 * cp2[2] + t ** 3 * end[2];
+                return [x, y, z];
+            }
+        };
+
+        const points = [];
+        const highResPoints = [];
+        let totalLength = 0;
+        let prevPoint = startPoint;
+        const resolution = 1000;
+
+        for (let t = 1 / resolution; t <= 1; t += 1 / resolution) {
+            const point = getBezierPoint(t, startPoint, endPoint, ...controlPoints);
+            const dist = Math.hypot(point[0] - prevPoint[0], point[1] - prevPoint[1], point[2] - prevPoint[2]);
+            totalLength += dist;
+            highResPoints.push(point);
+            prevPoint = point;
+        }
+
+        const segmentLength = totalLength / segments;
+        let accumulatedLength = 0;
+        let currentPointIndex = 0;
+        let lastPoint = startPoint;
+
+        for (let j = 0; j < segments; j++) {
+            const targetLength = (j + 1) * segmentLength;
+            while (accumulatedLength < targetLength && currentPointIndex < highResPoints.length) {
+                const nextPoint = highResPoints[currentPointIndex];
+                const dist = Math.hypot(nextPoint[0] - lastPoint[0], nextPoint[1] - lastPoint[1], nextPoint[2] - lastPoint[2]);
+                accumulatedLength += dist;
+                lastPoint = nextPoint;
+                currentPointIndex++;
+
+                if (accumulatedLength >= targetLength) {
+                    const overshoot = accumulatedLength - targetLength;
+                    const undershoot = dist - overshoot;
+                    const ratio = undershoot / dist;
+                    const prevPoint = highResPoints[currentPointIndex - 2] || startPoint;
+                    const interpolatedPoint = [
+                        prevPoint[0] + ratio * (nextPoint[0] - prevPoint[0]),
+                        prevPoint[1] + ratio * (nextPoint[1] - prevPoint[1]),
+                        prevPoint[2] + ratio * (nextPoint[2] - prevPoint[2]),
+                    ];
+                    points.push(interpolatedPoint);
+                    break;
+                }
+            }
+        }
+        return points;
+    };
+    
+    var cp = [0, 0, 0];
+    var cr = 0;
+    var cs = [1, 1];
+    var cn = 1;
+    var i = 0;
+
+    var atp;
+    var atr = 0;
+    var ats = [1, 1];
+    var atn = 1;
+
+    // Main processing loop
+    while (i < paths.length) {
+        const command = paths[i];
+
+        switch (command) {
+            case 'm':
+                cp = [paths[i + 1], paths[i + 3], paths[i + 2]];
+                newPath.p.push([...cp]);
+                newPath.r.push(cr);
+                newPath.s.push([...cs]);
+                i += 4;
+                break;
+
+            case 'l':
+                atp = [paths[i + 1], paths[i + 3], paths[i + 2]];
+
+                if (atn === 1) {
+                    newPath.p.push([...atp]);
+                    newPath.r.push(atr);
+                    newPath.s.push([...ats]);
+                } else {
+                    for (let v = 1; v <= atn; v++) {
+                        const t = v / atn;
+                        const ix = cp[0] * (1 - t) + atp[0] * t;
+                        const iy = cp[1] * (1 - t) + atp[1] * t;
+                        const iz = cp[2] * (1 - t) + atp[2] * t;
+                        const ir = cr * (1 - t) + atr * t;
+                        const isx = cs[0] * (1 - t) + ats[0] * t;
+                        const isy = cs[1] * (1 - t) + ats[1] * t;
+                        const newPoint = [ix, iy, iz];
+
+                        newPath.p.push([...newPoint]);
+                        newPath.r.push(ir);
+                        newPath.s.push([isx, isy]);
+                    }
+                }
+
+                cp = atp;
+                cr = atr;
+                cs = ats;
+                atn = 1;
+                i += 4;
+                break;
+
+            case 'r':
+                atr = paths[i + 1];
+                i += 2;
+                break;
+
+            case 's':
+                ats = [paths[i + 1], paths[i + 2]];
+                i += 3;
+                break;
+
+            case 'n':
+                atn = paths[i + 1];
+                i += 2;
+                break;
+
+            case 'q': {
+                const endPoint_q = [paths[i + 4], paths[i + 6], paths[i + 5]];
+                const controlPoints_q = [[paths[i + 1], paths[i + 3], paths[i + 2]]];
+                const segmentsToUse = (atn > 1) ? atn : fn;
+                const segmentPoints_q = getPointsAtEqualDistance(cp, endPoint_q, controlPoints_q, segmentsToUse);
+
+                segmentPoints_q.forEach((p, j) => {
+                    const t = (j + 1) / segmentsToUse;
+                    const interpolatedRotation = cr * (1 - t) + atr * t;
+                    const interpolatedScale = [cs[0] * (1 - t) + ats[0] * t, cs[1] * (1 - t) + ats[1] * t];
+                    
+                    newPath.p.push([...p]);
+                    newPath.r.push(interpolatedRotation);
+                    newPath.s.push([...interpolatedScale]);
+                });
+
+                cp = endPoint_q;
+                cr = atr;
+                cs = ats;
+                atn = 1;
+                i += 7;
+                break;
+            }
+
+            case 'c': {
+                const endPoint_c = [paths[i + 7], paths[i + 9], paths[i + 8]];
+                const controlPoints_c = [
+                    [paths[i + 1], paths[i + 3], paths[i + 2]],
+                    [paths[i + 4], paths[i + 6], paths[i + 5]]
+                ];
+                const segmentsToUse = (atn > 1) ? atn : fn;
+                const segmentPoints_c = getPointsAtEqualDistance(cp, endPoint_c, controlPoints_c, segmentsToUse);
+
+                segmentPoints_c.forEach((p, j) => {
+                    const t = (j + 1) / segmentsToUse;
+                    const interpolatedRotation = cr * (1 - t) + atr * t;
+                    const interpolatedScale = [cs[0] * (1 - t) + ats[0] * t, cs[1] * (1 - t) + ats[1] * t];
+
+                    newPath.p.push([...p]);
+                    newPath.r.push(interpolatedRotation);
+                    newPath.s.push([...interpolatedScale]);
+                });
+
+                cp = endPoint_c;
+                cr = atr;
+                cs = ats;
+                atn = 1;
+                i += 10;
+                break;
+            }
+
+            default:
+                console.warn(`Unknown path command: ${command}`);
+                i = paths.length;
+                break;
+        }
+    }
+
+	
+	
+	//vector math for 3d .
+	function vsub(p1, p2)
+	{
+		return [p1[0]-p2[0],p1[1]-p2[1],p1[2]-p2[2]];
+		
+	}
+	
+	function vadd(p1, p2)
+	{
+		return [p1[0]+p2[0],p1[1]+p2[1],p1[2]+p2[2]];
+		
+	}
+	
+	function vdot(p1, p2)
+	{
+		return p1[0]*p2[0] + p1[1]*p2[1] + p1[2]*p2[2]
+	}
+	function vnormalize(p)
+	{
+		var l=Math.sqrt(vdot(p,p));
+		return [p[0]/l, p[1]/l, p[2]/l];
+	}
+	
+	function vabs(p)
+	{
+		return(Math.abs(p[0]), Math.abs(p[1]),Math.abs(p[2]))
+	}
+	
+    // New section to calculate tangents after all points are generated
+    // Helper function to calculate a vector's normal in the XY plane
+    const calculateNormal = (p0, p1, p2) => {
+        //p0 is precious point if undefined then itnis a start end point
+		if(p0 == undefined)
+		{
+			
+			return vnormalize(vsub(p2,p1));
+		}
+		else if (p2 == undefined)
+		{
+			
+			return vnormalize(vsub(p1,p0));
+		}
+		else
+		{
+			var v1=vsub(p1,p0);//[p1[0]-p0[0], p1[1]-p0[1], p1[2]-p0[2]];
+			var v2=vsub(p2,p1);//[p2[0]-p1[0], p2[1]-p1[1], p2[2]-p1[2]];
+			
+			return vnormalize(vadd(v1,v2));
+		}
+		
+    };
+	
+	
+	var isClosed =false;
+	var fp=newPath.p[0];
+	var lp=newPath.p[newPath.p.length-1];
+	//check if first and last are at the same points. 
+	var check=vabs(vsub(fp,lp))//[fp[0]-lp[0],fp[1]-lp[1],fp[2]-lp[2]];
+	const tol=0.001;
+	if(check[0] <= tol && check[1]<=tol&& check[2]<=tol)
+	{
+		isClosed =true;
+	}
+	console.log("isClosed:"+isClosed)
+
+	if(isClosed) 
+	{
+		newPath.n.push(calculateNormal(lp,  fp, newPath.p[1]))
+	}
+	else
+	{
+		newPath.n.push(calculateNormal(undefined,  fp, newPath.p[1]))
+	}
+    // Iterate through the final path points to calculate tangents
+    for (let j = 1; j < newPath.p.length - 1; j++) {
+        const p0 = newPath.p[j-1];
+		const p1 = newPath.p[j];
+        const p2 = newPath.p[j + 1];
+        newPath.n.push(calculateNormal(p0, p1, p2));
+    }
+
+    if(isClosed) 
+	{
+		newPath.n.push(calculateNormal(lp,  fp, newPath.p[1]))
+	}
+	else
+	{
+		newPath.n.push(calculateNormal(newPath.p[newPath.p.length-2],  lp, undefined))
+	}
+	
+	
+	
+
+    return newPath;
+}
+
+ 
+ //*/
+
+
+
+
+
+
 
 
 function line3d(target, start, end) {
@@ -471,12 +1079,28 @@ function line3d(target, start, end) {
 
 
 
-function linePaths3d(target, points3d, close) {
+//*
 
+
+
+
+/*
+
+function linePaths3d(target, path, close) {
+
+	//starting to creat all meshes for using y as an index. 
 	var shapes =[];
 	applyToShape(target, (item) => {
         shapes.push(item)
     })
+	
+	
+	var points3d=[];//path.p.flat();
+	for(var i=0; i< path.p.length;i++) 
+	{
+		points3d.push(...[0,0,i]);
+	}
+	
 	
 	const meshes = []; // An array to store all the created meshes
 
@@ -558,10 +1182,250 @@ function linePaths3d(target, points3d, close) {
         const mesh = new THREE.Mesh(geometry, defaultMaterial.clone());
         meshes.push(mesh);
     }
+	
+	
+	
+	 
+	//create a section tangent normals/ average tangent normals index array for rotating points
+	//var tangenNormalsRotation=[];
+	
+	// set the yindex to reference in indexRef;  references;
+	for (const mesh of meshes) {
+		const sp = mesh.geometry.attributes.position;
+		for(var i =0; i< sp.count; i++)
+		{
+			var yindex=sp.getY(i);
+			
+			//console.log("yindex:"+yindex);
+			
+			//indexRef[yindex].push(i);
+			var x = sp.getX(i);
+			var y = 0; // this is set to 0 to flatten out the cross section.
+			var z= sp.getZ(i);
+			
+			//this is a 2d scale, using the 3d printer cordinates. so the y z are flipped.
+			//apply path.s for scale
+			x = x * path.s[yindex][0];
+			z = z * path.s[yindex][1];
+			
+			
+			
+			// write out the same for path.r for 2d rotation on x and z.
+			//this needs completed ise path.r[yindex]
+			// Apply 2D rotation on X and Z
+			const rotation = path.r[yindex];
+			const cosR = Math.cos(rotation);
+			const sinR = Math.sin(rotation);
+			
+			const rotatedX = x * cosR - z * sinR;
+			const rotatedZ = x * sinR + z * cosR;
+			
+			x = rotatedX;
+			z = rotatedZ;
+			
+			//complete apply the 3d rotation from the tangenNormalsRotation on x y z.
+			// this need to be completed. use path.t[yindex] for this.
+			
+			//apply 3d translation from path.p[yindex] for x y and z
+			x+=path.p[yindex][0];
+			y+=path.p[yindex][1];
+			z+=path.p[yindex][2];
+			
+			
+			sp.setX(i, x);
+			sp.setY(i, y);
+			sp.setZ(i, z);
+			
+			
+		}
+		
+	}
+	
+	
+	
+	
 
     // Return the array of meshes.
     return meshes;
 }
+//*/
+
+
+
+
+
+/* eslint-disable */
+/**
+ * @param {object} target - The parent object to which the shapes are applied.
+ * @param {object} path - The pre-processed path data containing points, rotations, and normals.
+ * @param {boolean} close - A flag to indicate if the path should be closed.
+ * @returns {THREE.Mesh[]} An array of THREE.js meshes.
+ */
+function linePaths3d(target, path, close) {
+
+	// This part of the code is not being modified, but it's included for context
+    var shapes =[];
+    applyToShape(target, (item) => {
+        shapes.push(item)
+    })
+    
+    var points3d=[];
+    for(var i=0; i< path.p.length;i++) 
+    {
+        points3d.push(...[0,0,i]);
+    }
+    
+    const meshes = []; // An array to store all the created meshes
+
+    if (!points3d || points3d.length < 6) {
+        console.warn(
+            'linePaths3d requires at least 6 numbers (2 points) for the 3D extrusion path.'
+        );
+        return null;
+    }
+
+    const extrudePath = new THREE.CurvePath();
+
+    // Iterate through the flattened array, jumping by 3 for each point
+    for (let i = 0; i < points3d.length - 3; i += 3) {
+        const startPointIndex = i;
+        const endPointIndex = i + 3;
+
+        const startVector = new THREE.Vector3(
+            points3d[startPointIndex],
+            points3d[startPointIndex + 2],
+            points3d[startPointIndex + 1]
+        );
+        const endVector = new THREE.Vector3(
+            points3d[endPointIndex],
+            points3d[endPointIndex + 2],
+            points3d[endPointIndex + 1]
+        );
+
+        extrudePath.add(new THREE.LineCurve3(startVector, endVector));
+    }
+
+    // Add a closing segment if the 'close' parameter is true
+    if (close && points3d.length > 6) {
+        const startPointIndex = points3d.length - 3;
+        const endPointIndex = 0;
+
+        const startVector = new THREE.Vector3(
+            points3d[startPointIndex],
+            points3d[startPointIndex + 2],
+            points3d[startPointIndex + 1]
+        );
+        const endVector = new THREE.Vector3(
+            points3d[endPointIndex],
+            points3d[endPointIndex + 2],
+            points3d[endPointIndex + 1]
+        );
+
+        extrudePath.add(new THREE.LineCurve3(startVector, endVector));
+    }
+    
+    const numPoints = points3d.length / 3;
+
+    const extrudeSettings = {
+        steps: close ? numPoints : numPoints - 1,
+        bevelEnabled: false,
+        extrudePath: extrudePath
+    };
+
+    for (const shape of shapes) {
+        const fn = shape.userData && shape.userData.fn ? shape.userData.fn : 30;
+        const shapePoints = shape.extractPoints(fn);
+        const extrudedShape = new THREE.Shape(shapePoints.shape);
+        extrudedShape.holes = shapePoints.holes.map((hole) => new THREE.Path(hole));
+        const geometry = new THREE.ExtrudeGeometry(extrudedShape, extrudeSettings);
+        const mesh = new THREE.Mesh(geometry, defaultMaterial.clone());
+        meshes.push(mesh);
+    }
+    
+    // The completed section starts here.
+    for (const mesh of meshes) {
+        const sp = mesh.geometry.attributes.position;
+        for(var i =0; i< sp.count; i++) {
+            var yindex=sp.getY(i);
+            
+            var x = sp.getX(i);
+            var y = 0; // This is set to 0 to flatten out the cross section.
+            var z = sp.getZ(i);
+
+            // Apply path.s for scale
+            x = x * path.s[yindex][0];
+            z = z * path.s[yindex][1];
+            
+            // Apply 2D rotation on X and Z
+            const rotation = path.r[yindex];
+            const cosR = Math.cos(rotation);
+            const sinR = Math.sin(rotation);
+            
+            let rotatedX = x * cosR - z * sinR;
+            let rotatedZ = x * sinR + z * cosR;
+            
+            x = rotatedX;
+            z = rotatedZ;
+            
+            // Apply 3D rotation from the normals on x, y, z.
+            // This is the main part to be completed.
+                        // Apply 3D rotation from the normals on x, y, z.
+            // This is the main part to be completed.
+            
+			
+			            // Apply 3D rotation from the normals on x, y, z.
+            // This is the main part to be completed.
+            const normal = new THREE.Vector3().fromArray(path.n[yindex]);
+            
+            // The tangent is derived from the path points themselves
+            let tangent;
+            if (yindex === path.p.length - 1) {
+                tangent = new THREE.Vector3().fromArray(path.p[yindex]).sub(new THREE.Vector3().fromArray(path.p[yindex-1])).normalize();
+            } else {
+                tangent = new THREE.Vector3().fromArray(path.p[yindex + 1]).sub(new THREE.Vector3().fromArray(path.p[yindex])).normalize();
+            }
+
+            // Create a rotation matrix from the normal and tangent vectors
+            const upVector = new THREE.Vector3(0, 1, 0); // A generic "up" direction
+            const quaternion = new THREE.Quaternion().setFromUnitVectors(upVector, normal);
+            const matrix = new THREE.Matrix4().makeRotationFromQuaternion(quaternion);
+
+            const position = new THREE.Vector3(x, y, z);
+            position.applyMatrix4(matrix);
+
+            // Apply the path's 2D rotation
+            const rotationMatrix = new THREE.Matrix4().makeRotationAxis(normal, rotation);
+            position.applyMatrix4(rotationMatrix);
+
+            x = position.x;
+            y = position.y;
+            z = position.z;
+
+            
+
+            // Apply 3D translation from path.p[yindex] for x, y, and z.
+            x += path.p[yindex][0];
+            y += path.p[yindex][1];
+            z += path.p[yindex][2];
+            
+            sp.setX(i, x);
+            sp.setY(i, y);
+            sp.setZ(i, z);
+        }
+    }
+    
+    // Return the array of meshes.
+    return meshes;
+}
+
+
+
+
+
+//*/
+
+
+
 
 function rotateExtrude(config, target) {
     

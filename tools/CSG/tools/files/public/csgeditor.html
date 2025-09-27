@@ -248,6 +248,8 @@
                     "three/addons/": "./jsm/",
                     "three-mesh-bvh": "./js/mesh-bvh.js",
                     "three-bvh-csg": "./js/csg-bvh.js"
+					
+					
                 }
             }
         </script>
@@ -283,7 +285,54 @@
                     onrun="runCSGCode();">
  // Edit
 
- // Edit
+ 
+ 
+ 
+  /*
+ var ss=shape({
+	 path: ["m",-10,-10,"l",-10,10,"l",10,10,"l",10,-10,"l",0,0]
+ });
+ 
+ 
+ 
+ var p1=path3d([
+	 "s",1,1,
+	 "m", 0,0, 0,
+	 //"r",1,
+	 //"n",300,
+	 "l", 0,0,30]);
+	
+console.log(JSON.stringify(p1))
+
+
+return linePaths3d(ss, p1);
+//*/
+ 
+ 
+ 
+ 
+
+ 
+ var ss=shape({
+	 path: ["m",-10,-10,"l",-10,10,"l",10,10,"l",10,-10,"l",0,0]
+ });
+ 
+ 
+ 
+ var p1=path3d([
+	 "s",1,1,
+	 "m", 0,0, 0,
+	 "l", 0,0,30,
+	"l",0,30,60,
+	"l", 0,60,60]);
+	
+console.log(JSON.stringify(p1))
+
+
+return linePaths3d(ss, p1);
+//*/
+ 
+ 
  
 var f1 = await font("/fonts/ClassicRomanCaps.ttf");
 var ts= text({
@@ -295,7 +344,17 @@ var ts= text({
 ts= alignPath({cx:0,cy:0},ts)
 var s1=shape(ts);
 
-return linePaths3d(s1, [0, 0, 0, 0, 0, 2]);
+var p1=path3d([
+"s",1,1,
+"m", 0,0, 0,
+"s",1,1,
+"n",3,
+"l", 0,3, 3
+])
+console.log(JSON.stringify(p1))
+
+
+return linePaths3d(s1, p1);
 	
 
  
@@ -391,6 +450,7 @@ return linePaths3d(s1, [0, 0, 0, 0, 0, 2]);
         <script type="module" src="/ux/filePicker.js"></script>
 
         <script type="module">
+		
             import * as THREE from 'three'
             import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 

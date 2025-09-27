@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+        <title>Population Economy</title>
+        <script type="module" src="./ux/aichat.js"></script>
+        <style>
+            body {
+                margin: 0;
+                padding: 0;
+                font-family: sans-serif;
+                overflow: hidden; /* Prevent body scrollbars */
+                display: flex;
+                height: 100vh; /* Make body take full viewport height */
+                width: 100vw; /* Make body take full viewport width */
+            }
+        </style>
+    </head>
+    <body>
+        <script>
+            var personWorth = 1000000
+            var population = 7000000000
+            var payout = 5000
+            /////////////
+
+            const totalMoney = personWorth * population
+            const totalUbi = payout * population
+
+            function calc(entity) {
+                var rate = entity.money / totalMoney
+                var tax = rate * totalUbi
+                entity.monthTax.push(tax)
+                entity.money -= tax
+                entity.money += payout
+                entity.money += entity.monthIncress
+                entity.monthCount++
+                if (entity.monthCount != 0 && entity.monthCount % 12 == 0) {
+                    
+					var start = Math.floor(entity.monthCount / 12)*12 - 12;
+					var yearTax = 0
+                    for (
+                        var i = start;
+                        i < start+12;
+                        i++
+                    ) {
+                        yearTax += entity.monthTax[i]
+                    }
+                    entity.yearTax.push(yearTax)
+                }
+            }
+
+            class Entity {
+				title=""
+                money = 0
+                monthTax = []
+                yearTax = []
+                monthCount = 0
+                yearCount = 0
+                monthExpensens = 0
+                monthIncress = 0
+
+                constructor() {}
+            }
+			
+			
+            const applyFilter = (
+                item,
+                checkFunction,
+                applyFunction,
+                ...args
+            ) => {
+                if (item == undefined || item == null) return
+
+                // Case 1: The item is a single mesh (THREE.Mesh or Brush)
+                if (checkFunction(item)) {
+                    applyFunction(item, ...args)
+                }
+                // Case 2: The item is an array. Recursively process each element.
+                else if (Array.isArray(item)) {
+                    item.forEach((subItem) =>
+                        applyFilter(
+                            subItem,
+                            checkFunction,
+                            applyFunction,
+                            ...args
+                        )
+                    )
+                }
+                // Case 3: The item is a generic object. Recursively process its properties.
+                else if (typeof item === 'object' && item !== null) {
+                    for (const key in item) {
+                        if (Object.prototype.hasOwnProperty.call(item, key)) {
+                            applyFilter(
+                                item[key],
+                                checkFunction,
+                                applyFunction,
+                                ...args
+                            )
+                        }
+                    }
+                }
+                // All other data types (strings, numbers, etc.) are ignored.
+            }
+			
+			
+			
+			
+			
+			
+			
+			
+        </script>
+    </body>
+</html>

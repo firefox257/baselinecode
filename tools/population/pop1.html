@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Population Economy - 100 Year Simulation</title>
+        <style>
+            body {
+                margin: 0;
+                padding: 20px;
+                font-family: sans-serif;
+                background-color: #f5f5f5;
+            }
+            .container {
+                max-width: 1200px;
+                margin: 0 auto;
+            }
+            h1, h2, h3 {
+                color: #333;
+                text-align: center;
+            }
+            .simulation-controls {
+                display: flex;
+                justify-content: center;
+                gap: 10px;
+                margin: 20px 0;
+                flex-wrap: wrap;
+            }
+            button {
+                padding: 10px 20px;
+                background-color: #007bff;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+                font-size: 16px;
+            }
+            button:hover {
+                background-color: #0056b3;
+            }
+            button:disabled {
+                background-color: #ccc;
+                cursor: not-allowed;
+            }
+            .chart-container {
+                background: white;
+                border-radius: 8px;
+                padding: 20px;
+                margin: 25px 0;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .stats {
+                background: white;
+                border-radius: 8px;
+                padding: 20px;
+                margin: 20px 0;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .class-stats {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 15px;
+                margin-top: 15px;
+            }
+            .class-card {
+                flex: 1;
+                min-width: 250px;
+                padding: 15px;
+                border-radius: 5px;
+                background-color: #f8f9fa;
+                border-left: 5px solid;
+            }
+            .billionaire { border-left-color: #dc3545; }
+            .millionaire { border-left-color: #fd7e14; }
+            .middle-class { border-left-color: #28a745; }
+            .lower-class { border-left-color: #007bff; }
+            .loading {
+                text-align: center;
+                padding: 20px;
+                font-size: 18px;
+                font-weight: bold;
+                color: #007bff;
+                display: none;
+            }
+            .tabs {
+                display: flex;
+                justify-content: center;
+                margin: 15px 0;
+                gap: 5px;
+            }
+            .tab {
+                padding: 8px 16px;
+                background-color: #f8f9fa;
+                border: 1px solid #dee2e6;
+                border-radius: 5px 5px 0 0;
+                cursor: pointer;
+                font-size: 14px;
+            }
+            .tab.active {
+                background-color: white;
+                border-bottom: 2px solid #007bff;
+                font-weight: bold;
+            }
+            .individual-charts {
+                display: none;
+                margin-top: 30px;
+            }
+            .individual-charts.active {
+                display: block;
+            }
+            .hidden {
+                display: none;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Population Economy - 100 Year Simulation</h1>
+            
+            <div class="simulation-controls">
+                <button id="runSimulation">Run 100-Year Simulation</button>
+                <button id="resetSimulation">Reset</button>
+            </div>
+            
+            <div id="loading" class="loading">
+                Calculating 100 years of economic data... This may take a moment.
+            </div>
+            
+            <div class="stats">
+                <h2>Simulation Results</h2>
+                <div class="tabs">
+                    <div class="tab active" data-tab="with-income">With Extra Income</div>
+                    <div class="tab" data-tab="no-income">Without Extra Income</div>
+                    <div class="tab" data-tab="comparison">Comparison</div>
+                </div>
+                <div id="results-with-income" class="tab-content">
+                    <div class="class-stats" id="classStatsWithIncome">
+                        <p style="text-align: center; width: 100%;">Run the simulation to see results.</p>
+                    </div>
+                </div>
+                <div id="results-no-income" class="tab-content" style="display: none;">
+                    <div class="class-stats" id="classStatsNoIncome">
+                        <p style="text-align: center; width: 100%;">Run the simulation to see results.</p>
+                    </div>
+                </div>
+                <div id="results-comparison" class="tab-content" style="display: none;">
+                    <div class="class-stats" id="classStatsComparison">
+                        <p style="text-align: center; width: 100%;">Run the simulation to see results.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="main-charts-section">
+                <div class="chart-container">
+                    <h2>Money Total Over Time (All Classes)</h2>
+                    <div class="tabs">
+                        <div class="tab active" data-tab="money-with-income">With Extra Income</div>
+                        <div class="tab" data-tab="money-no-income">Without Extra Income</div>
+                    </div>
+                    <canvas id="moneyTotalChart" width="800" height="400"></canvas>
+                </div>
+                
+                <div class="chart-container">
+                    <h2>Monthly Tax Over Time (All Classes)</h2>
+                    <div class="tabs">
+                        <div class="tab active" data-tab="tax-with-income">With Extra Income</div>
+                        <div class="tab" data-tab="tax-no-income">Without Extra Income</div>
+                    </div>
+                    <canvas id="monthlyTaxChart" width="800" height="400"></canvas>
+                </div>
+            </div>
+
+            <div id="individual-analysis-section" class="hidden">
+                <h2>Individual Class Analysis</h2>
+                <div class="tabs" id="class-tabs">
+                    <div class="tab active" data-class="billionaire">Billionaire</div>
+                    <div class="tab" data-class="millionaire">Millionaire</div>
+                    <div class="tab" data-class="middle">Middle Class</div>
+                    <div class="tab" data-class="lower">Lower Class</div>
+                </div>
+
+                <div id="billionaire-charts" class="individual-charts active">
+                    <div class="chart-container">
+                        <h3>Billionaire - Money Over Time</h3>
+                        <canvas id="billionaireMoneyChart" width="800" height="400"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <h3>Billionaire - Monthly Tax Over Time</h3>
+                        <canvas id="billionaireTaxChart" width="800" height="400"></canvas>
+                    </div>
+                </div>
+
+                <div id="millionaire-charts" class="individual-charts">
+                    <div class="chart-container">
+                        <h3>Millionaire - Money Over Time</h3>
+                        <canvas id="millionaireMoneyChart" width="800" height="400"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <h3>Millionaire - Monthly Tax Over Time</h3>
+                        <canvas id="millionaireTaxChart" width="800" height="400"></canvas>
+                    </div>
+                </div>
+
+                <div id="middle-charts" class="individual-charts">
+                    <div class="chart-container">
+                        <h3>Middle Class - Money Over Time</h3>
+                        <canvas id="middleMoneyChart" width="800" height="400"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <h3>Middle Class - Monthly Tax Over Time</h3>
+                        <canvas id="middleTaxChart" width="800" height="400"></canvas>
+                    </div>
+                </div>
+
+                <div id="lower-charts" class="individual-charts">
+                    <div class="chart-container">
+                        <h3>Lower Class - Money Over Time</h3>
+                        <canvas id="lowerMoneyChart" width="800" height="400"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <h3>Lower Class - Monthly Tax Over Time</h3>
+                        <canvas id="lowerTaxChart" width="800" height="400"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            // Constants for the simulation
+            const personWorth = 1000000;
+            const population = 7000000000;
+            const payout = 5000;
+            const totalMoney = personWorth * population;
+            const totalUbi = payout * population;
+            const simulationYears = 100;
+            const simulationMonths = simulationYears * 12;
+
+            // Class to represent a financial entity
+            class Entity {
+                title = "";
+                money = 0;
+                monthTax = [];
+                yearTax = [];
+                monthMoneyTotal = [];
+                monthCount = 0;
+                monthIncress = 0;
+                color = "#000000";
+
+                constructor(title, initialMoney, monthlyIncrease, color) {
+                    this.title = title;
+                    this.money = initialMoney;
+                    this.monthIncress = monthlyIncrease;
+                    this.color = color;
+                    this.monthMoneyTotal = [initialMoney];
+                }
+            }
+
+            // Create two sets of classes: one with income, one without
+            let classesWithIncome = [];
+            let classesWithoutIncome = [];
+            
+            // Function to initialize class instances
+            function initializeClasses() {
+                classesWithIncome = [
+                    new Entity("Billionaire", 1000000000, 10000000, "#dc3545"),
+                    new Entity("Millionaire", 1000000, 10000, "#fd7e14"),
+                    new Entity("Middle Class", 100000, 1000, "#28a745"),
+                    new Entity("Lower Class", 0, 0, "#007bff")
+                ];
+
+                classesWithoutIncome = [
+                    new Entity("Billionaire", 1000000000, 0, "#dc3545"),
+                    new Entity("Millionaire", 1000000, 0, "#fd7e14"),
+                    new Entity("Middle Class", 100000, 0, "#28a745"),
+                    new Entity("Lower Class", 0, 0, "#007bff")
+                ];
+            }
+
+            // CanvasGraph class for drawing on the HTML Canvas
+            class CanvasGraph {
+                constructor(canvasId, title, dataSets, xLabel, yLabel, formatYAxis) {
+                    this.canvas = document.getElementById(canvasId);
+                    this.ctx = this.canvas.getContext('2d');
+                    this.title = title;
+                    this.dataSets = dataSets;
+                    this.xLabel = xLabel;
+                    this.yLabel = yLabel;
+                    this.formatYAxis = formatYAxis;
+                    this.padding = 50;
+                    this.width = this.canvas.width - this.padding * 2;
+                    this.height = this.canvas.height - this.padding * 2;
+                }
+
+                // Clears the canvas
+                clear() {
+                    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                }
+
+                // Main draw method to render the entire graph
+                draw() {
+                    this.clear();
+                    if (this.dataSets.length === 0 || this.dataSets.every(d => d.data.length === 0)) {
+                        this.ctx.font = '16px sans-serif';
+                        this.ctx.fillStyle = '#666';
+                        this.ctx.textAlign = 'center';
+                        this.ctx.fillText("No data to display. Run the simulation.", this.canvas.width / 2, this.canvas.height / 2);
+                        return;
+                    }
+                    this.ctx.save();
+                    this.ctx.translate(this.padding, this.padding + this.height);
+
+                    this.drawGrid();
+                    this.drawAxes();
+                    this.drawTitle();
+                    this.drawLabels();
+                    this.drawData();
+                    this.drawLegend();
+                    
+                    this.ctx.restore();
+                }
+
+                drawTitle() {
+                    this.ctx.font = '20px sans-serif';
+                    this.ctx.fillStyle = '#333';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.textBaseline = 'middle';
+                    this.ctx.fillText(this.title, this.width / 2, -this.height - 20);
+                }
+
+                drawAxes() {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(0, 0);
+                    this.ctx.lineTo(this.width, 0); // X-axis
+                    this.ctx.moveTo(0, 0);
+                    this.ctx.lineTo(0, -this.height); // Y-axis
+                    this.ctx.strokeStyle = '#333';
+                    this.ctx.lineWidth = 2;
+                    this.ctx.stroke();
+                }
+
+                drawGrid() {
+                    const allData = this.dataSets.flatMap(d => d.data);
+                    const maxVal = allData.length > 0 ? Math.max(...allData) : 1;
+                    const numGridLines = 5;
+                    const yStep = maxVal / numGridLines;
+                    const yPixelStep = this.height / numGridLines;
+                    
+                    this.ctx.strokeStyle = '#e0e0e0';
+                    this.ctx.lineWidth = 1;
+                    this.ctx.font = '12px sans-serif';
+                    this.ctx.fillStyle = '#666';
+                    this.ctx.textAlign = 'right';
+                    this.ctx.textBaseline = 'middle';
+
+                    for (let i = 0; i <= numGridLines; i++) {
+                        const y = -i * yPixelStep;
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(0, y);
+                        this.ctx.lineTo(this.width, y);
+                        this.ctx.stroke();
+
+                        const value = i * yStep;
+                        this.ctx.fillText(this.formatYAxis(value), -5, y);
+                    }
+                }
+                
+                drawLabels() {
+                    this.ctx.font = '14px sans-serif';
+                    this.ctx.fillStyle = '#333';
+                    this.ctx.textAlign = 'center';
+
+                    // X-axis label
+                    this.ctx.fillText(this.xLabel, this.width / 2, 35);
+                    
+                    // Y-axis label (rotated)
+                    this.ctx.save();
+                    this.ctx.translate(-35, -this.height / 2);
+                    this.ctx.rotate(-Math.PI / 2);
+                    this.ctx.fillText(this.yLabel, 0, 0);
+                    this.ctx.restore();
+                }
+
+                drawData() {
+                    const allData = this.dataSets.flatMap(d => d.data);
+                    const maxVal = allData.length > 0 ? Math.max(...allData) : 1;
+                    const xInterval = this.width / (this.dataSets[0].data.length - 1 || 1);
+                    const yRatio = this.height / maxVal;
+
+                    this.dataSets.forEach(dataSet => {
+                        this.ctx.beginPath();
+                        this.ctx.strokeStyle = dataSet.color;
+                        this.ctx.lineWidth = 2;
+
+                        this.ctx.moveTo(0, -dataSet.data[0] * yRatio);
+                        
+                        for (let i = 1; i < dataSet.data.length; i++) {
+                            const x = i * xInterval;
+                            const y = -dataSet.data[i] * yRatio;
+                            this.ctx.lineTo(x, y);
+                        }
+                        this.ctx.stroke();
+                    });
+                }
+
+                drawLegend() {
+                    const legendY = -this.height - 10;
+                    let currentX = 10;
+                    this.ctx.font = '12px sans-serif';
+                    this.ctx.fillStyle = '#333';
+                    this.ctx.textAlign = 'left';
+                    this.dataSets.forEach(dataSet => {
+                        this.ctx.fillStyle = dataSet.color;
+                        this.ctx.fillRect(currentX, legendY, 10, 10);
+                        this.ctx.fillStyle = '#333';
+                        this.ctx.fillText(dataSet.label, currentX + 15, legendY + 5);
+                        currentX += this.ctx.measureText(dataSet.label).width + 30;
+                    });
+                }
+            }
+            
+            // Global chart variables
+            let moneyTotalChart = null;
+            let monthlyTaxChart = null;
+            let billionaireMoneyChart = null;
+            let billionaireTaxChart = null;
+            let millionaireMoneyChart = null;
+            let millionaireTaxChart = null;
+            let middleMoneyChart = null;
+            let middleTaxChart = null;
+            let lowerMoneyChart = null;
+            let lowerTaxChart = null;
+
+            // Initialize all graph objects
+            function initGraphs() {
+                moneyTotalChart = new CanvasGraph(
+                    'moneyTotalChart', 'Total Money Over Time (All Classes)', [], 'Month', 'Total Money ($)',
+                    (value) => {
+                        if (value >= 1e12) return '$' + (value / 1e12).toFixed(2) + 'T';
+                        if (value >= 1e9) return '$' + (value / 1e9).toFixed(2) + 'B';
+                        if (value >= 1e6) return '$' + (value / 1e6).toFixed(2) + 'M';
+                        return '$' + Math.round(value).toLocaleString();
+                    }
+                );
+                monthlyTaxChart = new CanvasGraph(
+                    'monthlyTaxChart', 'Monthly Tax Over Time (All Classes)', [], 'Month', 'Monthly Tax ($)',
+                    (value) => '$' + Math.round(value).toLocaleString()
+                );
+                
+                billionaireMoneyChart = new CanvasGraph('billionaireMoneyChart', 'Billionaire - Money Over Time', [], 'Month', 'Total Money ($)', (value) => value.toExponential(2));
+                billionaireTaxChart = new CanvasGraph('billionaireTaxChart', 'Billionaire - Monthly Tax Over Time', [], 'Month', 'Monthly Tax ($)', (value) => value.toExponential(2));
+                millionaireMoneyChart = new CanvasGraph('millionaireMoneyChart', 'Millionaire - Money Over Time', [], 'Month', 'Total Money ($)', (value) => '$' + Math.round(value).toLocaleString());
+                millionaireTaxChart = new CanvasGraph('millionaireTaxChart', 'Millionaire - Monthly Tax Over Time', [], 'Month', 'Monthly Tax ($)', (value) => '$' + Math.round(value).toLocaleString());
+                middleMoneyChart = new CanvasGraph('middleMoneyChart', 'Middle Class - Money Over Time', [], 'Month', 'Total Money ($)', (value) => '$' + Math.round(value).toLocaleString());
+                middleTaxChart = new CanvasGraph('middleTaxChart', 'Middle Class - Monthly Tax Over Time', [], 'Month', 'Monthly Tax ($)', (value) => '$' + Math.round(value).toLocaleString());
+                lowerMoneyChart = new CanvasGraph('lowerMoneyChart', 'Lower Class - Money Over Time', [], 'Month', 'Total Money ($)', (value) => '$' + Math.round(value).toLocaleString());
+                lowerTaxChart = new CanvasGraph('lowerTaxChart', 'Lower Class - Monthly Tax Over Time', [], 'Month', 'Monthly Tax ($)', (value) => '$' + Math.round(value).toLocaleString());
+            }
+
+            // The core simulation calculation logic
+            function calc(entity) {
+                var rate = entity.money / totalMoney;
+                var tax = rate * totalUbi;
+                
+                entity.monthTax.push(tax);
+                entity.money -= tax;
+                entity.money += payout;
+                entity.money += entity.monthIncress;
+                entity.monthCount++;
+                entity.monthMoneyTotal.push(entity.money);
+            }
+
+            // Main function to run the simulation
+            async function runSimulation() {
+                const runButton = document.getElementById('runSimulation');
+                runButton.disabled = true;
+                document.getElementById('loading').style.display = 'block';
+                
+                initializeClasses();
+                
+                // Perform calculations for the two simulation scenarios
+                for (let month = 1; month <= simulationMonths; month++) {
+                    classesWithIncome.forEach(cls => calc(cls));
+                }
+                
+                for (let month = 1; month <= simulationMonths; month++) {
+                    classesWithoutIncome.forEach(cls => calc(cls));
+                }
+                
+                // Update and draw all graphs and statistics
+                updateCharts();
+                updateStats();
+                
+                document.getElementById('loading').style.display = 'none';
+                runButton.disabled = false;
+            }
+
+            // Resets the data for all entities
+            function resetClasses(classArray) {
+                classArray.forEach(cls => {
+                    cls.money = cls.title === "Billionaire" ? 1000000000 : 
+                               cls.title === "Millionaire" ? 1000000 : 
+                               cls.title === "Middle Class" ? 100000 : 0;
+                    cls.monthTax = [];
+                    cls.yearTax = [];
+                    cls.monthMoneyTotal = [cls.money];
+                    cls.monthCount = 0;
+                });
+            }
+
+            // Updates all charts with the newly calculated data
+            function updateCharts() {
+                updateMainCharts('with-income');
+                updateIndividualCharts();
+            }
+
+            // Updates the main charts
+            function updateMainCharts(mode) {
+                const classes = mode === 'with-income' ? classesWithIncome : classesWithoutIncome;
+                
+                moneyTotalChart.dataSets = classes.map(cls => ({
+                    label: cls.title,
+                    data: cls.monthMoneyTotal,
+                    color: cls.color
+                }));
+                moneyTotalChart.draw();
+                
+                monthlyTaxChart.dataSets = classes.map(cls => ({
+                    label: cls.title,
+                    data: cls.monthTax,
+                    color: cls.color
+                }));
+                monthlyTaxChart.draw();
+            }
+
+            // Updates the individual class charts
+            function updateIndividualCharts() {
+                const mainChartTabs = document.querySelectorAll('#main-charts-section .tabs .tab');
+                const mainChartMode = Array.from(mainChartTabs).find(tab => tab.classList.contains('active')).getAttribute('data-tab');
+                const isWithIncome = mainChartMode.includes('with-income');
+                const classes = isWithIncome ? classesWithIncome : classesWithoutIncome;
+
+                // Loop through each class and update its respective charts
+                for (const cls of classes) {
+                    const prefix = cls.title.replace(/\s/g, '').toLowerCase();
+                    
+                    const moneyChart = window[`${prefix}MoneyChart`];
+                    if (moneyChart) {
+                        moneyChart.dataSets = [{
+                            label: isWithIncome ? 'With Extra Income' : 'Without Extra Income',
+                            data: cls.monthMoneyTotal,
+                            color: isWithIncome ? cls.color : '#6c757d'
+                        }];
+                        moneyChart.draw();
+                    }
+
+                    const taxChart = window[`${prefix}TaxChart`];
+                    if (taxChart) {
+                        taxChart.dataSets = [{
+                            label: isWithIncome ? 'With Extra Income' : 'Without Extra Income',
+                            data: cls.monthTax,
+                            color: isWithIncome ? cls.color : '#6c757d'
+                        }];
+                        taxChart.draw();
+                    }
+                }
+            }
+
+            // Updates the text statistics
+            function updateStats() {
+                updateStatsSection('classStatsWithIncome', classesWithIncome);
+                updateStatsSection('classStatsNoIncome', classesWithoutIncome);
+                updateComparisonStats();
+            }
+
+            function updateStatsSection(containerId, classes) {
+                const container = document.getElementById(containerId);
+                container.innerHTML = '';
+                
+                classes.forEach(cls => {
+                    const startingMoney = cls.title === "Billionaire" ? 1000000000 : 
+                                         cls.title === "Millionaire" ? 1000000 : 
+                                         cls.title === "Middle Class" ? 100000 : 0;
+                    const finalMoney = cls.money;
+                    const netGain = finalMoney - startingMoney;
+                    const totalTaxPaid = cls.monthTax.reduce((sum, tax) => sum + tax, 0);
+                    const lastMonthTax = cls.monthTax.length > 0 ? cls.monthTax[cls.monthTax.length - 1] : 0;
+                    
+                    const card = document.createElement('div');
+                    const className = cls.title.replace(/\s/g, '-').toLowerCase();
+                    card.className = `class-card ${className}`;
+                    card.innerHTML = `
+                        <h3>${cls.title}</h3>
+                        <p><strong>Starting Wealth:</strong> $${startingMoney.toLocaleString()}</p>
+                        <p><strong>Final Wealth:</strong> $${Math.round(finalMoney).toLocaleString()}</p>
+                        <p><strong>Net Gain/Loss:</strong> $${Math.round(netGain).toLocaleString()}</p>
+                        <p><strong>Total Tax Paid:</strong> $${Math.round(totalTaxPaid).toLocaleString()}</p>
+                        <p><strong>Last Month Tax:</strong> $${Math.round(lastMonthTax).toLocaleString()}</p>
+                    `;
+                    container.appendChild(card);
+                });
+            }
+
+            function updateComparisonStats() {
+                const container = document.getElementById('classStatsComparison');
+                container.innerHTML = '';
+                
+                for (let i = 0; i < classesWithIncome.length; i++) {
+                    const clsWith = classesWithIncome[i];
+                    const clsWithout = classesWithoutIncome[i];
+                    
+                    const startingMoney = clsWith.title === "Billionaire" ? 1000000000 : 
+                                         clsWith.title === "Millionaire" ? 1000000 : 
+                                         clsWith.title === "Middle Class" ? 100000 : 0;
+                    
+                    const finalWith = clsWith.money;
+                    const finalWithout = clsWithout.money;
+                    const difference = finalWith - finalWithout;
+                    const percentChange = finalWithout !== 0 ? ((difference / finalWithout) * 100) : 0;
+                    
+                    const card = document.createElement('div');
+                    const className = clsWith.title.replace(/\s/g, '-').toLowerCase();
+                    card.className = `class-card ${className}`;
+                    card.innerHTML = `
+                        <h3>${clsWith.title} - Income Impact</h3>
+                        <p><strong>Starting Wealth:</strong> $${startingMoney.toLocaleString()}</p>
+                        <p><strong>With Extra Income:</strong> $${Math.round(finalWith).toLocaleString()}</p>
+                        <p><strong>Without Extra Income:</strong> $${Math.round(finalWithout).toLocaleString()}</p>
+                        <p><strong>Difference:</strong> $${Math.round(difference).toLocaleString()} (${percentChange.toFixed(2)}%)</p>
+                        <p><strong>Tax Difference:</strong> $${Math.round(
+                            clsWith.monthTax.reduce((sum, tax) => sum + tax, 0) - 
+                            clsWithout.monthTax.reduce((sum, tax) => sum + tax, 0)
+                        ).toLocaleString()}</p>
+                    `;
+                    container.appendChild(card);
+                }
+            }
+
+            // Sets up event listeners for all tabs
+            function setupTabs() {
+                const statsTabs = document.querySelectorAll('.stats .tab');
+                const mainChartsTabs = document.querySelectorAll('#main-charts-section .tabs .tab');
+                const individualClassTabs = document.querySelectorAll('#class-tabs .tab');
+
+                // Logic for statistics tabs
+                statsTabs.forEach(tab => {
+                    tab.addEventListener('click', function() {
+                        statsTabs.forEach(t => t.classList.remove('active'));
+                        this.classList.add('active');
+                        document.querySelectorAll('.tab-content').forEach(content => {
+                            content.style.display = 'none';
+                        });
+                        const tabType = this.getAttribute('data-tab');
+                        document.getElementById(`results-${tabType}`).style.display = 'block';
+                    });
+                });
+
+                // Logic for main charts tabs
+                mainChartsTabs.forEach(tab => {
+                    tab.addEventListener('click', function() {
+                        const parentContainer = this.parentElement;
+                        parentContainer.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                        this.classList.add('active');
+                        updateMainCharts(this.getAttribute('data-tab').includes('with-income') ? 'with-income' : 'no-income');
+                        updateIndividualCharts();
+                    });
+                });
+
+                // Logic for individual class tabs
+                individualClassTabs.forEach(tab => {
+                    tab.addEventListener('click', function() {
+                        individualClassTabs.forEach(t => t.classList.remove('active'));
+                        this.classList.add('active');
+                        document.querySelectorAll('.individual-charts').forEach(content => {
+                            content.classList.remove('active');
+                        });
+                        const classType = this.getAttribute('data-class');
+                        document.getElementById(`${classType}-charts`).classList.add('active');
+                    });
+                });
+            }
+
+            // Resets all data and clears all graphs
+            function resetSimulation() {
+                initializeClasses(); // Re-initialize with fresh data
+                
+                const allGraphs = [
+                    moneyTotalChart, monthlyTaxChart,
+                    billionaireMoneyChart, billionaireTaxChart,
+                    millionaireMoneyChart, millionaireTaxChart,
+                    middleMoneyChart, middleTaxChart,
+                    lowerMoneyChart, lowerTaxChart
+                ];
+                allGraphs.forEach(chart => {
+                    if (chart) {
+                        chart.dataSets = [];
+                        chart.draw();
+                    }
+                });
+
+                document.getElementById('classStatsWithIncome').innerHTML = '<p style="text-align: center; width: 100%;">Run the simulation to see results.</p>';
+                document.getElementById('classStatsNoIncome').innerHTML = '<p style="text-align: center; width: 100%;">Run the simulation to see results.</p>';
+                document.getElementById('classStatsComparison').innerHTML = '<p style="text-align: center; width: 100%;">Run the simulation to see results.</p>';
+            }
+
+            document.addEventListener('DOMContentLoaded', function() {
+                initializeClasses();
+                initGraphs();
+                setupTabs();
+                document.getElementById('runSimulation').addEventListener('click', runSimulation);
+                document.getElementById('resetSimulation').addEventListener('click', resetSimulation);
+            });
+        </script>
+    </body>
+</html>
