@@ -1251,10 +1251,6 @@ function linePaths3d(target, path, close) {
 //*/
 
 
-
-
-
-/* eslint-disable */
 /**
  * @param {object} target - The parent object to which the shapes are applied.
  * @param {object} path - The pre-processed path data containing points, rotations, and normals.
@@ -1262,6 +1258,251 @@ function linePaths3d(target, path, close) {
  * @returns {THREE.Mesh[]} An array of THREE.js meshes.
  */
 function linePaths3d(target, path, close) {
+
+	// This part of the code is not being modified, but it's included for context
+    var shapes =[];
+    applyToShape(target, (item) => {
+        shapes.push(item)
+    })
+    
+    var points3d=[];
+    for(var i=0; i< path.p.length;i++) 
+    {
+		var p=path.p[i];
+        points3d.push(...[p[0],p[2],p[1]]);
+    }
+    
+    const meshes = []; // An array to store all the created meshes
+
+    if (!points3d || points3d.length < 6) {
+        console.warn(
+            'linePaths3d requires at least 6 numbers (2 points) for the 3D extrusion path.'
+        );
+        return null;
+    }
+
+    const extrudePath = new THREE.CurvePath();
+
+    // Iterate through the flattened array, jumping by 3 for each point
+    for (let i = 0; i < points3d.length - 3; i += 3) {
+        const startPointIndex = i;
+        const endPointIndex = i + 3;
+
+        const startVector = new THREE.Vector3(
+            points3d[startPointIndex],
+            points3d[startPointIndex + 2],
+            points3d[startPointIndex + 1]
+        );
+        const endVector = new THREE.Vector3(
+            points3d[endPointIndex],
+            points3d[endPointIndex + 2],
+            points3d[endPointIndex + 1]
+        );
+
+        extrudePath.add(new THREE.LineCurve3(startVector, endVector));
+    }
+
+    // Add a closing segment if the 'close' parameter is true
+    if (close && points3d.length > 6) {
+        const startPointIndex = points3d.length - 3;
+        const endPointIndex = 0;
+
+        const startVector = new THREE.Vector3(
+            points3d[startPointIndex],
+            points3d[startPointIndex + 2],
+            points3d[startPointIndex + 1]
+        );
+        const endVector = new THREE.Vector3(
+            points3d[endPointIndex],
+            points3d[endPointIndex + 2],
+            points3d[endPointIndex + 1]
+        );
+
+        extrudePath.add(new THREE.LineCurve3(startVector, endVector));
+    }
+    
+    const numPoints = points3d.length / 3;
+
+    const extrudeSettings = {
+        steps: close ? numPoints : numPoints - 1,
+        bevelEnabled: false,
+        extrudePath: extrudePath
+    };
+
+    for (const shape of shapes) {
+        const fn = shape.userData && shape.userData.fn ? shape.userData.fn : 30;
+        const shapePoints = shape.extractPoints(fn);
+        const extrudedShape = new THREE.Shape(shapePoints.shape);
+        extrudedShape.holes = shapePoints.holes.map((hole) => new THREE.Path(hole));
+        const geometry = new THREE.ExtrudeGeometry(extrudedShape, extrudeSettings);
+        const mesh = new THREE.Mesh(geometry, defaultMaterial.clone());
+        meshes.push(mesh);
+    }
+    
+    // Return the array of meshes.
+    return meshes;
+}
+
+
+
+
+
+
+
+
+
+/**
+ * @param {object} target - The parent object to which the shapes are applied.
+ * @param {object} path - The pre-processed path data containing points, rotations, and normals.
+ * @param {boolean} close - A flag to indicate if the path should be closed.
+ * @returns {THREE.Mesh[]} An array of THREE.js meshes.
+ */
+function linePaths3dEx(target, path, close) {
+
+	// This part of the code is not being modified, but it's included for context
+    var shapes =[];
+    applyToShape(target, (item) => {
+        shapes.push(item)
+    })
+    
+    var points3d=[];
+    for(var i=0; i< path.p.length;i++) 
+    {
+        points3d.push(...[0,0,i]);
+    }
+    
+    const meshes = []; // An array to store all the created meshes
+
+    if (!points3d || points3d.length < 6) {
+        console.warn(
+            'linePaths3d requires at least 6 numbers (2 points) for the 3D extrusion path.'
+        );
+        return null;
+    }
+
+    const extrudePath = new THREE.CurvePath();
+
+    // Iterate through the flattened array, jumping by 3 for each point
+    for (let i = 0; i < points3d.length - 3; i += 3) {
+        const startPointIndex = i;
+        const endPointIndex = i + 3;
+
+        const startVector = new THREE.Vector3(
+            points3d[startPointIndex],
+            points3d[startPointIndex + 2],
+            points3d[startPointIndex + 1]
+        );
+        const endVector = new THREE.Vector3(
+            points3d[endPointIndex],
+            points3d[endPointIndex + 2],
+            points3d[endPointIndex + 1]
+        );
+
+        extrudePath.add(new THREE.LineCurve3(startVector, endVector));
+    }
+
+    // Add a closing segment if the 'close' parameter is true
+    if (close && points3d.length > 6) {
+        const startPointIndex = points3d.length - 3;
+        const endPointIndex = 0;
+
+        const startVector = new THREE.Vector3(
+            points3d[startPointIndex],
+            points3d[startPointIndex + 2],
+            points3d[startPointIndex + 1]
+        );
+        const endVector = new THREE.Vector3(
+            points3d[endPointIndex],
+            points3d[endPointIndex + 2],
+            points3d[endPointIndex + 1]
+        );
+
+        extrudePath.add(new THREE.LineCurve3(startVector, endVector));
+    }
+    
+    const numPoints = points3d.length / 3;
+
+    const extrudeSettings = {
+        steps: close ? numPoints : numPoints - 1,
+        bevelEnabled: false,
+        extrudePath: extrudePath
+    };
+
+    for (const shape of shapes) {
+        const fn = shape.userData && shape.userData.fn ? shape.userData.fn : 30;
+        const shapePoints = shape.extractPoints(fn);
+        const extrudedShape = new THREE.Shape(shapePoints.shape);
+        extrudedShape.holes = shapePoints.holes.map((hole) => new THREE.Path(hole));
+        const geometry = new THREE.ExtrudeGeometry(extrudedShape, extrudeSettings);
+        const mesh = new THREE.Mesh(geometry, defaultMaterial.clone());
+        meshes.push(mesh);
+    }
+    
+    // The completed section starts here.
+    for (const mesh of meshes) {
+        const sp = mesh.geometry.attributes.position;
+        for(var i =0; i< sp.count; i++) {
+            var yindex=sp.getY(i);
+            
+            // Get the local cross-section coordinates from the extruded geometry.
+            var x = sp.getX(i);
+            var y = 0; // This is set to 0 to flatten out the cross section.
+            var z = sp.getZ(i);
+
+            // Apply path.s for scale
+            x = x * path.s[yindex][0];
+            z = z * path.s[yindex][1];
+            
+            // Apply 2D rotation on X and Z
+            const rotation = path.r[yindex];
+            const cosR = Math.cos(rotation);
+            const sinR = Math.sin(rotation);
+            
+            let rotatedX = x * cosR - z * sinR;
+            let rotatedZ = x * sinR + z * cosR;
+            
+            x = rotatedX;
+            z = rotatedZ;
+            
+            // Now, we need to apply the 3D rotation from the normals and translation.
+            // Create a quaternion to handle the 3D orientation.
+            const normal = new THREE.Vector3().fromArray(path.n[yindex]);
+            const upVector = new THREE.Vector3(0, 1, 0); 
+            const quaternion = new THREE.Quaternion().setFromUnitVectors(upVector, normal);
+
+            // Create a point in local space.
+            const point = new THREE.Vector3(x, y, z);
+            
+            // Apply the 3D rotation to the point using the quaternion.
+            point.applyQuaternion(quaternion);
+
+            // Apply the 3D translation from path.p[yindex]
+            point.x += path.p[yindex][0];
+            point.y += path.p[yindex][1];
+            point.z += path.p[yindex][2];
+
+            // Update the geometry's attributes.
+            sp.setX(i, point.x);
+            sp.setY(i, point.y);
+            sp.setZ(i, point.z);
+        }
+    }
+    
+    // Return the array of meshes.
+    return meshes;
+}
+
+
+
+
+/**
+ * @param {object} target - The parent object to which the shapes are applied.
+ * @param {object} path - The pre-processed path data containing points, rotations, and normals.
+ * @param {boolean} close - A flag to indicate if the path should be closed.
+ * @returns {THREE.Mesh[]} An array of THREE.js meshes.
+ */
+ /*   goooos
+function linePaths3dEx(target, path, close) {
 
 	// This part of the code is not being modified, but it's included for context
     var shapes =[];
@@ -1386,7 +1627,7 @@ function linePaths3d(target, path, close) {
             }
 
             // Create a rotation matrix from the normal and tangent vectors
-            const upVector = new THREE.Vector3(0, 1, 0); // A generic "up" direction
+            const upVector = new THREE.Vector3(0,1, 0); // A generic "up" direction
             const quaternion = new THREE.Quaternion().setFromUnitVectors(upVector, normal);
             const matrix = new THREE.Matrix4().makeRotationFromQuaternion(quaternion);
 
@@ -1397,6 +1638,7 @@ function linePaths3d(target, path, close) {
             const rotationMatrix = new THREE.Matrix4().makeRotationAxis(normal, rotation);
             position.applyMatrix4(rotationMatrix);
 
+			//not workong
             x = position.x;
             y = position.y;
             z = position.z;
@@ -1417,7 +1659,7 @@ function linePaths3d(target, path, close) {
     // Return the array of meshes.
     return meshes;
 }
-
+//*/
 
 
 
@@ -2609,6 +2851,7 @@ const _exportedFunctions = {
 	path3d,
     line3d,
     linePaths3d,
+	linePaths3dEx,
 	rotateExtrude,
     scaleTo,
     show,
