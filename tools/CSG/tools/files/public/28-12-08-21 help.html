@@ -246,18 +246,7 @@
                             <li><a href="#line3d-section"><code>line3d()</code></a></li>
                             <li><a href="#linepaths3d-section"><code>linePaths3d()</code></a></li>
                             <li><a href="#path3d-section"><code>path3d()</code></a></li>
-                            <li><a href="#line3dpathsex-section"><code>line3dPathsEx()</code></a></li>
                             <li><a href="#rotateextrude-section"><code>rotateExtrude()</code></a></li>
-                        </ul>
-                    </li>
-                    <li><a href="#3d-imports">3D Imports</a>
-                        <ul>
-                            <li><a href="#import-stl"><code>importSTL()</code></a></li>
-                            <li><a href="#import-obj"><code>importOBJ()</code></a></li>
-                            <li><a href="#import-gltf"><code>importGLTF()</code></a></li>
-                            <li><a href="#import-amf"><code>importAMF()</code></a></li>
-                            <li><a href="#import-xyz"><code>importXYZ()</code></a></li>
-                            <li><a href="#import-ply"><code>importPLY()</code></a></li>
                         </ul>
                     </li>
                     <li><a href="#utilities">Utility Functions</a>
@@ -563,7 +552,7 @@
 
             <h4 id="editor-scripts-section">Editor Scripts (Opened via the ⏬ Button)</h4>
             <p>These are libraries of reusable code. They typically define functions, constants, or complex shapes that you want to use across multiple CSG scripts. An Editor script should return an object containing the things you want to export.</p>
-            <p><strong>Example:</strong></p>
+            <p><strong>Example of an Editor script:</strong></p>
             <pre><code>function myCustomCube(size) {
     return cube([size, size, size]);
 }
@@ -712,8 +701,8 @@ const helper = include("Utils", "../shared/utils.json"); // Loads from /projects
                 </tr>
                 <tr>
                     <td><code>c</code></td>
-                    <td><code>'c', controlX1, controlY1, cx2, cy2, endX, endY</code></td>
-                    <td><strong>Cubic Bezier Curve To</strong>: Draws a cubic Bezier curve from the current point to <code>(endX, endY)</code> using two control points <code>(controlX1, controlY1)</code> and <code>(cx2, cy2)</code>.</td>
+                    <td><code>'c', controlX1, controlY1, controlX2, controlY2, endX, endY</code></td>
+                    <td><strong>Cubic Bezier Curve To</strong>: Draws a cubic Bezier curve from the current point to <code>(endX, endY)</code> using two control points <code>(controlX1, controlY1)</code> and <code>(controlX2, controlY2)</code>.</td>
                 </tr>
                 <tr>
                     <td><code>a</code></td>
@@ -831,8 +820,8 @@ return line3d(textShape, [0, 0, 0], [0, 0, 0.5]);</code></pre>
 // Translate the path
 const movedPath = translatePath([10, 10], basePath);
 
-// Rotate the path by 45 degrees
-const rotatedPath = rotatePath(45, movedPath);
+// Rotate the path by 45 degrees (π/4 radians)
+const rotatedPath = rotatePath(Math.PI / 4, movedPath);
 
 // Scale the path
 const scaledPath = scalePath([2, 1], rotatedPath);
@@ -895,8 +884,8 @@ return line3d(finalShape, [0, 0, 0], [0, 0, 1]);</code></pre>
         <p><strong>Example:</strong> <code>translate([10, 0, 5], cube([5, 5, 5]))</code></p>
 
         <h4 id="rotate-section"><code>rotate([x, y, z], target)</code></h4>
-        <p>Rotates the geometry around the local X, then Z, then Y axes (in that order) by the specified angles in **degrees**.</p>
-        <p><strong>Example:</strong> <code>rotate([90, 0, 0], cube([5, 5, 5]))</code> (rotates 90 degrees around X-axis)</p>
+        <p>Rotates the geometry around the local X, then Z, then Y axes (in that order) by the specified angles in radians.</p>
+        <p><strong>Example:</strong> <code>rotate([Math.PI/2, 0, 0], cube([5, 5, 5]))</code> (rotates 90 degrees around X-axis)</p>
 
         <h4 id="scale-section"><code>scale([x, y, z], target)</code></h4>
         <p>Scales the geometry by the specified factors along each axis.</p>
@@ -953,20 +942,17 @@ return line3d(finalShape, [0, 0, 0], [0, 0, 1]);</code></pre>
         <p><strong>Example:</strong> <code>line3d(myShape, [0, 0, 0], [0, 0, 10])</code></p>
 
         <h4 id="linepaths3d-section"><code>linePaths3d(target, points3d, close)</code></h4>
-        <p>This is a fast, simplified extrusion function. It extrudes a 2D shape along a polyline path. <code>points3d</code> is a flat array of coordinates (e.g., <code>[x1, y1, z1, x2, y2, z2, ...]</code>). If <code>close</code> is <code>true</code>, it will add a segment from the last point back to the first.
-        <p>This function ignores any **"r"** (rotation) or **"s"** (scale) commands in the path data and is designed for simple, non-uniform extrusions for performance. If you need more control, use **`line3dPathsEx()`**.</p>
+        <p>Extrudes a 2D shape along a polyline path. <code>points3d</code> is a flat array of coordinates (e.g., <code>[x1, y1, z1, x2, y2, z2, ...]</code>). If <code>close</code> is <code>true</code>, it will add a segment from the last point back to the first.</p>
         <p><strong>Example:</strong> <code>linePaths3d(myShape, [0, 0, 0, 10, 0, 0, 10, 10, 0], true)</code></p>
         
-        <h4 id="path3d-section"><code>path3d(pathData, fn)</code></h4>
+        <h4 id="path3d-section"><code>path3d(paths, fn)</code></h4>
         <p>This function creates a flat array of 3D points from a series of 3D path commands, similar to how <code>shape()</code> works for 2D paths. This is a utility function used to generate complex 3D paths for other operations.</p>
-        <p>The `pathData` parameter is a flat array of commands and coordinates. The commands are:</p>
+        <p>The <code>paths</code> parameter is a flat array of commands and coordinates. The commands are:</p>
         <ul>
             <li><code>'m', x, y, z</code>: **Move to** a new 3D point.</li>
             <li><code>'l', x, y, z</code>: **Line to** a new 3D point.</li>
             <li><code>'q', cx, cy, cz, x, y, z</code>: **Quadratic Bezier** curve to a new 3D point.</li>
             <li><code>'c', cx1, cy1, cz1, cx2, cy2, cz2, x, y, z</code>: **Cubic Bezier** curve to a new 3D point.</li>
-            <li><code>'r', rotation</code>: **Rotation command**. **Rotates** the next segment's shape by `rotation` degrees.</li>
-            <li><code>'s', scaleX, scaleY</code>: **Scale command**. **Scales** the next segment's shape by the given `scaleX` and `scaleY` factors.</li>
         </ul>
         <p>The `fn` parameter is optional and controls the number of segments for curves. It defaults to 30.</p>
         <div class="note">
@@ -978,75 +964,16 @@ return line3d(finalShape, [0, 0, 0], [0, 0, 1]);</code></pre>
     'l', 10, 0, 10,
     'q', 15, 0, 15, 15, 0, 20,
     'c', 20, 0, 25, 25, 0, 30, 30, 0, 35
-]);</code></pre>
-
-        <h4 id="line3dpathsex-section"><code>line3dPathsEx({ shape, points, close, twist, scale, align }, target)</code></h4>
-        <p>This is the most powerful extrusion function, providing fine-grained control over the path. It works similar to `linePaths3d`, but with many more options. All parameters except `shape` and `points` are optional.</p>
-        <ul>
-            <li>`shape`: The 2D shape to extrude. Can be a single shape or an array of shapes.</li>
-            <li>`points`: The flat array of 3D points created by `path3d()` or another source. (e.g., `[x1, y1, z1, x2, y2, z2, ...]`).</li>
-            <li>`close`: If `true`, the path is closed by connecting the last point to the first.</li>
-            <li>`twist`: An array of rotation values in **degrees** for each segment of the path. This allows the shape to twist along the extrusion path.</li>
-            <li>`scale`: An array of scale values for each point along the path. These values override any 's' commands in the `path3d` data.</li>
-            <li>`align`: An array of alignment values for each point along the path.</li>
-        </ul>
-        <div class="note">
-            <p><strong>Note:</strong> `line3dPathsEx()` will use the `twist` and `scale` arrays if they are provided, overriding any rotation or scale commands in the `path3d` data.</p>
-        </div>
-        <p><strong>Example:</strong></p>
-        <pre><code>const profile = shape(circleWithHolePath);
-const path = path3d([
-    'm', 0, 0, 0,
-    's', 1, 1,
-    'l', 0, 50, 50,
-    's', 2, 2, // Scale this segment by 2x
-    'l', 50, 50, 50,
-    'r', 90, // Rotate the next segment by 90 degrees
-    'l', 50, 0, 100
 ]);
 
-const result = line3dPathsEx({
-    shape: profile,
-    points: path,
-});
-return result;</code></pre>
-
+// This `spiralPath` array can now be used with functions that accept a 3D polyline.
+// For example, to create a line-extruded object along this path:
+// linePaths3d(myShape, spiralPath);</code></pre>
 
         <h4 id="rotateextrude-section"><code>rotateExtrude({ r, d, fn, start, end, close }, target)</code></h4>
         <p>Creates a solid of revolution by rotating a 2D shape around the Y-axis. You can specify the radius (<code>r</code> or <code>d</code> for diameter), number of segments (<code>fn</code>), start and end angles (<code>start</code>, <code>end</code> in radians), and whether to close the path (<code>close</code>).</p>
         <p><strong>Example:</strong> <code>rotateExtrude({ r: 20, fn: 50 }, myShape)</code></p>
         
-        <h3 id="3d-imports">3D Imports</h3>
-        <p>These functions allow you to import external 3D models into your scene. The file paths work the same way as `get()` and `include()`.</p>
-        <div class="note">
-            <p><strong>Note:</strong> All `import` functions are asynchronous and must be called with `await`.</p>
-        </div>
-
-        <h4 id="import-stl"><code>importSTL(filepath)</code></h4>
-        <p>Loads an STL file from the specified path. This function is asynchronous and must be used with `await`.</p>
-        <p><strong>Example:</strong> <code>const myModel = await importSTL("$lib/my_part.stl");</code></p>
-
-        <h4 id="import-obj"><code>importOBJ(filepath)</code></h4>
-        <p>Loads an OBJ file from the specified path. This function is asynchronous and must be used with `await`.</p>
-        <p><strong>Example:</strong> <code>const myModel = await importOBJ("/assets/model.obj");</code></p>
-
-        <h4 id="import-gltf"><code>importGLTF(filepath)</code></h4>
-        <p>Loads a GLTF or GLB file from the specified path. This function is asynchronous and must be used with `await`.</p>
-        <p><strong>Example:</strong> <code>const myModel = await importGLTF("./models/sculpture.gltf");</code></p>
-
-        <h4 id="import-amf"><code>importAMF(filepath)</code></h4>
-        <p>Loads an AMF file from the specified path. This function is asynchronous and must be used with `await`.</p>
-        <p><strong>Example:</strong> <code>const myModel = await importAMF("https://example.com/file.amf");</code></p>
-        
-        <h4 id="import-xyz"><code>importXYZ(filepath)</code></h4>
-        <p>Loads an XYZ file (point cloud) from the specified path. This function is asynchronous and must be used with `await`.</p>
-        <p><strong>Example:</strong> <code>const myModel = await importXYZ("path/to/points.xyz");</code></p>
-
-        <h4 id="import-ply"><code>importPLY(filepath)</code></h4>
-        <p>Loads a PLY file from the specified path. This function is asynchronous and must be used with `await`.</p>
-        <p><strong>Example:</strong> <code>const myModel = await importPLY("path/to/mesh.ply");</code></p>
-
-
         <h3 id="utilities">Utility Functions</h3>
 
         <h4 id="color-section"><code>color(c, target)</code></h4>
@@ -1069,7 +996,7 @@ return result;</code></pre>
         <p>These functions operate on 2D path data (objects with <code>path</code> and <code>fn</code> properties) before they are turned into 3D geometry.</p>
 
         <h4><code>translatePath([x, y], pathObject)</code></h4>
-        <h4><code>rotatePath(angleInDegrees, pathObject)</code></h4>
+        <h4><code>rotatePath(angle, pathObject)</code></h4>
         <h4><code>scalePath([scaleX, scaleY], pathObject)</code></h4>
         <h4><code>scaleToPath({ x, y }, pathObject)</code></h4>
         <h4><code>alignPath({ bx, tx, cx, by, ty, cy }, pathObject)</code></h4>
@@ -1083,7 +1010,7 @@ return result;</code></pre>
 
         <h4><code>text({ font, text, fontSize, fn })</code></h4>
         <p>Converts a string into a 2D path using the specified font. Returns a path data object that can be used with <code>shape()</code> or extrusion functions.</p>
-        <p><strong>Example:</strong> <code>const textPath = text({ font: myFont, text: "Hello", fontSize: 5, fn: 30 });</code></p>
+        <p><strong>Example:</strong> <code>const textPath = text({ font: myFont, text: "Hello", fontSize: 10, fn: 30 });</code></p>
     </section>
     <hr>
 

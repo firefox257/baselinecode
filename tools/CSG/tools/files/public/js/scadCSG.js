@@ -17,6 +17,13 @@ import {
 } from 'three-bvh-csg';
 import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
 import { api } from './apiCalls.js' // Assuming apiCalls.js is in the same directory
+import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+
+
+
 
 
 //////
@@ -2791,7 +2798,7 @@ function shape(shapeData) {
  */
 async function font(fontPath) {
     try {
-        const buffer = await api.readFileBinary(fontPath)
+        const buffer = await api.readFileBinary($path(fontPath));
         const font = opentype.parse(buffer)
         console.log(`Successfully loaded font from ${fontPath}`)
         return font
@@ -2859,6 +2866,86 @@ function text(textData) {
 }
 
 
+
+ // Loads an STL file and returns a THREE.Mesh object.
+ // @param {string} filePath - The path to the STL file.
+ // @returns {Promise<THREE.Mesh>} A promise that resolves to the loaded mesh object.
+ 
+async function importStl(filePath) {
+    try {
+        const buffer = await api.readFileBinary($path(filePath));
+        const loader = new STLLoader();
+        const geometry = loader.parse(buffer);
+        const material = new THREE.MeshNormalMaterial();
+        const mesh = new THREE.Mesh(geometry, material);
+        console.log(`Successfully loaded STL from ${filePath}`);
+        return mesh;
+    } catch (error) {
+        console.error('STL loading error:', error);
+        throw error;
+    }
+}
+
+
+
+ // Loads a GLTF or GLB file and returns a THREE.Group or THREE.Scene object.
+ // @param {string} filePath - The path to the GLTF/GLB file.
+ //@returns {Promise<THREE.Group|THREE.Scene>} A promise that resolves to the loaded scene.
+ 
+async function importGltf(filePath) {
+    try {
+        const buffer = await api.readFileBinary($path(filePath));
+        const loader = new GLTFLoader();
+        // The GLTFLoader's .parse method expects an ArrayBuffer
+        const gltf = await loader.parse(buffer, '', (gltf) => gltf);
+        console.log(`Successfully loaded GLTF/GLB from ${filePath}`);
+        return gltf.scene; // Often you want to add the entire scene
+    } catch (error) {
+        console.error('GLTF/GLB loading error:', error);
+        throw error;
+    }
+}
+
+
+ // Loads an OBJ file and returns a THREE.Group or THREE.Object3D.
+ // @param {string} filePath - The path to the OBJ file.
+ //@returns {Promise<THREE.Group>} A promise that resolves to the loaded object.
+
+async function importObj(filePath) {
+    try {
+        const text = await api.readFileBinary($path(filePath));
+        const loader = new OBJLoader();
+        const object = loader.parse(new TextDecoder().decode(text));
+        console.log(`Successfully loaded OBJ from ${filePath}`);
+        return object;
+    } catch (error) {
+        console.error('OBJ loading error:', error);
+        throw error;
+    }
+}
+
+
+
+// Loads an FBX file and returns a THREE.Group or THREE.Object3D.
+// @param {string} filePath - The path to the FBX file.
+// @returns {Promise<THREE.Group>} A promise that resolves to the loaded object.
+ 
+async function importFbx(filePath) {
+    try {
+        const buffer = await api.readFileBinary($path(filePath));
+        const loader = new FBXLoader();
+        const object = loader.parse(buffer, '');
+        console.log(`Successfully loaded FBX from ${filePath}`);
+        return object;
+    } catch (error) {
+        console.error('FBX loading error:', error);
+        throw error;
+    }
+}
+
+
+//*/
+
 // Private object containing all exportable functions
 // This is a private, self-contained list within the module.
 const _exportedFunctions = {
@@ -2893,7 +2980,11 @@ const _exportedFunctions = {
 	scalePath,
 	scaleToPath,
 	alignPath,
-    shape
+    shape,
+	importStl,
+	importGltf,
+	importObj,
+	importFbx
 }
 
 // --- Revised `ezport` function ---
