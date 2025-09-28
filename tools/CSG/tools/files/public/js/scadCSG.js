@@ -258,9 +258,9 @@ function translate([x, y, z], target) {
 function rotate([x, y, z], target) {
     applyToMesh(target, (item) => {
         //item.rotation.set(x, z, y)
-        item.geometry.rotateX(x)
-        item.geometry.rotateZ(y)
-        item.geometry.rotateY(z)
+        item.geometry.rotateX(x/180*Math.PI)
+        item.geometry.rotateZ(y/180*Math.PI)
+        item.geometry.rotateY(z/180*Math.PI)
     })
 
     return target
@@ -1357,6 +1357,7 @@ function linePaths3d(target, path, close) {
  * @param {boolean} close - A flag to indicate if the path should be closed.
  * @returns {THREE.Mesh[]} An array of THREE.js meshes.
  */
+ 
 function linePaths3dEx(target, path, close) {
 
 	// This part of the code is not being modified, but it's included for context
@@ -1366,9 +1367,32 @@ function linePaths3dEx(target, path, close) {
     })
     
     var points3d=[];
+	
+	var preCalc=[];
+	
+	const upVector = new THREE.Vector3(0, 1, 0);
+	
     for(var i=0; i< path.p.length;i++) 
     {
         points3d.push(...[0,0,i]);
+		// Apply 2D rotation on X and Z
+        const rotation = path.r[i];
+		
+		var o={};
+        o.cosR = Math.cos(rotation/180*Math.PI);
+        o.sinR = Math.sin(rotation/180*Math.PI);
+		
+		// Now, we need to apply the 3D rotation from the normals and translation.
+        // Create a quaternion to handle the 3D orientation.
+        const normal = new THREE.Vector3().fromArray(path.n[i]);
+        //const upVector = new THREE.Vector3(0, 1, 0); 
+        o.quaternion = new THREE.Quaternion().setFromUnitVectors(upVector, normal);
+
+		
+		
+		
+		preCalc.push(o);
+		
     }
     
     const meshes = []; // An array to store all the created meshes
@@ -1438,6 +1462,8 @@ function linePaths3dEx(target, path, close) {
         meshes.push(mesh);
     }
     
+	
+	
     // The completed section starts here.
     for (const mesh of meshes) {
         const sp = mesh.geometry.attributes.position;
@@ -1454,27 +1480,28 @@ function linePaths3dEx(target, path, close) {
             z = z * path.s[yindex][1];
             
             // Apply 2D rotation on X and Z
-            const rotation = path.r[yindex];
-            const cosR = Math.cos(rotation);
-            const sinR = Math.sin(rotation);
+            //const rotation = path.r[yindex];
+			var o= preCalc[yindex];
+            //const cosR = Math.cos(rotation/180*Math.PI);
+            //const sinR = Math.sin(rotation/180*Math.PI);
             
-            let rotatedX = x * cosR - z * sinR;
-            let rotatedZ = x * sinR + z * cosR;
+            let rotatedX = x * o.cosR - z * o.sinR;
+            let rotatedZ = x * o.sinR + z * o.cosR;
             
             x = rotatedX;
             z = rotatedZ;
             
             // Now, we need to apply the 3D rotation from the normals and translation.
             // Create a quaternion to handle the 3D orientation.
-            const normal = new THREE.Vector3().fromArray(path.n[yindex]);
-            const upVector = new THREE.Vector3(0, 1, 0); 
-            const quaternion = new THREE.Quaternion().setFromUnitVectors(upVector, normal);
+            //const normal = new THREE.Vector3().fromArray(path.n[yindex]);
+            //const upVector = new THREE.Vector3(0, 1, 0); 
+            //const quaternion = new THREE.Quaternion().setFromUnitVectors(upVector, normal);
 
             // Create a point in local space.
             const point = new THREE.Vector3(x, y, z);
             
             // Apply the 3D rotation to the point using the quaternion.
-            point.applyQuaternion(quaternion);
+            point.applyQuaternion(o.quaternion);
 
             // Apply the 3D translation from path.p[yindex]
             point.x += path.p[yindex][0];
@@ -1492,7 +1519,7 @@ function linePaths3dEx(target, path, close) {
     return meshes;
 }
 
-
+//*/
 
 
 /**
@@ -1678,15 +1705,18 @@ function rotateExtrude(config, target) {
     }
 
     // Destructure the config object with default values
-    const {
+    var {
         r: radius,
         d: diameter,
         fn = 32,
         start: startAngle = 0,
-        end: endAngle = Math.PI * 2,
+        end: endAngle = 360,
         close
     } = config || {};
-
+	
+	startAngle=startAngle/180*Math.PI;
+	endAngle=endAngle/180*Math.PI;
+	
     let actualRadius = radius;
 
     // Use diameter if radius is not provided
@@ -2063,8 +2093,8 @@ function translatePath([x, y], pathObject) {
  */
 function rotatePath(angle,pathObject) {
     const newPath = [];
-    const cos = Math.cos(angle);
-    const sin = Math.sin(angle);
+    const cos = Math.cos(angle/180*Math.PI);
+    const sin = Math.sin(angle/180*Math.PI);
     let i = 0;
     while (i < pathObject.path.length) {
         const command = pathObject.path[i];
