@@ -32,6 +32,20 @@ import {
 
 //////
 
+/*
+
+import * as THREE from 'three'
+import {
+    Brush,
+    Evaluator,
+    ADDITION,
+    SUBTRACTION,
+    INTERSECTION
+} from 'three-bvh-csg'
+import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js'
+import { api } from '../js/apiCalls.js' // Assuming apiCalls.js is in the same directory
+import { BufferGeometryUtils } from 'three/addons/utils/BufferGeometryUtils.js';
+*/
 
 //opentype is IIFE
 //settings is on globalThis
@@ -142,7 +156,21 @@ function convertGeometry(item) {
 }
 
 
-
+/**
+ * Applies a color to one or more Three.js meshes.
+ * This function can handle a single mesh, an array of meshes,
+ * or an object containing one or more mesh properties. It is
+ * designed to work with both standard THREE.Mesh objects and
+ * the Brush objects used by three-bvh-csg.
+ *
+ * @param {number|string|THREE.Color} c The color to apply.
+ * @param {THREE.Mesh|Brush|Array|Object} target The mesh(es) to color.
+ * - If a single THREE.Mesh or Brush, its material will be updated.
+ * - If an Array, it will iterate through each item, coloring only valid meshes.
+ * - If an Object, it will iterate through all properties and apply the
+ * color only to properties that are valid meshes or arrays of meshes.
+ * @returns {THREE.Mesh|Brush|Array|Object} The original input target with the new material applied.
+ */
 function color(c, target) {
     const colorVal = new THREE.Color(c)
 
@@ -164,6 +192,7 @@ function color(c, target) {
 }
 
  
+
 // --- Primitive Geometries (Corrected) ---
 function sphere({ r, d, fn } = {}) {
     if (d !== undefined) r = d / 2
@@ -368,11 +397,8 @@ function align(config = {}, target) {
  * @param {number} fn - The default number of segments for curves.
  * @returns {object} An object containing the new path with curves and lines converted to line segments.
  */
-function path3d(path) {
+function path3d(paths, fn = 30) {
     
-	const paths=path.path;
-	const fn = path.fn;
-	
     var newPath = {
         p: [], // Points
         r: [], // 2d Rotations
@@ -705,11 +731,67 @@ function arcPath3d(config) {
         path.push('l', x, y, 0);
     }
     
-    return {
-		path:path, 
-		fn:fn
-	};
+    return path3d(path, fn);
 }
+
+
+
+function line3d(target, start, end) {
+	
+	var shapes =[];
+	applyToShape(target, (item) => {
+        shapes.push(item)
+    })
+	
+	
+	
+    const meshes = [] // An array to store all the created meshes
+
+    // Iterate through each shape in the input array.
+    for (const shape of shapes) {
+        // Get the fn value from the shape's userData, defaulting to 30.
+        const fn = shape.userData && shape.userData.fn ? shape.userData.fn : 30
+
+        // Create the 3D extrusion path.
+        const extrudePath = new THREE.LineCurve3(
+            new THREE.Vector3(start[0], start[2], start[1]),
+            new THREE.Vector3(end[0], end[2], end[1])
+        )
+
+        // Manually extract points from the shape using the fn value.
+        const shapePoints = shape.extractPoints(fn)
+
+        const extrudeSettings = {
+            steps: 1,
+            bevelEnabled: false,
+            extrudePath: extrudePath
+        }
+
+        // Create a new Shape with the extracted points.
+        const extrudedShape = new THREE.Shape(shapePoints.shape)
+
+        // Add the holes, also extracting their points with the correct fn.
+        extrudedShape.holes = shapePoints.holes.map((hole) => new THREE.Path(hole))
+
+        // Create the geometry from the new shape.
+        const geometry = new THREE.ExtrudeGeometry(extrudedShape, extrudeSettings)
+
+        // Create a mesh and add it to our list.
+        const mesh = new THREE.Mesh(geometry, defaultMaterial.clone())
+        meshes.push(mesh)
+    }
+
+    // Return the array of meshes instead of a single mesh.
+    return meshes
+}
+
+
+
+//*
+
+
+
+
 
 
 
@@ -719,8 +801,8 @@ function arcPath3d(config) {
  * @param {boolean} close - A flag to indicate if the path should be closed.
  * @returns {THREE.Mesh[]} An array of THREE.js meshes.
  */
-function linePaths3d(target, commandPath, close) {
-	var path=path3d(commandPath);
+function linePaths3d(target, path, close) {
+
 	// This part of the code is not being modified, but it's included for context
     var shapes =[];
     applyToShape(target, (item) => {
@@ -815,8 +897,8 @@ function linePaths3d(target, commandPath, close) {
  * @returns {THREE.Mesh[]} An array of THREE.js meshes.
  */
  
-function linePaths3dEx(target, commandPath, close) {
-	var path=path3d(commandPath);
+function linePaths3dEx(target, path, close) {
+
 	// This part of the code is not being modified, but it's included for context
     var shapes =[];
     applyToShape(target, (item) => {
@@ -2196,7 +2278,7 @@ function generateUVs(geometry) {
  * @param {string} filePath - The path to the STL file.
  * @returns {Promise<Brush>} A Promise resolving to a Brush object.
  */
-async function importStl(filePath) {
+export async function importStl(filePath) {
     try {
         const buffer = await api.readFileBinary($path(filePath));
         
@@ -2239,7 +2321,7 @@ async function importStl(filePath) {
  * @param {THREE.Material} defaultMaterial - The default material to apply to all meshes.
  * @returns {Promise<Brush[]>} A promise that resolves to an array of Brush objects.
  */
-async function importGlb(filePath) {
+export async function importGlb(filePath) {
     try {
         const buffer = await api.readFileBinary($path(filePath));
         const loader = new GLTFLoader();
@@ -2396,8 +2478,9 @@ const _exportedFunctions = {
     floor,
     convexHull,
     align,
-	//path3d,
+	path3d,
 	arcPath3d,
+    line3d,
     linePaths3d,
 	linePaths3dEx,
     scaleTo,
