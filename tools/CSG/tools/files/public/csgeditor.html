@@ -287,10 +287,36 @@
 
  
  
- return await importStl("/try1/try1.json.stl");
+ 
+ var tri = shape({
+	 path:[
+	 	"m", 0,10,
+	 	"l", 10,5, 
+	 	"l",0,0,
+		"l",0,10],
+ 		fn:40
+	}
+ )
+ 
+ var rt=arcPath3d({
+	startAng:0,
+	endAng:360,
+ 	r:10,
+	fn:300
+})
+ 
+return linePaths3d(tri, rt);
  
  
-  /*
+ return difference(
+ union(
+	await importGlb("/test/wood_box.glb")
+	),
+	sphere({r:5, fn:50})
+);
+ 
+ 
+  
  var ss=shape({
 	 path: ["m",-10,-10,"l",-10,10,"l",10,10,"l",10,-10,"l",0,0]
  });
@@ -300,14 +326,14 @@
  var p1=path3d([
 	 "s",1,1,
 	 "m", 0,0, 0,
-	 //"r",1,
-	 //"n",300,
+	 "r",90,
+	 "n",300,
 	 "l", 0,0,30]);
 	
 console.log(JSON.stringify(p1))
 
 
-return linePaths3d(ss, p1);
+return linePaths3dEx(ss, p1);
 //*/
  
  

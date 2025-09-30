@@ -17,11 +17,15 @@ import {
 } from 'three-bvh-csg';
 import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
 import { api } from './apiCalls.js' // Assuming apiCalls.js is in the same directory
-import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+//import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 
+import {
+    BufferGeometry,
+    Float32BufferAttribute
+} from 'three';
 
 
 
@@ -397,8 +401,8 @@ function path3d(paths, fn = 30) {
     
     var newPath = {
         p: [], // Points
-        r: [], // Rotations
-        s: [], // Scales
+        r: [], // 2d Rotations
+        s: [], // 2d Scales
         n: []  // Normals for cross sections.
     };
     
@@ -696,342 +700,39 @@ function path3d(paths, fn = 30) {
 
 //*/
 
+/* eslint-disable */
+function arcPath3d(config) {
+    const { startAng, endAng, fn, d } = config;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
- 
- 
- 
- 
- /*
- 
- 
- function path3d(paths, fn = 30) {
-    
-    var newPath = {
-        p: [], // Points
-        r: [], // Rotations
-        s: [], // Scales
-        n: []  // Normals for cross sections.
-    };
-    
-    // Helper function to get points at equal distance along a curve
-    const getPointsAtEqualDistance = (startPoint, endPoint, controlPoints, segments) => {
-        const getBezierPoint = (t, start, end, ...cps) => {
-            if (cps.length === 1) {
-                const cp1 = cps[0];
-                const x = (1 - t) ** 2 * start[0] + 2 * (1 - t) * t * cp1[0] + t ** 2 * end[0];
-                const y = (1 - t) ** 2 * start[1] + 2 * (1 - t) * t * cp1[1] + t ** 2 * end[1];
-                const z = (1 - t) ** 2 * start[2] + 2 * (1 - t) * t * cp1[2] + t ** 2 * end[2];
-                return [x, y, z];
-            } else if (cps.length === 2) {
-                const cp1 = cps[0];
-                const cp2 = cps[1];
-                const x = (1 - t) ** 3 * start[0] + 3 * (1 - t) ** 2 * t * cp1[0] + 3 * (1 - t) * t ** 2 * cp2[0] + t ** 3 * end[0];
-                const y = (1 - t) ** 3 * start[1] + 3 * (1 - t) ** 2 * t * cp1[1] + 3 * (1 - t) * t ** 2 * cp2[1] + t ** 3 * end[1];
-                const z = (1 - t) ** 3 * start[2] + 3 * (1 - t) ** 2 * t * cp1[2] + 3 * (1 - t) * t ** 2 * cp2[2] + t ** 3 * end[2];
-                return [x, y, z];
-            }
-        };
-
-        const points = [];
-        const highResPoints = [];
-        let totalLength = 0;
-        let prevPoint = startPoint;
-        const resolution = 1000;
-
-        for (let t = 1 / resolution; t <= 1; t += 1 / resolution) {
-            const point = getBezierPoint(t, startPoint, endPoint, ...controlPoints);
-            const dist = Math.hypot(point[0] - prevPoint[0], point[1] - prevPoint[1], point[2] - prevPoint[2]);
-            totalLength += dist;
-            highResPoints.push(point);
-            prevPoint = point;
-        }
-
-        const segmentLength = totalLength / segments;
-        let accumulatedLength = 0;
-        let currentPointIndex = 0;
-        let lastPoint = startPoint;
-
-        for (let j = 0; j < segments; j++) {
-            const targetLength = (j + 1) * segmentLength;
-            while (accumulatedLength < targetLength && currentPointIndex < highResPoints.length) {
-                const nextPoint = highResPoints[currentPointIndex];
-                const dist = Math.hypot(nextPoint[0] - lastPoint[0], nextPoint[1] - lastPoint[1], nextPoint[2] - lastPoint[2]);
-                accumulatedLength += dist;
-                lastPoint = nextPoint;
-                currentPointIndex++;
-
-                if (accumulatedLength >= targetLength) {
-                    const overshoot = accumulatedLength - targetLength;
-                    const undershoot = dist - overshoot;
-                    const ratio = undershoot / dist;
-                    const prevPoint = highResPoints[currentPointIndex - 2] || startPoint;
-                    const interpolatedPoint = [
-                        prevPoint[0] + ratio * (nextPoint[0] - prevPoint[0]),
-                        prevPoint[1] + ratio * (nextPoint[1] - prevPoint[1]),
-                        prevPoint[2] + ratio * (nextPoint[2] - prevPoint[2]),
-                    ];
-                    points.push(interpolatedPoint);
-                    break;
-                }
-            }
-        }
-        return points;
-    };
-    
-    var cp = [0, 0, 0];
-    var cr = 0;
-    var cs = [1, 1];
-    var cn = 1;
-    var i = 0;
-
-    var atp;
-    var atr = 0;
-    var ats = [1, 1];
-    var atn = 1;
-
-    // Main processing loop
-    while (i < paths.length) {
-        const command = paths[i];
-
-        switch (command) {
-            case 'm':
-                cp = [paths[i + 1], paths[i + 3], paths[i + 2]];
-                newPath.p.push([...cp]);
-                newPath.r.push(cr);
-                newPath.s.push([...cs]);
-                i += 4;
-                break;
-
-            case 'l':
-                atp = [paths[i + 1], paths[i + 3], paths[i + 2]];
-
-                if (atn === 1) {
-                    newPath.p.push([...atp]);
-                    newPath.r.push(atr);
-                    newPath.s.push([...ats]);
-                } else {
-                    for (let v = 1; v <= atn; v++) {
-                        const t = v / atn;
-                        const ix = cp[0] * (1 - t) + atp[0] * t;
-                        const iy = cp[1] * (1 - t) + atp[1] * t;
-                        const iz = cp[2] * (1 - t) + atp[2] * t;
-                        const ir = cr * (1 - t) + atr * t;
-                        const isx = cs[0] * (1 - t) + ats[0] * t;
-                        const isy = cs[1] * (1 - t) + ats[1] * t;
-                        const newPoint = [ix, iy, iz];
-
-                        newPath.p.push([...newPoint]);
-                        newPath.r.push(ir);
-                        newPath.s.push([isx, isy]);
-                    }
-                }
-
-                cp = atp;
-                cr = atr;
-                cs = ats;
-                atn = 1;
-                i += 4;
-                break;
-
-            case 'r':
-                atr = paths[i + 1];
-                i += 2;
-                break;
-
-            case 's':
-                ats = [paths[i + 1], paths[i + 2]];
-                i += 3;
-                break;
-
-            case 'n':
-                atn = paths[i + 1];
-                i += 2;
-                break;
-
-            case 'q': {
-                const endPoint_q = [paths[i + 4], paths[i + 6], paths[i + 5]];
-                const controlPoints_q = [[paths[i + 1], paths[i + 3], paths[i + 2]]];
-                const segmentsToUse = (atn > 1) ? atn : fn;
-                const segmentPoints_q = getPointsAtEqualDistance(cp, endPoint_q, controlPoints_q, segmentsToUse);
-
-                segmentPoints_q.forEach((p, j) => {
-                    const t = (j + 1) / segmentsToUse;
-                    const interpolatedRotation = cr * (1 - t) + atr * t;
-                    const interpolatedScale = [cs[0] * (1 - t) + ats[0] * t, cs[1] * (1 - t) + ats[1] * t];
-                    
-                    newPath.p.push([...p]);
-                    newPath.r.push(interpolatedRotation);
-                    newPath.s.push([...interpolatedScale]);
-                });
-
-                cp = endPoint_q;
-                cr = atr;
-                cs = ats;
-                atn = 1;
-                i += 7;
-                break;
-            }
-
-            case 'c': {
-                const endPoint_c = [paths[i + 7], paths[i + 9], paths[i + 8]];
-                const controlPoints_c = [
-                    [paths[i + 1], paths[i + 3], paths[i + 2]],
-                    [paths[i + 4], paths[i + 6], paths[i + 5]]
-                ];
-                const segmentsToUse = (atn > 1) ? atn : fn;
-                const segmentPoints_c = getPointsAtEqualDistance(cp, endPoint_c, controlPoints_c, segmentsToUse);
-
-                segmentPoints_c.forEach((p, j) => {
-                    const t = (j + 1) / segmentsToUse;
-                    const interpolatedRotation = cr * (1 - t) + atr * t;
-                    const interpolatedScale = [cs[0] * (1 - t) + ats[0] * t, cs[1] * (1 - t) + ats[1] * t];
-
-                    newPath.p.push([...p]);
-                    newPath.r.push(interpolatedRotation);
-                    newPath.s.push([...interpolatedScale]);
-                });
-
-                cp = endPoint_c;
-                cr = atr;
-                cs = ats;
-                atn = 1;
-                i += 10;
-                break;
-            }
-
-            default:
-                console.warn(`Unknown path command: ${command}`);
-                i = paths.length;
-                break;
-        }
+    // Determine radius from either 'd' (diameter) or 'r' (radius)
+    let radius;
+    if (d !== undefined) {
+        radius = d / 2;
+    } else {
+        radius = config.r;
     }
 
-	
-	
-	//vector math for 3d .
-	function vsub(p1, p2)
-	{
-		return [p1[0]-p2[0],p1[1]-p2[1],p1[2]-p2[2]];
-		
-	}
-	
-	function vadd(p1, p2)
-	{
-		return [p1[0]+p2[0],p1[1]+p2[1],p1[2]+p2[2]];
-		
-	}
-	
-	function vdot(p1, p2)
-	{
-		return p1[0]*p2[0] + p1[1]*p2[1] + p1[2]*p2[2]
-	}
-	function vnormalize(p)
-	{
-		var l=Math.sqrt(vdot(p,p));
-		return [p[0]/l, p[1]/l, p[2]/l];
-	}
-	
-	function vabs(p)
-	{
-		return(Math.abs(p[0]), Math.abs(p[1]),Math.abs(p[2]))
-	}
-	
-    // New section to calculate tangents after all points are generated
-    // Helper function to calculate a vector's normal in the XY plane
-    const calculateNormal = (p0, p1, p2) => {
-        //p0 is precious point if undefined then itnis a start end point
-		if(p0 == undefined)
-		{
-			
-			return vnormalize(vsub(p2,p1));
-		}
-		else if (p2 == undefined)
-		{
-			
-			return vnormalize(vsub(p1,p0));
-		}
-		else
-		{
-			var v1=vsub(p1,p0);//[p1[0]-p0[0], p1[1]-p0[1], p1[2]-p0[2]];
-			var v2=vsub(p2,p1);//[p2[0]-p1[0], p2[1]-p1[1], p2[2]-p1[2]];
-			
-			return vnormalize(vadd(v1,v2));
-		}
-		
-    };
-	
-	
-	var isClosed =false;
-	var fp=newPath.p[0];
-	var lp=newPath.p[newPath.p.length-1];
-	//check if first and last are at the same points. 
-	var check=vabs(vsub(fp,lp))//[fp[0]-lp[0],fp[1]-lp[1],fp[2]-lp[2]];
-	const tol=0.001;
-	if(check[0] <= tol && check[1]<=tol&& check[2]<=tol)
-	{
-		isClosed =true;
-	}
-	console.log("isClosed:"+isClosed)
+    const degToRad = (degrees) => degrees * Math.PI / 180;
+    const startRad = degToRad(startAng);
+    const endRad = degToRad(endAng);
 
-	if(isClosed) 
-	{
-		newPath.n.push(calculateNormal(lp,  fp, newPath.p[1]))
-	}
-	else
-	{
-		newPath.n.push(calculateNormal(undefined,  fp, newPath.p[1]))
-	}
-    // Iterate through the final path points to calculate tangents
-    for (let j = 1; j < newPath.p.length - 1; j++) {
-        const p0 = newPath.p[j-1];
-		const p1 = newPath.p[j];
-        const p2 = newPath.p[j + 1];
-        newPath.n.push(calculateNormal(p0, p1, p2));
+    const path = [];
+    const segments = fn || 30;
+
+    const startX = radius * Math.cos(startRad);
+    const startY = radius * Math.sin(startRad);
+    path.push('m', startX, 0, startY);
+
+    for (let i = 1; i <= segments; i++) {
+        const t = i / segments;
+        const currentRad = startRad + (endRad - startRad) * t;
+        const x = radius * Math.cos(currentRad);
+        const y = radius * Math.sin(currentRad);
+        path.push('l', x, y, 0);
     }
-
-    if(isClosed) 
-	{
-		newPath.n.push(calculateNormal(lp,  fp, newPath.p[1]))
-	}
-	else
-	{
-		newPath.n.push(calculateNormal(newPath.p[newPath.p.length-2],  lp, undefined))
-	}
-	
-	
-	
-
-    return newPath;
+    
+    return path3d(path, fn);
 }
-
- 
- //*/
-
-
-
-
-
 
 
 
@@ -1091,171 +792,7 @@ function line3d(target, start, end) {
 
 
 
-/*
 
-function linePaths3d(target, path, close) {
-
-	//starting to creat all meshes for using y as an index. 
-	var shapes =[];
-	applyToShape(target, (item) => {
-        shapes.push(item)
-    })
-	
-	
-	var points3d=[];//path.p.flat();
-	for(var i=0; i< path.p.length;i++) 
-	{
-		points3d.push(...[0,0,i]);
-	}
-	
-	
-	const meshes = []; // An array to store all the created meshes
-
-    if (!points3d || points3d.length < 6) {
-        console.warn(
-            'linePaths3d requires at least 6 numbers (2 points) for the 3D extrusion path.'
-        );
-        return null;
-    }
-
-    const extrudePath = new THREE.CurvePath();
-
-    // Iterate through the flattened array, jumping by 3 for each point
-    for (let i = 0; i < points3d.length - 3; i += 3) {
-        const startPointIndex = i;
-        const endPointIndex = i + 3;
-
-        const startVector = new THREE.Vector3(
-            points3d[startPointIndex],
-            points3d[startPointIndex + 2],
-            points3d[startPointIndex + 1]
-        );
-        const endVector = new THREE.Vector3(
-            points3d[endPointIndex],
-            points3d[endPointIndex + 2],
-            points3d[endPointIndex + 1]
-        );
-
-        extrudePath.add(new THREE.LineCurve3(startVector, endVector));
-    }
-
-    // Add a closing segment if the 'close' parameter is true
-    if (close && points3d.length > 6) {
-        const startPointIndex = points3d.length - 3;
-        const endPointIndex = 0;
-
-        const startVector = new THREE.Vector3(
-            points3d[startPointIndex],
-            points3d[startPointIndex + 2],
-            points3d[startPointIndex + 1]
-        );
-        const endVector = new THREE.Vector3(
-            points3d[endPointIndex],
-            points3d[endPointIndex + 2],
-            points3d[endPointIndex + 1]
-        );
-
-        extrudePath.add(new THREE.LineCurve3(startVector, endVector));
-    }
-    
-    // Calculate the number of points for the steps parameter
-    const numPoints = points3d.length / 3;
-
-    const extrudeSettings = {
-        // Adjust steps for the new segment if 'close' is true
-        steps: close ? numPoints : numPoints - 1,
-        bevelEnabled: false,
-        extrudePath: extrudePath
-    };
-
-    // Iterate through each shape in the input array.
-    for (const shape of shapes) {
-        // Get the fn value from the shape's userData, defaulting to 30.
-        const fn = shape.userData && shape.userData.fn ? shape.userData.fn : 30;
-
-        // Manually extract points from the shape using the fn value.
-        const shapePoints = shape.extractPoints(fn);
-
-        // Create a new Shape with the extracted points.
-        const extrudedShape = new THREE.Shape(shapePoints.shape);
-
-        // Add the holes, also extracting their points with the correct fn.
-        extrudedShape.holes = shapePoints.holes.map((hole) => new THREE.Path(hole));
-
-        // Create the geometry from the new shape.
-        const geometry = new THREE.ExtrudeGeometry(extrudedShape, extrudeSettings);
-
-        // Create a mesh and add it to our list.
-        const mesh = new THREE.Mesh(geometry, defaultMaterial.clone());
-        meshes.push(mesh);
-    }
-	
-	
-	
-	 
-	//create a section tangent normals/ average tangent normals index array for rotating points
-	//var tangenNormalsRotation=[];
-	
-	// set the yindex to reference in indexRef;  references;
-	for (const mesh of meshes) {
-		const sp = mesh.geometry.attributes.position;
-		for(var i =0; i< sp.count; i++)
-		{
-			var yindex=sp.getY(i);
-			
-			//console.log("yindex:"+yindex);
-			
-			//indexRef[yindex].push(i);
-			var x = sp.getX(i);
-			var y = 0; // this is set to 0 to flatten out the cross section.
-			var z= sp.getZ(i);
-			
-			//this is a 2d scale, using the 3d printer cordinates. so the y z are flipped.
-			//apply path.s for scale
-			x = x * path.s[yindex][0];
-			z = z * path.s[yindex][1];
-			
-			
-			
-			// write out the same for path.r for 2d rotation on x and z.
-			//this needs completed ise path.r[yindex]
-			// Apply 2D rotation on X and Z
-			const rotation = path.r[yindex];
-			const cosR = Math.cos(rotation);
-			const sinR = Math.sin(rotation);
-			
-			const rotatedX = x * cosR - z * sinR;
-			const rotatedZ = x * sinR + z * cosR;
-			
-			x = rotatedX;
-			z = rotatedZ;
-			
-			//complete apply the 3d rotation from the tangenNormalsRotation on x y z.
-			// this need to be completed. use path.t[yindex] for this.
-			
-			//apply 3d translation from path.p[yindex] for x y and z
-			x+=path.p[yindex][0];
-			y+=path.p[yindex][1];
-			z+=path.p[yindex][2];
-			
-			
-			sp.setX(i, x);
-			sp.setY(i, y);
-			sp.setZ(i, z);
-			
-			
-		}
-		
-	}
-	
-	
-	
-	
-
-    // Return the array of meshes.
-    return meshes;
-}
-//*/
 
 
 /**
@@ -1349,11 +886,6 @@ function linePaths3d(target, path, close) {
     // Return the array of meshes.
     return meshes;
 }
-
-
-
-
-
 
 
 
@@ -1529,234 +1061,6 @@ function linePaths3dEx(target, path, close) {
 //*/
 
 
-/**
- * @param {object} target - The parent object to which the shapes are applied.
- * @param {object} path - The pre-processed path data containing points, rotations, and normals.
- * @param {boolean} close - A flag to indicate if the path should be closed.
- * @returns {THREE.Mesh[]} An array of THREE.js meshes.
- */
- /*   goooos
-function linePaths3dEx(target, path, close) {
-
-	// This part of the code is not being modified, but it's included for context
-    var shapes =[];
-    applyToShape(target, (item) => {
-        shapes.push(item)
-    })
-    
-    var points3d=[];
-    for(var i=0; i< path.p.length;i++) 
-    {
-        points3d.push(...[0,0,i]);
-    }
-    
-    const meshes = []; // An array to store all the created meshes
-
-    if (!points3d || points3d.length < 6) {
-        console.warn(
-            'linePaths3d requires at least 6 numbers (2 points) for the 3D extrusion path.'
-        );
-        return null;
-    }
-
-    const extrudePath = new THREE.CurvePath();
-
-    // Iterate through the flattened array, jumping by 3 for each point
-    for (let i = 0; i < points3d.length - 3; i += 3) {
-        const startPointIndex = i;
-        const endPointIndex = i + 3;
-
-        const startVector = new THREE.Vector3(
-            points3d[startPointIndex],
-            points3d[startPointIndex + 2],
-            points3d[startPointIndex + 1]
-        );
-        const endVector = new THREE.Vector3(
-            points3d[endPointIndex],
-            points3d[endPointIndex + 2],
-            points3d[endPointIndex + 1]
-        );
-
-        extrudePath.add(new THREE.LineCurve3(startVector, endVector));
-    }
-
-    // Add a closing segment if the 'close' parameter is true
-    if (close && points3d.length > 6) {
-        const startPointIndex = points3d.length - 3;
-        const endPointIndex = 0;
-
-        const startVector = new THREE.Vector3(
-            points3d[startPointIndex],
-            points3d[startPointIndex + 2],
-            points3d[startPointIndex + 1]
-        );
-        const endVector = new THREE.Vector3(
-            points3d[endPointIndex],
-            points3d[endPointIndex + 2],
-            points3d[endPointIndex + 1]
-        );
-
-        extrudePath.add(new THREE.LineCurve3(startVector, endVector));
-    }
-    
-    const numPoints = points3d.length / 3;
-
-    const extrudeSettings = {
-        steps: close ? numPoints : numPoints - 1,
-        bevelEnabled: false,
-        extrudePath: extrudePath
-    };
-
-    for (const shape of shapes) {
-        const fn = shape.userData && shape.userData.fn ? shape.userData.fn : 30;
-        const shapePoints = shape.extractPoints(fn);
-        const extrudedShape = new THREE.Shape(shapePoints.shape);
-        extrudedShape.holes = shapePoints.holes.map((hole) => new THREE.Path(hole));
-        const geometry = new THREE.ExtrudeGeometry(extrudedShape, extrudeSettings);
-        const mesh = new THREE.Mesh(geometry, defaultMaterial.clone());
-        meshes.push(mesh);
-    }
-    
-    // The completed section starts here.
-    for (const mesh of meshes) {
-        const sp = mesh.geometry.attributes.position;
-        for(var i =0; i< sp.count; i++) {
-            var yindex=sp.getY(i);
-            
-            var x = sp.getX(i);
-            var y = 0; // This is set to 0 to flatten out the cross section.
-            var z = sp.getZ(i);
-
-            // Apply path.s for scale
-            x = x * path.s[yindex][0];
-            z = z * path.s[yindex][1];
-            
-            // Apply 2D rotation on X and Z
-            const rotation = path.r[yindex];
-            const cosR = Math.cos(rotation);
-            const sinR = Math.sin(rotation);
-            
-            let rotatedX = x * cosR - z * sinR;
-            let rotatedZ = x * sinR + z * cosR;
-            
-            x = rotatedX;
-            z = rotatedZ;
-            
-            // Apply 3D rotation from the normals on x, y, z.
-            // This is the main part to be completed.
-                        // Apply 3D rotation from the normals on x, y, z.
-            // This is the main part to be completed.
-            
-			
-			            // Apply 3D rotation from the normals on x, y, z.
-            // This is the main part to be completed.
-            const normal = new THREE.Vector3().fromArray(path.n[yindex]);
-            
-            // The tangent is derived from the path points themselves
-            let tangent;
-            if (yindex === path.p.length - 1) {
-                tangent = new THREE.Vector3().fromArray(path.p[yindex]).sub(new THREE.Vector3().fromArray(path.p[yindex-1])).normalize();
-            } else {
-                tangent = new THREE.Vector3().fromArray(path.p[yindex + 1]).sub(new THREE.Vector3().fromArray(path.p[yindex])).normalize();
-            }
-
-            // Create a rotation matrix from the normal and tangent vectors
-            const upVector = new THREE.Vector3(0,1, 0); // A generic "up" direction
-            const quaternion = new THREE.Quaternion().setFromUnitVectors(upVector, normal);
-            const matrix = new THREE.Matrix4().makeRotationFromQuaternion(quaternion);
-
-            const position = new THREE.Vector3(x, y, z);
-            position.applyMatrix4(matrix);
-
-            // Apply the path's 2D rotation
-            const rotationMatrix = new THREE.Matrix4().makeRotationAxis(normal, rotation);
-            position.applyMatrix4(rotationMatrix);
-
-			//not workong
-            x = position.x;
-            y = position.y;
-            z = position.z;
-
-            
-
-            // Apply 3D translation from path.p[yindex] for x, y, and z.
-            x += path.p[yindex][0];
-            y += path.p[yindex][1];
-            z += path.p[yindex][2];
-            
-            sp.setX(i, x);
-            sp.setY(i, y);
-            sp.setZ(i, z);
-        }
-    }
-    
-    // Return the array of meshes.
-    return meshes;
-}
-//*/
-
-
-
-
-//*/
-
-
-
-
-function rotateExtrude(config, target) {
-    
-    // Validate the target
-    if (!target) {
-        console.warn('rotateExtrude requires a valid target shape.');
-        return null;
-    }
-
-    // Destructure the config object with default values
-    var {
-        r: radius,
-        d: diameter,
-        fn = 32,
-        start: startAngle = 0,
-        end: endAngle = 360,
-        close
-    } = config || {};
-	
-	startAngle=startAngle/180*Math.PI;
-	endAngle=endAngle/180*Math.PI;
-	
-    let actualRadius = radius;
-
-    // Use diameter if radius is not provided
-    if (diameter !== undefined && radius === undefined) {
-        actualRadius = diameter / 2;
-    }
-
-    // Ensure we have a valid radius
-    if (actualRadius === undefined) {
-        console.warn('rotateExtrude requires a radius (r) or diameter (d) parameter.');
-        return null;
-    }
-    
-    const segments = fn;
-    const angleIncrement = (endAngle - startAngle) / segments;
-
-    // Create the circular path points for extrusion
-    const points3d = [];
-    for (let i = 0; i <= segments; i++) {
-        const angle = startAngle + i * angleIncrement;
-        const x = Math.cos(angle) * actualRadius;
-        const z = Math.sin(angle) * actualRadius;
-
-        // Push the 3D point [x, y, z]. Rotation is on the XZ plane.
-        points3d.push([x, 0, z]);
-    }
-    
-    // The close parameter for linePaths3d is now controlled by the config.
-    // If it's not provided, we fall back to the automatic check.
-    const isClosed = close !== undefined ? close : (Math.abs(endAngle - startAngle) >= (Math.PI * 2) - 0.001);
-    
-    return linePaths3d(target, points3d, isClosed);
-}
 
 
 
@@ -2866,20 +2170,136 @@ function text(textData) {
 }
 
 
+// A new ASCII STL parser that ignores normals and just gets vertices
+function parseAsciiStl(text) {
+    const vertices = [];
+    const lines = text.split('\n');
 
- // Loads an STL file and returns a THREE.Mesh object.
- // @param {string} filePath - The path to the STL file.
- // @returns {Promise<THREE.Mesh>} A promise that resolves to the loaded mesh object.
- 
-async function importStl(filePath) {
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (line.startsWith('vertex')) {
+            const parts = line.split(/\s+/);
+            vertices.push(
+                parseFloat(parts[1]),
+                parseFloat(parts[2]),
+                parseFloat(parts[3])
+            );
+        }
+    }
+
+    if (vertices.length === 0) {
+        throw new Error("No vertices found in the ASCII STL file.");
+    }
+
+    const geometry = new BufferGeometry();
+    geometry.setAttribute('position', new Float32BufferAttribute(vertices, 3));
+    
+    // Recalculate normals to ensure they're consistent and correct for the geometry
+    geometry.computeVertexNormals(); 
+    
+    // Generate and add UV data
+    generateUVs(geometry);
+
+    return geometry;
+}
+
+// A new binary STL parser that ignores normals and just gets vertices
+function parseBinaryStl(buffer) {
+    const dataView = new DataView(buffer);
+    let offset = 80;
+
+    const triangleCount = dataView.getUint32(offset, true);
+    offset += 4;
+
+    const vertices = new Float32Array(triangleCount * 3 * 3);
+    let vertexIndex = 0;
+
+    for (let i = 0; i < triangleCount; i++) {
+        offset += 12; // Skip the 12-byte normal vector
+
+        vertices[vertexIndex++] = dataView.getFloat32(offset, true);
+        offset += 4;
+        vertices[vertexIndex++] = dataView.getFloat32(offset, true);
+        offset += 4;
+        vertices[vertexIndex++] = dataView.getFloat32(offset, true);
+        offset += 4;
+
+        vertices[vertexIndex++] = dataView.getFloat32(offset, true);
+        offset += 4;
+        vertices[vertexIndex++] = dataView.getFloat32(offset, true);
+        offset += 4;
+        vertices[vertexIndex++] = dataView.getFloat32(offset, true);
+        offset += 4;
+
+        vertices[vertexIndex++] = dataView.getFloat32(offset, true);
+        offset += 4;
+        vertices[vertexIndex++] = dataView.getFloat32(offset, true);
+        offset += 4;
+        vertices[vertexIndex++] = dataView.getFloat32(offset, true);
+        offset += 4;
+
+        offset += 2; // Skip the 2-byte attribute byte count
+    }
+
+    const geometry = new BufferGeometry();
+    geometry.setAttribute('position', new Float32BufferAttribute(vertices, 3));
+    
+    // Recalculate normals
+    geometry.computeVertexNormals();
+    
+    // Generate and add UV data
+    generateUVs(geometry);
+
+    return geometry;
+}
+
+// Function to generate a simple planar UV map
+function generateUVs(geometry) {
+    const positions = geometry.attributes.position.array;
+    const uvArray = new Float32Array(positions.length / 3 * 2);
+    const box = new THREE.Box3().setFromBufferAttribute(geometry.attributes.position);
+    const size = box.getSize(new THREE.Vector3());
+    
+    // A simple planar projection based on the bounding box
+    for (let i = 0; i < positions.length / 3; i++) {
+        const x = positions[i * 3];
+        const y = positions[i * 3 + 1];
+        const z = positions[i * 3 + 2];
+        
+        uvArray[i * 2] = (x - box.min.x) / size.x;
+        uvArray[i * 2 + 1] = (y - box.min.y) / size.y;
+    }
+    
+    geometry.setAttribute('uv', new Float32BufferAttribute(uvArray, 2));
+}
+
+/**
+ * Imports an STL file (binary or ASCII) and returns a three-bvh-csg Brush.
+ * @param {string} filePath - The path to the STL file.
+ * @returns {Promise<Brush>} A Promise resolving to a Brush object.
+ */
+export async function importStl(filePath) {
     try {
         const buffer = await api.readFileBinary($path(filePath));
-        const loader = new STLLoader();
-        const geometry = loader.parse(buffer);
-        const material = new THREE.MeshNormalMaterial();
-        const mesh = new THREE.Mesh(geometry, material);
-        console.log(`Successfully loaded STL from ${filePath}`);
-        return mesh;
+        
+        const header = new TextDecoder().decode(buffer.slice(0, 5));
+        let geometry;
+
+        if (header.toLowerCase() === 'solid') {
+            const text = new TextDecoder().decode(buffer);
+            geometry = parseAsciiStl(text);
+        } else {
+            geometry = parseBinaryStl(buffer);
+        }
+
+        if (!geometry.attributes.position || !geometry.attributes.uv) {
+            throw new Error("Parsed geometry is missing required attributes (position or uv).");
+        }
+
+        //const brush = new Brush(geometry);
+        //return brush;
+		return new THREE.Mesh(geometry, defaultMaterial.clone())
+
     } catch (error) {
         console.error('STL loading error:', error);
         throw error;
@@ -2888,36 +2308,109 @@ async function importStl(filePath) {
 
 
 
- // Loads a GLTF or GLB file and returns a THREE.Group or THREE.Scene object.
- // @param {string} filePath - The path to the GLTF/GLB file.
- //@returns {Promise<THREE.Group|THREE.Scene>} A promise that resolves to the loaded scene.
- 
-async function importGltf(filePath) {
+
+
+
+
+
+
+/**
+ * Loads a GLB file and returns an array of three-bvh-csg Brush objects.
+ * It removes all textures and applies a clone of the default material.
+ * @param {string} filePath - The path to the GLB file.
+ * @param {THREE.Material} defaultMaterial - The default material to apply to all meshes.
+ * @returns {Promise<Brush[]>} A promise that resolves to an array of Brush objects.
+ */
+export async function importGlb(filePath) {
     try {
         const buffer = await api.readFileBinary($path(filePath));
         const loader = new GLTFLoader();
-        // The GLTFLoader's .parse method expects an ArrayBuffer
-        const gltf = await loader.parse(buffer, '', (gltf) => gltf);
-        console.log(`Successfully loaded GLTF/GLB from ${filePath}`);
-        return gltf.scene; // Often you want to add the entire scene
+
+        // Wrap the callback-based loader.parse in a Promise
+        const gltf = await new Promise((resolve, reject) => {
+            loader.parse(buffer, '', resolve, reject);
+        });
+
+        console.log(`Successfully loaded GLB from ${filePath}`);
+
+        const brushes = [];
+        // Traverse the loaded scene to find all meshes
+        gltf.scene.traverse(child => {
+            if (child.isMesh) {
+                const geometry = child.geometry;
+                
+                // Ensure the geometry has all the attributes required by three-bvh-csg
+                if (!geometry.attributes.position || !geometry.attributes.normal || !geometry.attributes.uv) {
+                    console.warn(`Mesh in GLB file is missing required attributes. Attempting to generate them.`);
+                    
+                    // Recalculate normals if they're missing
+                    if (!geometry.attributes.normal) {
+                        geometry.computeVertexNormals();
+                    }
+                    
+                    // Generate simple planar UVs if they're missing
+                    if (!geometry.attributes.uv) {
+                        generateUVs(geometry);
+                    }
+                }
+				console.log("here: "+defaultMaterial)
+                
+                // Create a new Brush object from the mesh's geometry and a cloned default material
+                const brush = new Brush(geometry, defaultMaterial.clone());
+                
+                // Copy the mesh's original transform (position, rotation, scale) to the brush
+                brush.position.copy(child.position);
+                brush.quaternion.copy(child.quaternion);
+                brush.scale.copy(child.scale);
+                
+                brushes.push(brush);
+            }
+        });
+
+        if (brushes.length === 0) {
+            throw new Error("No meshes found in the GLB file.");
+        }
+
+        return brushes;
+
     } catch (error) {
-        console.error('GLTF/GLB loading error:', error);
+        console.error('GLB loading error:', error);
         throw error;
     }
 }
 
 
- // Loads an OBJ file and returns a THREE.Group or THREE.Object3D.
- // @param {string} filePath - The path to the OBJ file.
- //@returns {Promise<THREE.Group>} A promise that resolves to the loaded object.
 
 async function importObj(filePath) {
     try {
         const text = await api.readFileBinary($path(filePath));
         const loader = new OBJLoader();
         const object = loader.parse(new TextDecoder().decode(text));
-        console.log(`Successfully loaded OBJ from ${filePath}`);
-        return object;
+
+        const brushes = [];
+        object.traverse(child => {
+            if (child.isMesh) {
+                const geometry = child.geometry;
+                if (!geometry.attributes.position || !geometry.attributes.normal || !geometry.attributes.uv) {
+                    geometry.computeVertexNormals();
+                    if (!geometry.attributes.uv) {
+                        generateUVs(geometry);
+                    }
+                }
+                const brush = new Brush(child.geometry, child.material);
+                brush.position.copy(child.position);
+                brush.quaternion.copy(child.quaternion);
+                brush.scale.copy(child.scale);
+                brushes.push(brush);
+            }
+        });
+
+        if (brushes.length === 0) {
+            throw new Error("No meshes found in the OBJ file.");
+        }
+
+        return brushes;
+
     } catch (error) {
         console.error('OBJ loading error:', error);
         throw error;
@@ -2926,22 +2419,42 @@ async function importObj(filePath) {
 
 
 
-// Loads an FBX file and returns a THREE.Group or THREE.Object3D.
-// @param {string} filePath - The path to the FBX file.
-// @returns {Promise<THREE.Group>} A promise that resolves to the loaded object.
- 
 async function importFbx(filePath) {
     try {
         const buffer = await api.readFileBinary($path(filePath));
         const loader = new FBXLoader();
         const object = loader.parse(buffer, '');
-        console.log(`Successfully loaded FBX from ${filePath}`);
-        return object;
+
+        const brushes = [];
+        object.traverse(child => {
+            if (child.isMesh) {
+                const geometry = child.geometry;
+                if (!geometry.attributes.position || !geometry.attributes.normal || !geometry.attributes.uv) {
+                    geometry.computeVertexNormals();
+                    if (!geometry.attributes.uv) {
+                        generateUVs(geometry);
+                    }
+                }
+                const brush = new Brush(child.geometry, child.material);
+                brush.position.copy(child.position);
+                brush.quaternion.copy(child.quaternion);
+                brush.scale.copy(child.scale);
+                brushes.push(brush);
+            }
+        });
+
+        if (brushes.length === 0) {
+            throw new Error("No meshes found in the FBX file.");
+        }
+
+        return brushes;
+
     } catch (error) {
         console.error('FBX loading error:', error);
         throw error;
     }
 }
+
 
 
 //*/
@@ -2966,10 +2479,10 @@ const _exportedFunctions = {
     convexHull,
     align,
 	path3d,
+	arcPath3d,
     line3d,
     linePaths3d,
 	linePaths3dEx,
-	rotateExtrude,
     scaleTo,
     show,
     hide,
@@ -2982,7 +2495,7 @@ const _exportedFunctions = {
 	alignPath,
     shape,
 	importStl,
-	importGltf,
+	importGlb,
 	importObj,
 	importFbx
 }

@@ -211,6 +211,7 @@
                     <li><a href="#path-commands">Path Commands Reference</a></li>
                     <li><a href="#path-usage">Creating and Using Paths</a></li>
                     <li><a href="#auto-hole">Advanced: Automatic Hole Detection</a></li>
+                    <li><a href="#arcpath3d"><code>arcPath3d()</code></a></li>
                     <li><a href="#path-examples">Examples</a></li>
                 </ul>
             </li>
@@ -252,12 +253,10 @@
                     </li>
                     <li><a href="#3d-imports">3D Imports</a>
                         <ul>
-                            <li><a href="#import-stl"><code>importSTL()</code></a></li>
-                            <li><a href="#import-obj"><code>importOBJ()</code></a></li>
-                            <li><a href="#import-gltf"><code>importGLTF()</code></a></li>
-                            <li><a href="#import-amf"><code>importAMF()</code></a></li>
-                            <li><a href="#import-xyz"><code>importXYZ()</code></a></li>
-                            <li><a href="#import-ply"><code>importPLY()</code></a></li>
+                            <li><a href="#import-stl"><code>importStl()</code></a></li>
+                            <li><a href="#import-obj"><code>importObj()</code></a></li>
+                            <li><a href="#import-glb"><code>importGlb()</code></a></li>
+                            <li><a href="#import-fbx"><code>importFbx()</code></a></li>
                         </ul>
                     </li>
                     <li><a href="#utilities">Utility Functions</a>
@@ -743,6 +742,31 @@ const helper = include("Utils", "../shared/utils.json"); // Loads from /projects
             <li>You do <strong>not</strong> need to manually add holes to a shape. Just define all your outlines and cutouts in the <code>path</code> array, and <code>shape()</code> will figure it out.</li>
         </ul>
         <p>This makes creating complex shapes with cutouts very straightforward.</p>
+
+        <h3 id="arcpath3d"><code>arcPath3d(config)</code></h3>
+        <p>This is a helper function that generates a 3D path for `linePaths3d()` based on an arc, making it easy to create curved lines in 3D space. It handles the calculations and formatting, returning a formatted array that can be directly passed to `path3d()`.</p>
+        <h4>Config Object Parameters:</h4>
+        <ul>
+            <li><code>startAng</code>: The starting angle of the arc in **degrees**.</li>
+            <li><code>endAng</code>: The ending angle of the arc in **degrees**.</li>
+            <li><code>r</code> (or <code>d</code>): The **radius** (or **diameter**) of the arc. Use one or the other.</li>
+            <li><code>fn</code>: The number of line segments used to approximate the arc. This controls the smoothness. Default is 30.</li>
+        </ul>
+        <p>The function returns an array of path commands in the format required by `path3d()`.</p>
+        <p><strong>Example:</strong></p>
+        <pre><code>const curvedPath = arcPath3d({
+    startAng: 0,
+    endAng: 180,
+    r: 10,
+    fn: 50 // Use a high number of segments for a smooth curve
+});
+
+// The result can be used with a 2D shape to create a curved pipe
+const circleProfile = shape({ path: ['m', 1, 0, 'a', 0, 0, 1, 0, Math.PI * 2, true] });
+return line3dPathsEx({
+    shape: circleProfile,
+    points: curvedPath,
+});</code></pre>
         
         <h3 id="path-examples">Examples</h3>
 
@@ -1022,30 +1046,21 @@ return result;</code></pre>
             <p><strong>Note:</strong> All `import` functions are asynchronous and must be called with `await`.</p>
         </div>
 
-        <h4 id="import-stl"><code>importSTL(filepath)</code></h4>
+        <h4 id="import-stl"><code>importStl(filepath)</code></h4>
         <p>Loads an STL file from the specified path. This function is asynchronous and must be used with `await`.</p>
-        <p><strong>Example:</strong> <code>const myModel = await importSTL("$lib/my_part.stl");</code></p>
+        <p><strong>Example:</strong> <code>const myModel = await importStl("$lib/my_part.stl");</code></p>
 
-        <h4 id="import-obj"><code>importOBJ(filepath)</code></h4>
+        <h4 id="import-obj"><code>importObj(filepath)</code></h4>
         <p>Loads an OBJ file from the specified path. This function is asynchronous and must be used with `await`.</p>
-        <p><strong>Example:</strong> <code>const myModel = await importOBJ("/assets/model.obj");</code></p>
+        <p><strong>Example:</strong> <code>const myModel = await importObj("/assets/model.obj");</code></p>
 
-        <h4 id="import-gltf"><code>importGLTF(filepath)</code></h4>
-        <p>Loads a GLTF or GLB file from the specified path. This function is asynchronous and must be used with `await`.</p>
-        <p><strong>Example:</strong> <code>const myModel = await importGLTF("./models/sculpture.gltf");</code></p>
+        <h4 id="import-glb"><code>importGlb(filepath)</code></h4>
+        <p>Loads a GLB (binary GLTF) file from the specified path. This function is asynchronous and must be used with `await`.</p>
+        <p><strong>Example:</strong> <code>const myModel = await importGlb("./models/sculpture.glb");</code></p>
 
-        <h4 id="import-amf"><code>importAMF(filepath)</code></h4>
-        <p>Loads an AMF file from the specified path. This function is asynchronous and must be used with `await`.</p>
-        <p><strong>Example:</strong> <code>const myModel = await importAMF("https://example.com/file.amf");</code></p>
-        
-        <h4 id="import-xyz"><code>importXYZ(filepath)</code></h4>
-        <p>Loads an XYZ file (point cloud) from the specified path. This function is asynchronous and must be used with `await`.</p>
-        <p><strong>Example:</strong> <code>const myModel = await importXYZ("path/to/points.xyz");</code></p>
-
-        <h4 id="import-ply"><code>importPLY(filepath)</code></h4>
-        <p>Loads a PLY file from the specified path. This function is asynchronous and must be used with `await`.</p>
-        <p><strong>Example:</strong> <code>const myModel = await importPLY("path/to/mesh.ply");</code></p>
-
+        <h4 id="import-fbx"><code>importFbx(filepath)</code></h4>
+        <p>Loads an FBX file from the specified path. This function is asynchronous and must be used with `await`.</p>
+        <p><strong>Example:</strong> <code>const myModel = await importFbx("/assets/model.fbx");</code></p>
 
         <h3 id="utilities">Utility Functions</h3>
 
@@ -1084,140 +1099,6 @@ return result;</code></pre>
         <h4><code>text({ font, text, fontSize, fn })</code></h4>
         <p>Converts a string into a 2D path using the specified font. Returns a path data object that can be used with <code>shape()</code> or extrusion functions.</p>
         <p><strong>Example:</strong> <code>const textPath = text({ font: myFont, text: "Hello", fontSize: 5, fn: 30 });</code></p>
-    </section>
-    <hr>
-
-    <div class="nav-buttons">
-        <a href="#examples" class="nav-button">Next: Examples →</a>
-        <a href="#top" class="nav-button">↑ Top</a>
-    </div>
-
-    <section id="examples">
-        <h2>7. Examples</h2>
-        <p>Here are some complete examples to help you get started.</p>
-
-        <div class="example-block" id="example-cube">
-            <div class="example-title">Simple Cube</div>
-            <pre><code>return cube([20, 10, 5]);</code></pre>
-        </div>
-
-        <div class="example-block" id="example-sphere-on-cube">
-            <div class="example-title">Sphere on a Cube</div>
-            <pre><code>const base = cube([30, 30, 5]);
-const ball = translate([15, 15, 5], sphere({ r: 10 }));
-return union([base, ball]);</code></pre>
-        </div>
-
-        <div class="example-block" id="example-hole">
-            <div class="example-title">Hole in a Cube</div>
-            <pre><code>const block = cube([40, 40, 40]);
-const hole = translate([20, 20, 0], cylinder({ d: 20, h: 50 }));
-return difference(block, hole);</code></pre>
-        </div>
-
-        <div class="example-block" id="example-star">
-            <div class="example-title">Star with Hole (Using shape())</div>
-            <pre><code>const myStarShapeData = {
-    path: [
-        'm', 0, 10,
-        'l', 2.5, 2.5,
-        'l', 10, 2.5,
-        'l', 5, -2.5,
-        'l', 7.5, -10,
-        'l', 0, -5,
-        'l', -7.5, -10,
-        'l', -5, -2.5,
-        'l', -10, 2.5,
-        'l', -2.5, 2.5,
-        'l', 0, 10, // Closes the star path
-
-        // Start of the circular hole path
-        'm', 2, 0,
-        'a', 0, 0, 2, 0, Math.PI * 2, true // A full circle
-    ]
-};
-
-const myStarShape = shape(myStarShapeData);
-return line3d(myStarShape, [0, 0, 0], [0, 0, 5]);</code></pre>
-        </div>
-
-        <div class="example-block" id="example-text">
-            <div class="example-title">Text Extrusion</div>
-            <pre><code>// Load a font
-const f1 = await font("/fonts/advanced_dot_digital-7.ttf");
-
-// Create text path
-const ts = text({
-    font: f1,
-    text: "Hello",
-    fontSize: 5,
-    fn: 30
-});
-
-// Convert to shape and extrude
-const s1 = shape(ts);
-return line3d(s1, [0, 0, 0], [0, 0, 1]);</code></pre>
-        </div>
-
-        <div class="example-block" id="example-include">
-            <div class="example-title">Using include() for Reusable Parts</div>
-            <p><em>First, create an Editor Script tab titled "Hardware":</em></p>
-            <pre><code>function bolt(diameter, length) {
-    const head = cylinder({ d: diameter * 1.5, h: diameter * 0.5 });
-    const shaft = translate([0, 0, diameter * 0.5], cylinder({ d: diameter, h: length }));
-    return union([head, shaft]);
-}
-
-function nut(diameter) {
-    // Simple hex nut approximation
-    const hex = cylinder({ d: diameter * 1.5, h: diameter * 0.5, fn: 6 });
-    const hole = cylinder({ d: diameter, h: diameter * 0.6 });
-    return difference(hex, hole);
-}
-
-return {
-    bolt: bolt,
-    nut: nut
-};</code></pre>
-            <p><em>Then, in your CSG Script:</em></p>
-            <pre><code>const hw = include("Hardware");
-const myBolt = hw.bolt(5, 20);
-const myNut = translate([0, 0, 20], hw.nut(5));
-return union([myBolt, myNut]);</code></pre>
-        </div>
-
-        <div class="example-block" id="example-vase">
-            <div class="example-title">Rotational Extrusion (Vase)</div>
-            <pre><code>// Define a 2D profile for a vase
-const vaseProfile = {
-    path: [
-        'm', 0, 0,
-        'c', 5, 0, 5, 10, 0, 15,
-        'c', -5, 5, -5, 15, 0, 20,
-        'l', 0, 25,
-        'c', -5, 5, -5, 10, 0, 10,
-        'l', 0, -5,
-        'c', 5, 0, 5, -5, 0, -5,
-        'l', 0, -20,
-        'c', 5, -5, 5, -15, 0, -20,
-        'c', -5, -10, -5, 0, 0, 0
-    ],
-    fn: 40
-};
-
-const vaseShape = shape(vaseProfile);
-return rotateExtrude({ r: 0, fn: 64 }, vaseShape);</code></pre>
-        </div>
-
-        <div class="warning">
-            <p><strong>Important Note on Coordinates:</strong> The CSG Editor uses a Z-up coordinate system. This means:</p>
-            <ul>
-                <li>The <strong>X-axis</strong> is horizontal (left-right).</li>
-                <li>The <strong>Y-axis</strong> is depth (forward-backward).</li>
-                <li>The <strong>Z-axis</strong> is vertical (up-down).</li>
-            </ul>
-            <p>This is different from the standard Three.js Y-up system and is done to match common CAD conventions. All transformation functions (<code>translate</code>, <code>rotate</code>, <code>scale</code>) and extrusion functions account for this automatically.</p>
-        </div>
     </section>
     <hr>
 
