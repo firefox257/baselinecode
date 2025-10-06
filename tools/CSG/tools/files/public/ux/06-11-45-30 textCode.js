@@ -1,3 +1,6 @@
+
+
+
 // ./ux/textCode.js
 
 import {
@@ -218,8 +221,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
                     redoStack: []
                 }));
 
-                // Reset the current page index to the first page (0)
-                const oldPageIndex = currentPageIndex;
+                // Reset the current page index to the first page
                 currentPageIndex = 0;
 
                 // Update the UI with the first page's content and title
@@ -237,23 +239,6 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
                 updateUndoRedoButtons();
                 setCaretPosition(contentDiv, 1, 1);
                 scrollCaretIntoView(contentDiv);
-                
-                // Dispatch pagechange event if the pages array changed and the index implicitly reset
-                if (oldPageIndex !== currentPageIndex) {
-                    const detail = {
-                        valuesIndex: currentPageIndex,
-                        title: firstPage.title,
-                        content: firstPage.content
-                    };
-                    if (_onPageChangeHandler) {
-                        try {
-                            _onPageChangeHandler.call(editorContainerWrapper, detail);
-                        } catch (err) {
-                            console.error("Error executing programmatic onpagechange handler:", err);
-                        }
-                    }
-                    editorContainerWrapper.dispatchEvent(new CustomEvent('pagechange', { detail: detail, bubbles: true, composed: true }));
-                }
 
             } else {
                 console.warn("Attempted to set 'values' to a non-array value:", newValues);
@@ -281,7 +266,6 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
     let _onSaveHandler = null;
     let _onCloseHandler = null;
     let _onRunHandler = null;
-    let _onPageChangeHandler = null; // <-- NEW: Page Change Handler
 
     Object.defineProperty(editorContainerWrapper, 'oninput', {
         get() { return _onInputHandler; },
@@ -348,20 +332,6 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
         },
         configurable: true
     });
-    
-    // NEW: onpagechange property definition
-    Object.defineProperty(editorContainerWrapper, 'onpagechange', {
-        get() { return _onPageChangeHandler; },
-        set(newValue) {
-            if (typeof newValue === 'function' || newValue === null) {
-                _onPageChangeHandler = newValue;
-            } else {
-                console.warn("Attempted to set onpagechange to a non-function value:", newValue);
-            }
-        },
-        configurable: true
-    });
-
 
     // --- Helper Functions for Editor Instance ---
     const updateLineNumbers = () => {
@@ -383,68 +353,42 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
         pagesMenuDropdown.innerHTML = pages.map((p, i) => `<option value="${i}" ${i === currentPageIndex ? 'selected' : ''}>${p.title}</option>`).join('');
     };
 
-    // VITAL CHANGE IS HERE
     const switchPage = (index) => {
         if (index < 0 || index >= pages.length) return;
 
-        const oldPageIndex = currentPageIndex;
-        const isPageChanging = index !== oldPageIndex;
-        
-        // 1. Save the content of the currently active page (before the switch)
-        pages[oldPageIndex].content = contentDiv.textContent;
+        // Save the current page's content
+        pages[currentPageIndex].content = contentDiv.textContent;
 
-        // 2. Switch the index
+        // Switch to the new page
         currentPageIndex = index;
         const newPage = pages[currentPageIndex];
 
-        // 3. Restore the new page's content, history pointer, and redo stack
+        // Restore the new page's content, history pointer, and redo stack
         const stateToRestore = newPage.history[newPage.historyPointer] || {
             content: newPage.content,
-            caret: getCaretPosition(contentDiv) // Use current caret position as fallback
+            caret: {
+                line: 1,
+                column: 1,
+                charIndex: 0
+            }
         };
-        
+
         contentDiv.textContent = stateToRestore.content;
         titleTextSpan.textContent = newPage.title;
         pagesMenuTitleInput.value = newPage.title;
 
-        // 4. If the new page has no history, initialize it
+        // Apply caret position
+        setCaretPosition(contentDiv, stateToRestore.caret.line, stateToRestore.caret.column);
+
+        // If the new page has no history, initialize it
         if (newPage.history.length === 0) {
             pushToHistory(true);
         }
 
-        // 5. Update secondary UI elements
         updateLineNumbers();
         updateUndoRedoButtons();
         updatePageMenuDropdown();
-        
-        // 6. Apply caret position and scroll
-        setCaretPosition(contentDiv, stateToRestore.caret.line, stateToRestore.caret.column);
         scrollCaretIntoView(contentDiv);
-        
-        // 7. Dispatch 'pagechange' event ONLY if the index actually changed
-        if (isPageChanging) {
-            const detail = {
-                valuesIndex: currentPageIndex,
-                title: newPage.title,
-                content: newPage.content
-            };
-            
-            // 1. Programmatic Handler
-            if (_onPageChangeHandler) {
-                try {
-                    _onPageChangeHandler.call(editorContainerWrapper, detail);
-                } catch (err) {
-                    console.error("Error executing programmatic onpagechange handler:", err);
-                }
-            }
-            
-            // 2. Custom Event Dispatch
-            editorContainerWrapper.dispatchEvent(new CustomEvent('pagechange', {
-                detail: detail,
-                bubbles: true,
-                composed: true
-            }));
-        }
     };
 
     const pushToHistory = (force = false) => {
@@ -1115,3 +1059,5 @@ function observeTextcodeElements() {
 document.addEventListener('DOMContentLoaded', () => {
     observeTextcodeElements();
 });
+
+

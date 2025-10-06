@@ -247,7 +247,6 @@
                             <li><a href="#translate-section"><code>translate()</code></a></li>
                             <li><a href="#rotate-section"><code>rotate()</code></a></li>
                             <li><a href="#scale-section"><code>scale()</code></a></li>
-                            <li><a href="#scaleadd-section"><code>scaleAdd()</code></a></li>
                             <li><a href="#floor-section"><code>floor()</code></a></li>
                             <li><a href="#align-section"><code>align()</code></a></li>
                         </ul>
@@ -265,6 +264,7 @@
                             <li><a href="#shape-section"><code>shape()</code></a></li>
                             <li><a href="#linepaths3d-section"><code>linePaths3d()</code></a></li>
                             <li><a href="#linepaths3dex-section"><code>linePaths3dEx()</code></a></li>
+                            <!-- REMOVED path3d from TOC -->
                             <li><a href="#arcpath3d-func"><code>arcPath3d()</code></a></li>
                         </ul>
                     </li>
@@ -285,17 +285,7 @@
                             <li><a href="#show-hide-section"><code>show()</code> and <code>hide()</code></a></li>
                         </ul>
                     </li>
-                    <li><a href="#2d-path-manipulation">2D Path Manipulation</a>
-                        <ul>
-                            <li><a href="#translatepath-section"><code>translatePath()</code></a></li>
-                            <li><a href="#rotatepath-section"><code>rotatePath()</code></a></li>
-                            <li><a href="#scalepath-section"><code>scalePath()</code></a></li>
-                            <li><a href="#scaletopath-section"><code>scaleToPath()</code></a></li>
-                            <li><a href="#scaleaddpath-section"><code>scaleAddPath()</code></a></li>
-                            <li><a href="#alignpath-section"><code>alignPath()</code></a></li>
-                            <li><a href="#converttopath-section"><code>convertTo2d() & convertTo3d()</code></a></li>
-                        </ul>
-                    </li>
+                    <li><a href="#2d-path-manipulation">2D Path Manipulation</a></li>
                     <li><a href="#text-functions">Text Functions</a></li>
                 </ul>
             </li>
@@ -635,9 +625,9 @@ const helper = include("Utils", "../shared/utils.json"); // Loads from /projects
         <pre><code>{
     path: [
         'm', x, y,           // Move to (x, y)
-        'lr', dx, dy,        // Relative line to (dx, dy)
+        'l', x, y,           // Line to (x, y)
         'q', cx, cy, x, y,   // Quadratic Bezier curve to (x, y) with control point (cx, cy)
-        'cr', dcx1, dcy1, dcx2, dcy2, dx, dy, // Relative Cubic Bezier curve
+        'c', cx1, cy1, cx2, cy2, x, y, // Cubic Bezier curve to (x, y) with two control points (cx1, cy1) and (cx2, cy2)
         'a', cx, cy, r, startAngle, endAngle, clockwise, // Arc centered at (cx, cy) with radius r
         'e', cx, cy, rx, ry, startAngle, endAngle, clockwise // Ellipse centered at (cx, cy) with radii rx, ry
     ],
@@ -665,57 +655,32 @@ const helper = include("Utils", "../shared/utils.json"); // Loads from /projects
                 <tr>
                     <td><code>m</code></td>
                     <td><code>'m', x, y</code></td>
-                    <td><strong>Move To (Absolute)</strong>: Starts a new sub-path by moving the pen to the absolute coordinate <code>(x, y)</code>.</td>
-                </tr>
-                <tr>
-                    <td><code>mr</code></td>
-                    <td><code>'mr', dx, dy</code></td>
-                    <td><strong>Move To (Relative)</strong>: Starts a new sub-path by moving the pen from the current point by the offset <code>(dx, dy)</code>.</td>
+                    <td><strong>Move To</strong>: Lifts the “pen” and moves it to the absolute coordinate <code>(x, y)</code>. This starts a new sub-path. Every path should begin with an <code>'m'</code> command.</td>
                 </tr>
                 <tr>
                     <td><code>l</code></td>
                     <td><code>'l', x, y</code></td>
-                    <td><strong>Line To (Absolute)</strong>: Draws a straight line from the current point to the absolute coordinate <code>(x, y)</code>.</td>
-                </tr>
-                <tr>
-                    <td><code>lr</code></td>
-                    <td><code>'lr', dx, dy</code></td>
-                    <td><strong>Line To (Relative)</strong>: Draws a straight line from the current point to a new point offset by <code>(dx, dy)</code>.</td>
+                    <td><strong>Line To</strong>: Draws a straight line from the current point to the absolute coordinate <code>(x, y)</code>.</td>
                 </tr>
                 <tr>
                     <td><code>q</code></td>
-                    <td><code>'q', cx, cy, x, y</code></td>
-                    <td><strong>Quadratic Curve (Absolute)</strong>: Draws a quadratic Bezier curve to <code>(x, y)</code> using the absolute control point <code>(cx, cy)</code>.</td>
-                </tr>
-                <tr>
-                    <td><code>qr</code></td>
-                    <td><code>'qr', dcx, dcy, dx, dy</code></td>
-                    <td><strong>Quadratic Curve (Relative)</strong>: Draws a quadratic Bezier curve to a point offset by <code>(dx, dy)</code>, using a control point offset by <code>(dcx, dcy)</code> from the starting point.</td>
+                    <td><code>'q', controlX, controlY, endX, endY</code></td>
+                    <td><strong>Quadratic Bezier Curve To</strong>: Draws a quadratic Bezier curve from the current point to <code>(endX, endY)</code> using a single control point <code>(controlX, controlY)</code>.</td>
                 </tr>
                 <tr>
                     <td><code>c</code></td>
-                    <td><code>'c', cx1, cy1, cx2, cy2, x, y</code></td>
-                    <td><strong>Cubic Curve (Absolute)</strong>: Draws a cubic Bezier curve to <code>(x, y)</code> using absolute control points <code>(cx1, cy1)</code> and <code>(cx2, cy2)</code>.</td>
-                </tr>
-                <tr>
-                    <td><code>cr</code></td>
-                    <td><code>'cr', dcx1, dcy1, dcx2, dcy2, dx, dy</code></td>
-                    <td><strong>Cubic Curve (Relative)</strong>: Draws a cubic Bezier curve to a point offset by <code>(dx, dy)</code>, using control points offset by <code>(dcx1, dcy1)</code> and <code>(dcx2, dcy2)</code> from the starting point.</td>
+                    <td><code>'c', controlX1, controlY1, cx2, cy2, endX, endY</code></td>
+                    <td><strong>Cubic Bezier Curve To</strong>: Draws a cubic Bezier curve from the current point to <code>(endX, endY)</code> using two control points <code>(controlX1, controlY1)</code> and <code>(cx2, cy2)</code>.</td>
                 </tr>
                 <tr>
                     <td><code>a</code></td>
                     <td><code>'a', centerX, centerY, radius, startAngle, endAngle, clockwise</code></td>
-                    <td><strong>Arc (Absolute)</strong>: Draws an arc of a circle centered at the absolute coordinate <code>(centerX, centerY)</code>.</td>
+                    <td><strong>Arc (Circle Segment)</strong>: Draws an arc of a circle. The arc is centered at <code>(centerX, centerY)</code> with the given <code>radius</code>. The arc starts at <code>startAngle</code> (in radians) and ends at <code>endAngle</code> (in radians). If <code>clockwise</code> is <code>true</code>, the arc is drawn clockwise; if <code>false</code>, it’s drawn counter-clockwise.</td>
                 </tr>
                 <tr>
                     <td><code>e</code></td>
                     <td><code>'e', centerX, centerY, radiusX, radiusY, startAngle, endAngle, clockwise</code></td>
-                    <td><strong>Ellipse (Absolute)</strong>: Draws an arc of an ellipse centered at the absolute coordinate <code>(centerX, centerY)</code>.</td>
-                </tr>
-                 <tr>
-                    <td><code>n</code></td>
-                    <td><code>'n', segments</code></td>
-                    <td><strong>Number of Segments</strong>: A modifier that forces the <em>next</em> line or curve segment to be subdivided into a specific number of <code>segments</code>. This overrides the default <code>fn</code> for that one segment.</td>
+                    <td><strong>Ellipse (Ellipse Segment)</strong>: Draws an arc of an ellipse. The ellipse is centered at <code>(centerX, centerY)</code> with horizontal radius <code>radiusX</code> and vertical radius <code>radiusY</code>. The arc starts at <code>startAngle</code> (in radians) and ends at <code>endAngle</code> (in radians). If <code>clockwise</code> is <code>true</code>, the arc is drawn clockwise; if <code>false</code>, it’s drawn counter-clockwise.</td>
                 </tr>
             </tbody>
         </table>
@@ -727,7 +692,7 @@ const helper = include("Utils", "../shared/utils.json"); // Loads from /projects
             <li><strong>Extrude</strong>: Use <code>linePaths3d()</code> or <code>linePaths3dEx()</code> to turn the 2D shape into a 3D object.</li>
         </ol>
         <h3 id="auto-hole">Advanced: Automatic Hole Detection</h3>
-        <p>The <code>shape()</code> function is intelligent. If you define multiple sub-paths in a single <code>path</code> array (using multiple <code>'m'</code> or <code>'mr'</code> commands), it will automatically determine which paths are holes based on their nesting and bounding boxes.</p>
+        <p>The <code>shape()</code> function is intelligent. If you define multiple sub-paths in a single <code>path</code> array (using multiple <code>'m'</code> commands), it will automatically determine which paths are holes based on their nesting and bounding boxes.</p>
         <ul>
             <li>A path that is completely inside another path will be treated as a hole.</li>
             <li>You do <strong>not</strong> need to manually add holes to a shape. Just define all your outlines and cutouts in the <code>path</code> array, and <code>shape()</code> will figure it out.</li>
@@ -777,11 +742,11 @@ return linePaths3d(triangleShape, straightPath, false);</code></pre>
         'm', 2, 0,
         'a', 0, 0, 2, 0, Math.PI * 2, true,
         // Inner Square Hole (starts with a new 'm' command)
-        'm', -1, -1,
-        'lr', 2, 0,  // Using relative line
-        'lr', 0, 2,
-        'lr', -2, 0,
-        'lr', 0, -2
+        'm', -3, -3,
+        'l', 3, -3,
+        'l', 3, 3,
+        'l', -3, 3,
+        'l', -3, -3
     ],
     fn: 50 // Use higher resolution for the circle
 };
@@ -850,15 +815,6 @@ return linePaths3d(finalShape, straightPath, false);</code></pre>
     <section id="commands">
         <h2>6. scadCSG Commands and How to Use Them</h2>
         <p>This section details the core functions available for creating and manipulating geometry. All these functions are available in your CSG scripts.</p>
-        <div class="note">
-            <p><strong>Important Note on Coordinate System:</strong> The CSG Editor uses a <strong>Z-up coordinate system</strong> for all 3D operations, which is standard for many CAD and 3D printing applications. This means:</p>
-            <ul>
-                <li>The <strong>X-axis</strong> represents width.</li>
-                <li>The <strong>Y-axis</strong> represents length or depth.</li>
-                <li>The <strong>Z-axis</strong> represents height (up/down).</li>
-            </ul>
-            <p>This is handled automatically by the commands. For example, in <code>cube([10, 20, 5])</code>, the height of the cube is 5.</p>
-        </div>
         <h3 id="primitives">Primitive Shapes</h3>
         <p>These functions create basic 3D shapes.</p>
         <h4 id="sphere-section"><code>sphere({ r, d, fn })</code></h4>
@@ -901,11 +857,8 @@ return linePaths3d(finalShape, straightPath, false);</code></pre>
         <h4 id="scale-section"><code>scale([x, y, z], target)</code></h4>
         <p>Scales the geometry by the specified factors along each axis.</p>
         <p><strong>Example:</strong> <code>scale([2, 1, 1], cube([5, 5, 5]))</code> (doubles the size along X-axis)</p>
-        <h4 id="scaleadd-section"><code>scaleAdd({ x, y, z }, target)</code></h4>
-        <p>Resizes an object by adding the specified values to its current dimensions along each axis. For example, <code>scaleAdd({ x: 5 }, myCube)</code> will make <code>myCube</code> 5 units wider.</p>
-        <p><strong>Example:</strong> <code>const myCube = cube([10, 10, 10]); return scaleAdd({ x: 5, z: 2 }, myCube);</code></p>
         <h4 id="floor-section"><code>floor(target)</code></h4>
-        <p>Translates the object so that its lowest point is at Z=0.</p>
+        <p>Translates the object so that its lowest point is at Y=0.</p>
         <p><strong>Example:</strong> <code>floor(sphere({ r: 10 }))</code></p>
         <h4 id="align-section"><code>align({ bx, tx, cx, by, ty, cy, bz, tz, cz }, target)</code></h4>
         <p>Aligns the object based on its bounding box. You can specify alignment for each axis independently.</p>
@@ -944,7 +897,7 @@ return linePaths3d(finalShape, straightPath, false);</code></pre>
         <h4 id="linepaths3d-section"><code>linePaths3d(target, path, close)</code></h4>
         <p>Extrudes a 2D shape (<code>target</code>) along a 3D path defined by the <code>path</code> object. The <code>close</code> parameter is a boolean to close the extrusion path.</p>
         <p>This function performs a simple linear extrusion and <strong>ignores</strong> any rotation (<code>'r'</code>) or scale (<code>'s'</code>) commands in the path data.</p>
-        <p><strong>3D Path Format:</strong> The <code>path</code> object has a <code>path</code> array and an optional <code>fn</code> property. The <code>path</code> array uses the following commands (in a <strong>Z-up coordinate system</strong>):</p>
+        <p><strong>3D Path Format:</strong> The <code>path</code> object has a <code>path</code> array and an optional <code>fn</code> property. The <code>path</code> array uses the following commands (in a <strong>Y-up coordinate system</strong>):</p>
         <ul>
             <li><code>'m', x, y, z</code>: Move to a point in 3D space.</li>
             <li><code>'l', x, y, z</code>: Draw a line to a point in 3D space.</li>
@@ -961,8 +914,9 @@ return linePaths3d(finalShape, straightPath, false);</code></pre>
             <li><code>'s', scaleX, scaleY</code>: Set a 2D scale to be applied to the cross-section at the next point(s).</li>
         </ul>
         <p><strong>Example:</strong> <code>linePaths3dEx(myShape, my3dPath, false)</code></p>
+        <!-- REMOVED path3d-section -->
         <h4 id="arcpath3d-func"><code>arcPath3d({ startAng, endAng, r, d, fn })</code></h4>
-        <p>A helper function that generates a circular arc path in the XY plane. It returns a pre-formatted object that can be passed directly as the <code>path</code> argument to <code>linePaths3d()</code> or <code>linePaths3dEx()</code>.</p>
+        <p>A helper function that generates a circular arc path in the XZ plane. It returns a pre-formatted object that can be passed directly as the <code>path</code> argument to <code>linePaths3d()</code> or <code>linePaths3dEx()</code>.</p>
         <ul>
             <li><code>startAng</code>: Starting angle of the arc in <strong>degrees</strong>.</li>
             <li><code>endAng</code>: Ending angle of the arc in <strong>degrees</strong>.</li>
@@ -1008,20 +962,12 @@ return linePaths3dEx(circleProfile, arc, false);</code></pre>
         <p><strong>Example:</strong> <code>hide(myHelperObject)</code></p>
         <h3 id="2d-path-manipulation">2D Path Manipulation</h3>
         <p>These functions operate on 2D path data (objects with <code>path</code> and <code>fn</code> properties) before they are turned into 3D geometry.</p>
-        <h4 id="translatepath-section"><code>translatePath([x, y], pathObject)</code></h4>
-        <p>Moves a 2D path by the specified [x, y] offset.</p>
-        <h4 id="rotatepath-section"><code>rotatePath(angleInDegrees, pathObject)</code></h4>
-        <p>Rotates a 2D path around the origin (0,0).</p>
-        <h4 id="scalepath-section"><code>scalePath([scaleX, scaleY], pathObject)</code></h4>
-        <p>Scales a 2D path from the origin (0,0).</p>
-        <h4 id="scaletopath-section"><code>scaleToPath({ x, y }, pathObject)</code></h4>
-        <p>Scales a 2D path uniformly to fit a target dimension.</p>
-        <h4 id="scaleaddpath-section"><code>scaleAddPath({ x, y }, pathObject)</code></h4>
-        <p>Resizes a 2D path by adding to its bounding box dimensions.</p>
-        <h4 id="alignpath-section"><code>alignPath({ bx, tx, cx, by, ty, cy }, pathObject)</code></h4>
-        <p>Aligns a 2D path based on its bounding box.</p>
-        <h4 id="converttopath-section"><code>convertTo2d(pathObject3d)</code> and <code>convertTo3d(pathObject2d, z)</code></h4>
-        <p><code>convertTo2d</code> converts a 3D path to 2D by removing Z-axis data. <code>convertTo3d</code> converts a 2D path to 3D by adding a Z-value to all points.</p>
+        <h4><code>translatePath([x, y], pathObject)</code></h4>
+        <h4><code>rotatePath(angleInDegrees, pathObject)</code></h4>
+        <h4><code>scalePath([scaleX, scaleY], pathObject)</code></h4>
+        <h4><code>scaleToPath({ x, y }, pathObject)</code></h4>
+        <h4><code>alignPath({ bx, tx, cx, by, ty, cy }, pathObject)</code></h4>
+        <h4><code>boundingBoxPath(pathObject)</code></h4>
         <h3 id="text-functions">Text Functions</h3>
         <h4><code>font(fontPath)</code></h4>
         <p>Loads a font file (e.g., TTF) and returns a font object. This is an async function, so you must use <code>await</code>.</p>
@@ -1040,7 +986,7 @@ return linePaths3dEx(circleProfile, arc, false);</code></pre>
         <div class="example-block" id="example-sphere-on-cube">
             <div class="example-title">Sphere on a Cube</div>
             <pre><code>const base = cube([20, 20, 5]);
-const top = translate([0, 0, 5], sphere({ r: 5 }));
+const top = translate([0, 0, 10], sphere({ r: 5 }));
 return union([base, top]);</code></pre>
         </div>
         <div class="example-block" id="example-hole">
@@ -1099,6 +1045,7 @@ return utils.bolt(5, 20);</code></pre>
     <div class="nav-buttons">
         <a href="#top" class="nav-button">↑ Top</a>
     </div>
+    <!-- Jump Back Button -->
     <button id="jump-back-btn">↩️ Jump Back</button>
     <script>
         const scrollHistory = [];

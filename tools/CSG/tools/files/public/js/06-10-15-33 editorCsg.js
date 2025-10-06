@@ -25,6 +25,7 @@ var animate;
 var showView;
 let scene;
 let currentObjects;
+let isWireframeMode = false; // New global state variable
 
 let project; // global instance
 
@@ -78,6 +79,7 @@ const cloneFilter = (item, checkFunction, applyFunction, ...args) => {
     }
     // Case 2: The item is an array. Recursively process each element.
     else if (Array.isArray(item)) {
+		console.log("array");
 		var arr=[];
         item.forEach((subItem) => {
 			arr.push(
@@ -124,6 +126,49 @@ function base64ToFloatArray(base64String) {
     }
     return new Float32Array(bytes.buffer);
 }
+
+/**
+ * Converts a Uint16Array to a Base64 string.
+ * This is useful for serializing binary data for transmission or storage.
+ * @param {Uint16Array} uint16Array The input Uint16Array.
+ * @returns {string} The Base64 encoded string.
+ */
+function uint16ToBase64(uint16Array) {
+	console.log("here3")
+    // Create a Uint8Array view of the Uint16Array's underlying ArrayBuffer.
+    const uint8Array = new Uint8Array(uint16Array.buffer);
+	console.log("here4")
+    // Convert the Uint8Array to a string of characters.
+    let binaryString = '';
+    for (let i = 0; i < uint8Array.length; i++) {
+        binaryString += String.fromCharCode(uint8Array[i]);
+    }
+	
+    // Encode the binary string to Base64.
+    return btoa(binaryString);
+}
+
+/**
+ * Converts a Base64 string back into a Uint16Array.
+ * @param {string} base64String The Base64 encoded string.
+ * @returns {Uint16Array} The reconstructed Uint16Array.
+ */
+function base64ToUint16(base64String) {
+    // Decode the Base64 string back to a binary string.
+    const binaryString = atob(base64String);
+
+    // Create a new Uint16Array with the correct length.
+    const uint16Array = new Uint16Array(binaryString.length / 2);
+
+    // Populate the Uint16Array from the binary string.
+    const view = new DataView(uint16Array.buffer);
+    for (let i = 0; i < binaryString.length; i++) {
+        view.setUint8(i, binaryString.charCodeAt(i));
+    }
+
+    return uint16Array;
+}
+
 
 //
 // Class-based project with caches
@@ -287,6 +332,370 @@ class ScadProject {
     }
 }
 
+
+/**
+ * Extracts position, normal, index, and material data from a Three.js Mesh.
+ * @param {THREE.Mesh} mesh The mesh to extract data from.
+ * @returns {object|null} An object containing the extracted data, or null if invalid.
+ */
+function extractMeshData(mesh) {
+    try {
+        if (!mesh || !mesh.geometry) {
+            console.error("Invalid mesh provided. It must have a geometry.");
+            return null;
+        }
+
+        const geometry = mesh.geometry;
+        const data = {};
+
+        // --- Extract Geometry Data (same as before) ---
+        const positionAttribute = geometry.getAttribute('position');
+        if (positionAttribute) {
+            data.positions = floatArrayToBase64(positionAttribute.array);
+        }
+		
+        const normalAttribute = geometry.getAttribute('normal');
+        if (normalAttribute) {
+			
+            data.normals = floatArrayToBase64(normalAttribute.array);
+			
+        }
+		
+        const indexAttribute = geometry.getIndex();
+		
+        if (indexAttribute) {
+            data.indices = uint16ToBase64(indexAttribute.array);
+        }
+        
+        // --- NEW: Extract Material and Group Data ---
+        // Handle both single material and array of materials
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        data.materials = materials.map(m => ({
+            color: m.color ? '#' + m.color.getHexString() : '#ffffff',
+            roughness: m.roughness,
+            metalness: m.metalness,
+            side: m.side,
+            flatShading: m.flatShading,
+            type: m.type
+        }));
+
+        // Always add the groups array, even if it's empty
+        data.groups = geometry.groups && geometry.groups.length > 0 ? geometry.groups : [];
+
+        // --- Extract Transformation Data (same as before) ---
+        data.position = [mesh.position.x, mesh.position.y, mesh.position.z];
+        data.rotation = [mesh.rotation.x, mesh.rotation.y, mesh.rotation.z];
+        data.scale = [mesh.scale.x, mesh.scale.y, mesh.scale.z];
+		
+        return data;
+
+    } catch (error) {
+        console.log("Failed to extract mesh data:", error);
+        return null;
+    }
+}
+
+
+
+/**
+ * Recreates a Three.js Mesh from an object containing geometry and transformation data.
+ * @param {object} data An object with geometry, material, group, and transformation data.
+ * @returns {THREE.Mesh|null} The new Three.js Mesh, or null if the data is invalid.
+ */
+function recreateMeshFromData(data) {
+    try {
+        if (!data || !data.positions) {
+            console.error("Invalid data provided. 'positions' array is required.");
+            return null;
+        }
+
+        const geometry = new THREE.BufferGeometry();
+        
+        // --- Set Geometry Attributes (same as before) ---
+        const positions = base64ToFloatArray(data.positions);
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        
+        if (data.normals) {
+            const normals = base64ToFloatArray(data.normals);
+            geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+        }
+
+        if (data.indices) {
+            const indices = base64ToUint16(data.indices);
+            geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+        }
+
+        // --- NEW: Recreate Materials and Set Groups ---
+        let materials = [];
+        if (data.materials && data.materials.length > 0) {
+            materials = data.materials.map(m => {
+                const materialProps = {
+                    color: new THREE.Color(m.color),
+                    roughness: m.roughness,
+                    metalness: m.metalness,
+                    side: m.side,
+                    flatShading: m.flatShading
+                };
+                if (m.type === 'MeshBasicMaterial') {
+                    return new THREE.MeshBasicMaterial(materialProps);
+                } else {
+                    return new THREE.MeshStandardMaterial(materialProps);
+                }
+            });
+
+            // Only add groups if the data contains them
+            if (data.groups && data.groups.length > 0) {
+                data.groups.forEach(group => {
+                    geometry.addGroup(group.start, group.count, group.materialIndex);
+                });
+            }
+
+        } else {
+            materials.push(new THREE.MeshStandardMaterial({ color: 0xffcc00 }));
+        }
+
+        // Create the new mesh
+        const newMesh = new THREE.Mesh(geometry, materials.length === 1 ? materials[0] : materials);
+        
+        // --- Re-apply Transformation Data (same as before) ---
+        if (data.position) {
+            newMesh.position.set(data.position[0], data.position[1], data.position[2]);
+        }
+        
+        if (data.rotation) {
+            newMesh.rotation.set(data.rotation[0], data.rotation[1], data.rotation[2]);
+        }
+        
+        if (data.scale) {
+            newMesh.scale.set(data.scale[0], data.scale[1], data.scale[2]);
+        }
+
+        return newMesh;
+
+    } catch (error) {
+        console.error("Failed to recreate mesh from data:", error);
+        return null;
+    }
+}
+
+//////////////
+
+/**
+ * Maps THREE.Curve types to single-letter abbreviations to minimize data size.
+ */
+const ABBREVIATE_CURVE_TYPES = {
+    LineCurve: 'l',
+    QuadraticBezierCurve: 'q',
+    CubicBezierCurve: 'c',
+    ArcCurve: 'a',
+    EllipseCurve: 'e'
+}
+
+/**
+ * Serializes a THREE.Path into a compact array of commands and values,
+ * including support for Line, Quadratic, Cubic, Arc, and Ellipse curves.
+ * e.g., ['m', 1, 2, 'l', 10, 10, 'a', 5, 5, 3, 0, 1.5, false, ...].
+ * @param {THREE.Path} path The THREE.Path object to serialize.
+ * @returns {Array<string | number | boolean>} A flat array of commands and coordinates.
+ */
+function serializePath(path) {
+    const data = []
+    if (path.curves.length === 0) return data
+
+    // The starting point for the path (the first moveTo)
+    const startPoint =
+        path.curves[0].v1 ||
+        new THREE.Vector2(path.curves[0].aX, path.curves[0].aY)
+    data.push('m', startPoint.x, startPoint.y)
+
+    path.curves.forEach((curve) => {
+        const type = curve.type
+        const abbreviation = ABBREVIATE_CURVE_TYPES[type]
+
+        // Ensure the path is continuous; if not, add an explicit moveTo command.
+        if (
+            curve.v1 &&
+            path.currentPoint &&
+            curve.v1.distanceTo(path.currentPoint) > 0.0001
+        ) {
+            data.push('m', curve.v1.x, curve.v1.y)
+        }
+
+        if (abbreviation) {
+            data.push(abbreviation)
+
+            if (type === 'LineCurve') {
+                data.push(curve.v2.x, curve.v2.y)
+            } else if (type === 'QuadraticBezierCurve') {
+                data.push(curve.v1.x, curve.v1.y, curve.v2.x, curve.v2.y)
+            } else if (type === 'CubicBezierCurve') {
+                data.push(
+                    curve.v1.x,
+                    curve.v1.y,
+                    curve.v2.x,
+                    curve.v2.y,
+                    curve.v3.x,
+                    curve.v3.y
+                )
+            } else if (type === 'ArcCurve') {
+                data.push(
+                    curve.aX,
+                    curve.aY,
+                    curve.aRadius,
+                    curve.aStartAngle,
+                    curve.aEndAngle,
+                    curve.aClockwise
+                )
+            } else if (type === 'EllipseCurve') {
+                data.push(
+                    curve.aX,
+                    curve.aY,
+                    curve.xRadius,
+                    curve.yRadius,
+                    curve.aStartAngle,
+                    curve.aEndAngle,
+                    curve.aClockwise,
+                    curve.aRotation
+                )
+            }
+        }
+        // Update the current point for the next iteration to check for continuity
+        path.currentPoint =
+            curve.v2 ||
+            curve.v3 ||
+            new THREE.Vector2(
+                curve.aX + curve.xRadius * Math.cos(curve.aEndAngle),
+                curve.aY + curve.yRadius * Math.sin(curve.aEndAngle)
+            )
+    })
+
+    return data
+}
+
+/**
+ * Recreates a THREE.Path object from serialized data, now including ArcCurve and EllipseCurve.
+ * @param {Array<string | number>} data The array of serialized commands.
+ * @returns {THREE.Path} A new THREE.Path object.
+ */
+function deserializePath(data, fn) {
+	
+	alert(fn);
+	if(!fn) fn =30;
+    const path = new THREE.Path()
+    let i = 0
+    while (i < data.length) {
+        const command = data[i]
+        i++
+
+        switch (command) {
+            case 'm':
+                path.moveTo(data[i++], data[i++])
+                break
+            case 'l':
+                path.lineTo(data[i++], data[i++])
+                break
+            case 'q':
+                path.quadraticCurveTo(
+                    data[i++],
+                    data[i++],
+                    data[i++],
+                    data[i++]
+                )
+                break
+            case 'c':
+                path.bezierCurveTo(
+                    data[i++],
+                    data[i++],
+                    data[i++],
+                    data[i++],
+                    data[i++],
+                    data[i++]
+                )
+                break
+            case 'a':
+                // Corrected ArcCurve (a specialized EllipseCurve)
+                path.absarc(
+                    data[i++],
+                    data[i++],
+                    data[i++],
+                    data[i++],
+                    data[i++],
+                    data[i++],
+					fn
+                )
+                break
+            case 'e':
+                // EllipseCurve
+                path.absellipse(
+                    data[i++],
+                    data[i++],
+                    data[i++],
+                    data[i++],
+                    data[i++],
+                    data[i++],
+                    data[i++],
+                    data[i++],
+					fn
+                )
+                break
+            default:
+                console.error('Unknown command:', command)
+                break
+        }
+    }
+    return path
+}
+
+/**
+ * Serializes a THREE.Shape object into a plain JavaScript object with
+ * compact array formats for paths and holes.
+ * @param {THREE.Shape} shape The THREE.Shape object to serialize.
+ * @returns {object} The serialized shape data.
+ */
+function serializeShape(shape) {
+    const pathsData = serializePath(shape)
+    const holesData = shape.holes.map((holePath) => serializePath(holePath))
+	const fn=30;
+	if(shape.userData&&shape.userData.fn)
+	{
+		shape.userData.fn
+	}
+
+   return {
+        paths: pathsData,
+        holes: holesData, 
+		fn: fn
+    }
+}
+
+/**
+ * Deserializes a plain JavaScript object back into a THREE.Shape.
+ * @param {object} data The serialized shape data.
+ * @returns {THREE.Shape} A new THREE.Shape object.
+ */
+function deserializeShape(data) {
+    const newShape = new THREE.Shape();
+    const fn = data.fn || 30; // Default to 30 if fn is not provided
+
+    // Recreating the main path from the serialized data
+    const mainPath = deserializePath(data.paths, fn);
+    newShape.curves = mainPath.curves;
+
+    if (data.holes) {
+        newShape.holes = data.holes.map((holeData) => deserializePath(holeData, fn));
+    }
+    
+    // Store fn in userData to be accessed later
+    newShape.userData = { fn: fn };
+
+    return newShape;
+}
+
+////////////////////////
+
+
+
+
 //
 // File handling
 //
@@ -300,6 +709,7 @@ export async function handleLoadFile(event, filePath) {
         pathSegments.pop();
         const newBasePath = pathSegments.join('/') + '/';
         csgEditor.basePath = newBasePath;
+		globalThis.settings.basePath=newBasePath;
         project.setBasePath(newBasePath); // keep the class in sync with UI
 
         // Load code into editors (project uses LIVE refs, so it sees changes automatically)
@@ -316,52 +726,31 @@ export async function handleLoadFile(event, filePath) {
         const objectLoader = new THREE.ObjectLoader();
         if (projectData.meshCache) {
 			
-			/*
-            for (const pageName in projectData.meshCache) 
-			{
-                const cachedData = projectData.meshCache[pageName];
-                let rehydratedMesh = null;
-
-                if (cachedData.mesh) {
-                    if (cachedData.mesh.isBrush) {
-                        const mesh = objectLoader.parse(cachedData.mesh.mesh);
-                        rehydratedMesh = new Brush(mesh);
-						
-						
-                    } else if (cachedData.mesh.geometries || cachedData.mesh.object) {
-                        rehydratedMesh = objectLoader.parse(cachedData.mesh);
-                    } else if (typeof cachedData.mesh === 'object' && cachedData.mesh !== null) {
-                        const rehydratedSubmeshes = {};
-                        for (const subKey in cachedData.mesh) {
-                            const item = cachedData.mesh[subKey];
-                            if (item && item.data) {
-                                let subMesh = null;
-                                if (item.data.isBrush) {
-                                    const mesh = objectLoader.parse(item.data.mesh);
-                                    subMesh = new Brush(mesh);
-                                } else {
-                                    subMesh = objectLoader.parse(item.data);
-                                }
-                                rehydratedSubmeshes[subKey] = { data: subMesh, show: item.show };
-                            }
-                        }
-                        rehydratedMesh = rehydratedSubmeshes;
-                    }
-                }
-                project.meshCache[pageName] = { mesh: rehydratedMesh, updated: true };
-				//project.meshCache[pageName].mesh.userData
-            }
-			//*/
-			
 			project.meshCache = cloneFilter(projectData.meshCache, isJsonMesh,(item)=>{
 				if(item.isBrush) {
-					const mesh = objectLoader.parse(item.$jsonMesh.mesh);
-                    return new Brush(mesh);
-					
+					//const mesh = objectLoader.parse(item.$jsonMesh.mesh);
+                    
+					const mesh = recreateMeshFromData(item.$jsonMesh.mesh);
+					if(item.$jsonMesh.userData!=undefined)
+					{
+						mesh.userData = item.$jsonMesh.userData;
+					}
+					return new Brush(mesh);
 				} 
+				else if(item.isShape) {
+					//const mesh = objectLoader.parse(item.$jsonMesh.mesh);
+                    
+					return deserializeShape(item.$jsonMesh.shape);
+				}  
 				else
 				{
-					return objectLoader.parse(item.$jsonMesh.mesh);
+					//return objectLoader.parse(item.$jsonMesh.mesh);
+					const mesh = recreateMeshFromData(item.$jsonMesh.mesh);
+					if(item.$jsonMesh.userData!=undefined)
+					{
+						mesh.userData = item.$jsonMesh.userData;
+					}
+					return mesh;
 				}
 			});
         }
@@ -378,6 +767,7 @@ export async function handleLoadFile(event, filePath) {
     }
     closeModal('load-code-modal');
 }
+
 
 export async function handleSaveFile(event, filePath) {
     try {
@@ -398,7 +788,9 @@ export async function handleSaveFile(event, filePath) {
 				if(item instanceof THREE.Mesh) {
 					return {
 						$jsonMesh:{
-							mesh:item.toJSON()
+							//mesh:item.toJSON()
+							mesh:extractMeshData(item),
+							userData:item.userData
 						}
 					};
 				} 
@@ -406,7 +798,17 @@ export async function handleSaveFile(event, filePath) {
 					return {
 						$jsonMesh:{
 							isBrush:true,
-							mesh:item.mesh.toJSON()
+							//mesh:item.mesh.toJSON()
+							mesh:extractMeshData(item.mesh),
+							userData:item.userData
+						}
+					};
+				}
+				else if(item instanceof THREE.Shape) {
+					return {
+						$jsonMesh:{
+							isShape:true,
+							shape:serializeShape(item)
 						}
 					};
 				}
@@ -414,38 +816,7 @@ export async function handleSaveFile(event, filePath) {
 			})
         };
 		
-		/*
-        for (const pageName in project.meshCache) 
-		{
-            const cachedItem = project.meshCache[pageName];
-            if (cachedItem.updated && cachedItem.mesh) {
-                if (cachedItem.mesh instanceof THREE.Object3D) {
-                    projectData.meshCache[pageName] = { mesh: cachedItem.mesh.toJSON(), updated: true };
-                } else if (cachedItem.mesh instanceof Brush) {
-                    if (cachedItem.mesh.mesh instanceof THREE.Object3D) {
-                        projectData.meshCache[pageName] = { mesh: { isBrush: true, mesh: cachedItem.mesh.mesh.toJSON() }, updated: true };
-                    }
-                } else if (typeof cachedItem.mesh === 'object' && cachedItem.mesh !== null) {
-                    const serializedSubmeshes = {};
-                    for (const subKey in cachedItem.mesh) {
-                        const item = cachedItem.mesh[subKey];
-                        if (item && item.data instanceof THREE.Object3D) {
-                            serializedSubmeshes[subKey] = { data: item.data.toJSON(), show: item.show };
-                        } else if (item && item.data instanceof Brush) {
-                            serializedSubmeshes[subKey] = { data: { isBrush: true, mesh: item.data.mesh.toJSON() }, show: item.show };
-                        }
-                    }
-                    projectData.meshCache[pageName] = { mesh: serializedSubmeshes, updated: true };
-                }
-				
-				//projectData.meshCache[pageName].mesh.userData=cachedItem.mesh.userData;
-            }
-        }
-		//*/
 		
-		
-		
-
         const projectDataString = JSON.stringify(projectData, null, 2);
         await api.saveFile(finalPath, projectDataString);
         alert(`Project saved successfully to: ${finalPath}`);
@@ -484,7 +855,11 @@ export async function runCSGCode() {
 			currentObjects.push(item);
 		}
 	});
-	
+    
+    // Reset wireframe mode after re-rendering
+    isWireframeMode = false;
+    const btn = document.getElementById('btn-wireframe');
+    if (btn) btn.style.backgroundColor = '#3498db';
 }
 
 // New function to clear the cache of the current active file
@@ -508,6 +883,35 @@ export function clearCurrentCacheByName() {
     } else {
         PrintWarn('No active file to clear cache for.');
         alert('No active file to clear cache for.');
+    }
+}
+
+// New function to toggle the wireframe view
+export function toggleWireframe() {
+    isWireframeMode = !isWireframeMode;
+    applyToMesh(currentObjects, (item) => {
+        if (isWireframeMode) {
+            if (!item.userData.originalMaterial) {
+                item.userData.originalMaterial = item.material;
+            }
+            item.material = new THREE.MeshBasicMaterial({
+                color: 0xcccccc,
+                wireframe: true,
+                transparent: true,
+                opacity: 0.5
+            });
+        } else {
+            if (item.userData.originalMaterial) {
+                item.material = item.userData.originalMaterial;
+            }
+        }
+    });
+
+    const btn = document.getElementById('btn-wireframe');
+    if (isWireframeMode) {
+        btn.style.backgroundColor = '#e74c3c';
+    } else {
+        btn.style.backgroundColor = '#3498db';
     }
 }
 

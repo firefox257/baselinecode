@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TextCode Editor Test Page</title>
+    <style>
+        /* Basic styling for test page clarity */
+        body { font-family: sans-serif; margin: 20px; }
+        hr { margin: 30px 0; }
+        .code-editor-wrapper-test { 
+            height: 250px; 
+            border: 1px solid #ddd; 
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>TextCode Editor Testing</h1>
+    <p>Check the console and expect **alerts** when switching pages in the editors below.</p>
+    
+    <div id="editor-container">
+        <h2>Declarative Editor (Multi-Page Test)</h2>
+        <p>Use the "Pages" menu to switch pages, or use the control below to set the index programmatically.</p>
+        
+        <div class="code-editor-wrapper-test">
+            <textcode id="declarative-editor" 
+                      title="multi-file.js"
+                      pages='[{"title": "File A.js", "content": "// Content of File A"}, {"title": "File B.html", "content": "<!DOCTYPE html>"}, {"title": "File C.css", "content": "body { color: red; }"}]'
+                      onpagechange="handlePageChange(event)">
+            </textcode>
+        </div>
+
+        <div style="margin-top: 10px;">
+            <label for="page-index-input">Set Declarative Editor Page Index (0-2):</label>
+            <input type="number" id="page-index-input" min="0" max="2" value="0" style="width: 50px;">
+            <button onclick="setDeclarativePageIndex()">Go to Index</button>
+        </div>
+    </div>
+
+    <hr>
+    
+    <h2>Programmatic Editor (Test on Load and Switch)</h2>
+    <p>This editor will alert immediately after loading due to a programmatic index change in the script.</p>
+    <div id="programmatic-editor-wrapper">
+        </div>
+
+    
+    <script type="module" src="./ux/textCodeUI.js"></script>
+    <script type="module" src="./ux/textCode.js"></script>
+    
+    <script>
+        // --- Global reference to the declarative editor ---
+        let declarativeEditorRef = null;
+
+        // --- Event Handler for the Declarative Editor (HTML Attribute) ---
+        function handlePageChange(event) {
+            console.log("--- HTML Attribute onpagechange triggered ---");
+            console.log("Custom Detail:", event.detail);
+            
+            // ALERT FOR DECLARATIVE EDITOR
+            alert(`Page Changed (Declarative Editor)!
+Title: ${event.detail.title}
+Index: ${event.detail.valuesIndex}
+Source: ${event.isTrusted ? 'Menu Click/Code' : 'Code'}
+Content starts with: "${event.detail.content.substring(0, 30)}..."`);
+            
+            // Visual confirmation log
+            const logDiv = document.createElement('div');
+            logDiv.textContent = `[${new Date().toLocaleTimeString()}] Page changed to: ${event.detail.title} (Index: ${event.detail.valuesIndex})`;
+            logDiv.style.backgroundColor = '#ccffcc';
+            logDiv.style.padding = '5px';
+            document.body.appendChild(logDiv);
+        }
+        
+        // --- New function to test programmatically setting valuesIndex ---
+        function setDeclarativePageIndex() {
+            const input = document.getElementById('page-index-input');
+            const index = parseInt(input.value, 10);
+            
+            if (declarativeEditorRef && !isNaN(index) && index >= 0 && index < declarativeEditorRef.values.length) {
+                console.log(`Programmatically setting declarative editor index to: ${index}`);
+                // This call should trigger the onpagechange handler/event
+                declarativeEditorRef.valuesIndex = index;
+            } else {
+                alert("Invalid index. Must be between 0 and 2.");
+            }
+        }
+        
+        // --- Programmatic Editor Setup ---
+        // Use a slight delay to ensure the declarative editor is fully initialized by textCode.js
+        setTimeout(async () => {
+            // 1. Get reference to the converted declarative editor
+            declarativeEditorRef = document.getElementById('declarative-editor').closest('.code-editor-container-wrapper');
+            
+            // 2. Dynamically import the creation function
+            const { createTexCode } = await import('./ux/textCode.js');
+            
+            const initialContent = "def hello_world():\n\tprint('Hello')";
+            const programmaticEditor = createTexCode(initialContent);
+            
+            programmaticEditor.title = "Programmatic Editor";
+            
+            document.getElementById('programmatic-editor-wrapper').appendChild(programmaticEditor);
+
+            // Test programmatic event listener (onpagechange property)
+            programmaticEditor.onpagechange = (detail) => {
+                console.warn("--- Programmatic onpagechange property handler triggered ---");
+                console.warn("Page Change Detail:", detail);
+                
+                // ALERT FOR PROGRAMMATIC EDITOR
+                alert(`Programmatic Editor Page Changed!
+Title: ${detail.title}
+Index: ${detail.valuesIndex}`);
+            };
+            
+            // Give the programmatic editor multi-page content
+            programmaticEditor.values = [
+                { title: 'Test 1', content: 'Page content 1' },
+                { title: 'Test 2', content: 'Page content 2' },
+                { title: 'Test 3', content: 'Page content 3' }
+            ];
+            // NOTE: Setting .values implicitly resets valuesIndex to 0. 
+            // This does NOT trigger onpagechange because the index technically did not change from a previous valid index (it was reset).
+
+            // Programmatic switch test (will trigger onpagechange and the alert)
+            // Switches from index 0 (set by .values) to index 2
+            programmaticEditor.valuesIndex = 2; 
+            
+        }, 100); 
+
+    </script>
+
+</body>
+</html>
