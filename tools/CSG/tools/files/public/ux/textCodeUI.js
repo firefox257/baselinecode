@@ -1,6 +1,3 @@
-
-
-
 // ./ux/textCodeUI.js
 
 
@@ -466,6 +463,7 @@ export const editorHtml = `
                 <td><button class="undo-btn" title="Undo" disabled>↩️</button></td>
                 <td><button class="redo-btn" title="Redo" disabled>↪️</button></td>
                 <td><button class="select-all-btn" title="Select All">🅰️</button></td>
+                <td><button class="select-bracket-btn" title="Select Bracket Content">🔗</button></td>
                 <td><button class="goto-btn" title="Go to Line">#️⃣</button></td>
                 <td><button class="find-btn" title="Find Text (Ctrl+F)">&#x1F50D;</button></td>
                 <td><button class="pages-btn" title="Pages">📄</button></td>
@@ -500,4 +498,3 @@ export const editorHtml = `
         </div>
     </div>
 `;
-

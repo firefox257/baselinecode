@@ -77,6 +77,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
     const undoButton = editorContainerWrapper.querySelector('.undo-btn');
     const redoButton = editorContainerWrapper.querySelector('.redo-btn');
     const selectAllButton = editorContainerWrapper.querySelector('.select-all-btn');
+    const selectBracketButton = editorContainerWrapper.querySelector('.select-bracket-btn'); // <--- NEW REFERENCE
     const goToLineButton = editorContainerWrapper.querySelector('.goto-btn');
     const findButton = editorContainerWrapper.querySelector('.find-btn');
     const pagesButton = editorContainerWrapper.querySelector('.pages-btn');
@@ -522,6 +523,137 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
         selection.removeAllRanges();
         selection.addRange(range);
     };
+    
+    // --- NEW: Bracket Selector Logic ---
+    const BRACKET_PAIRS = {
+        '{': '}',
+        '[': ']',
+        '(': ')',
+        '<': '>',
+        '}': '{',
+        ']': '[',
+        ')': '(',
+        '>': '<'
+    };
+
+    const isBracket = (char) => !!BRACKET_PAIRS[char];
+
+    /**
+     * Finds the matching bracket for the bracket at or near the current caret position
+     * and selects all content, including the brackets.
+     */
+    const selectBracketContent = () => {
+        const content = contentDiv.textContent;
+        const { charIndex } = getCaretPosition(contentDiv);
+        let startCharIndex = -1;
+        let endCharIndex = -1;
+        let targetBracket = '';
+
+        // 1. Determine if the caret is near a bracket
+        let checkIndex = charIndex;
+        let caretChar = content[checkIndex];
+        let prevChar = content[checkIndex - 1];
+
+        if (isBracket(prevChar)) {
+            // Case 1: Caret is immediately after a bracket (e.g., cursor is before the space after '{' or just after '{')
+            targetBracket = prevChar;
+            startCharIndex = checkIndex - 1;
+        } else if (isBracket(caretChar)) {
+            // Case 2: Caret is exactly on a bracket
+            targetBracket = caretChar;
+            startCharIndex = checkIndex;
+        } else {
+            // Not near a bracket, nothing to do
+            return;
+        }
+
+        const matchingBracket = BRACKET_PAIRS[targetBracket];
+        const isOpening = ['{', '[', '(', '<'].includes(targetBracket);
+        const searchDirection = isOpening ? 1 : -1;
+        let currentCount = 1;
+
+        let currentIndex = startCharIndex + searchDirection;
+
+        // 2. Search for the matching bracket
+        while (currentIndex >= 0 && currentIndex < content.length) {
+            const currentChar = content[currentIndex];
+
+            if (currentChar === targetBracket) {
+                currentCount++;
+            } else if (currentChar === matchingBracket) {
+                currentCount--;
+            }
+
+            if (currentCount === 0) {
+                // Found the match!
+                endCharIndex = currentIndex;
+                break;
+            }
+
+            currentIndex += searchDirection;
+        }
+
+        // 3. If a match is found, set the selection
+        if (endCharIndex !== -1) {
+            // Determine selection start and end (always start < end)
+            const selectionStart = Math.min(startCharIndex, endCharIndex);
+            const selectionEnd = Math.max(startCharIndex, endCharIndex) + 1; // +1 to include the closing bracket
+
+            // Set caret start position based on absolute character index
+            setCaretPosition(contentDiv, null, null, selectionStart);
+            const selection = window.getSelection();
+            if (!selection.rangeCount) return;
+            
+            const range = selection.getRangeAt(0);
+
+            // Find the end node/offset to set the selection end
+            let charsCounted = 0;
+            let endNode = contentDiv;
+            let endOffset = 0;
+            let currentNode = contentDiv.firstChild;
+            
+            // Handle case for empty contentDiv (shouldn't happen here but safe)
+            if (!currentNode && selectionEnd === 0) {
+                range.setEnd(contentDiv, 0);
+            }
+
+            while (currentNode) {
+                if (currentNode.nodeType === Node.TEXT_NODE) {
+                    const nodeLength = currentNode.length;
+                    if (selectionEnd <= charsCounted + nodeLength) {
+                        endNode = currentNode;
+                        endOffset = selectionEnd - charsCounted;
+                        break;
+                    }
+                    charsCounted += nodeLength;
+                } else if (currentNode.nodeType === Node.ELEMENT_NODE) {
+                     // Non-text nodes should be handled if present, but typically contenteditable
+                     // uses text nodes for code content.
+                     charsCounted += (currentNode.textContent ? currentNode.textContent.length : 0);
+                }
+                
+                // If selectionEnd is exactly the length of all content, the loop might finish without a break.
+                if (selectionEnd === content.length && !currentNode.nextSibling) {
+                    // Fallback to setting end at the end of the last node/container.
+                    endNode = contentDiv.lastChild || contentDiv;
+                    endOffset = endNode.nodeType === Node.TEXT_NODE ? endNode.length : (endNode.childNodes.length || 0);
+                }
+                
+                currentNode = currentNode.nextSibling;
+            }
+            
+            if (endNode) {
+                // Ensure endOffset doesn't exceed the node's length/child count
+                const maxOffset = endNode.nodeType === Node.TEXT_NODE ? endNode.length : endNode.childNodes.length;
+                range.setEnd(endNode, Math.min(endOffset, maxOffset));
+            }
+
+            selection.removeAllRanges();
+            selection.addRange(range);
+        }
+    };
+    // --- END NEW BRACKET SELECTOR LOGIC ---
+
 
     const showGoToLineDialog = () => {
         const currentLine = getCaretPosition(contentDiv).line;
@@ -550,14 +682,16 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
     };
 
     const toggleMenu = (menuName) => {
-        const mainMenuButtons = [undoButton.parentElement, redoButton.parentElement, selectAllButton.parentElement, goToLineButton.parentElement, findButton.parentElement, pagesButton.parentElement, runButton.parentElement, saveButton.parentElement, closeButton.parentElement];
+        // Find the index of the selectBracketButton's parent cell in the button array for correct slicing
+        const allButtonCells = Array.from(menuBar.querySelectorAll('td:not(.code-editor-title-bar)'));
+        
+        // Define all main menu buttons (including the new one)
+        const mainMenuButtons = [undoButton.parentElement, redoButton.parentElement, selectAllButton.parentElement, selectBracketButton.parentElement, goToLineButton.parentElement, findButton.parentElement, pagesButton.parentElement, runButton.parentElement, saveButton.parentElement, closeButton.parentElement];
         const findMenuButtons = [findInputCell, prevFindCell, nextFindCell, findCloseCell];
         const pagesMenuButtons = [pagesPrevCell, pagesTitleCell, pagesDropdownCell, pagesNextCell, pagesCloseCell];
 
         // First, hide all menus
-        mainMenuButtons.forEach(cell => cell.style.display = 'none');
-        findMenuButtons.forEach(cell => cell.style.display = 'none');
-        pagesMenuButtons.forEach(cell => cell.style.display = 'none');
+        allButtonCells.forEach(cell => cell.style.display = 'none');
         titleBarRow.style.display = 'none'; // Initially hide the title bar as well
 
         // Then, show the selected menu and the title bar if needed
@@ -648,6 +782,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
     undoButton.addEventListener('click', undo);
     redoButton.addEventListener('click', redo);
     selectAllButton.addEventListener('click', selectAll);
+    selectBracketButton.addEventListener('click', selectBracketContent); // <--- NEW ATTACHMENT
     goToLineButton.addEventListener('click', showGoToLineDialog);
     goToLineOkButton.addEventListener('click', goToLine);
     goToLineCancelButton.addEventListener('click', hideGoToLineDialog);

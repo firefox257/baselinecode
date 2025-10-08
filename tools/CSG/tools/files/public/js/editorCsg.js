@@ -18,7 +18,32 @@ const LAST_CONSOLE_HEIGHT_KEY = 'csg-editor-console-height';
 
 // New constants for default project content
 const DEFAULT_CSG_PAGE_TITLE = 'Main';
-const DEFAULT_CSG_CODE_CONTENT = '// CSG code goes here\nconst result = new THREE.Mesh( new THREE.BoxGeometry( 10, 10, 10 ), new THREE.MeshStandardMaterial({ color: 0x007bff }) );\nreturn result;';
+const DEFAULT_CSG_CODE_CONTENT = `
+// CSG code goes here 
+var f1 = await font("/fonts/ClassicRomanCaps.ttf");
+var ts= text({
+		font:f1,
+		text:"wELCOME!",
+		fn:30,
+		fontSize:9
+	});
+ts= alignPath({cx:0,cy:0},ts)
+var s1=shape(ts);
+
+var p1={
+	path:[
+		"m", 0,0, 0,
+		"s",1,1,
+		"l", 0,0, 3
+	],
+	fn:30
+}
+
+
+
+return linePaths3dEx(s1, p1);
+
+`;
 const DEFAULT_CODE_PAGE_TITLE = 'Code';
 const DEFAULT_CODE_CODE_CONTENT = '// Include helper functions here';
 
