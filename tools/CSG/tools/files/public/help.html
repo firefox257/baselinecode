@@ -248,6 +248,7 @@
                             <li><a href="#rotate-section"><code>rotate()</code></a></li>
                             <li><a href="#scale-section"><code>scale()</code></a></li>
                             <li><a href="#scaleadd-section"><code>scaleAdd()</code></a></li>
+                            <li><a href="#scaleto-section"><code>scaleTo()</code></a></li>
                             <li><a href="#floor-section"><code>floor()</code></a></li>
                             <li><a href="#align-section"><code>align()</code></a></li>
                         </ul>
@@ -281,7 +282,6 @@
                             <li><a href="#color-section"><code>color()</code></a></li>
                             <li><a href="#convexhull-section"><code>convexHull()</code></a></li>
                             <li><a href="#subdivide-section"><code>subdivide()</code></a></li>
-                            <li><a href="#scaleto-section"><code>scaleTo()</code></a></li>
                             <li><a href="#show-hide-section"><code>show()</code> and <code>hide()</code></a></li>
                         </ul>
                     </li>
@@ -415,7 +415,7 @@
         <p>Sets the width (X-axis) of the build plate grid in millimeters. The default is 220mm.</p>
         <h3 id="grid-length">Grid Length</h3>
         <p>Sets the length (Y-axis) of the build plate grid in millimeters. The default is 220mm.</p>
-        <h3 id="grid-spacing">Grid Spacing</h3>
+        <h3 id="grid-spacing">Grid Spacing</p>
         <p>Sets the distance between grid lines in millimeters. The default is 10mm.</p>
         <h3 id="library-path">Library Path</h3>
         <p>This is the base path used when you use the <code>$lib/</code> prefix in your <code>get()</code> or <code>include()</code> functions. For example, <code>get("MyPart", "$lib/part1.json")</code> will look for the file at <code>/csgLib/part1.json</code> (if the library path is set to <code>/csgLib</code>).</p>
@@ -566,7 +566,7 @@ return {
             <h3>How to Use <code>get()</code> and <code>include()</code></h3>
             <p>These functions allow you to modularize your code and reuse components.</p>
             <h4 id="include-section"><code>include(name)</code></h4>
-            <p>The <code>include()</code> function is used within a <strong>CSG script</strong> to load and execute code from an <strong>Editor script</strong> tab. It returns the object that the Editor script returned.</p>
+            <p>The <code>include()</code> function is used within a **CSG script** to load and execute code from an **Editor script** tab. It returns the object that the Editor script returned.</p>
             <p><strong>Example:</strong></p>
             <pre><code>// In an Editor script tab titled "MyLibrary"
 function bolt(diameter, length) {
@@ -577,7 +577,7 @@ return { bolt: bolt };</code></pre>
 const lib = include("MyLibrary");
 return lib.bolt(5, 20);</code></pre>
             <h4 id="get-section"><code>get(name)</code></h4>
-            <p>The <code>get()</code> function is used to load and execute another <strong>CSG script</strong> tab. It returns the 3D object (or array of objects) that the target CSG script returned.</p>
+            <p>The <code>get()</code> function is used to load and execute another **CSG script** tab. It returns the 3D object (or array of objects) that the target CSG script returned.</p>
             <p><strong>Example:</strong></p>
             <pre><code>// In a CSG script tab titled "BasePlate"
 return cube([50, 50, 5]);</code></pre>
@@ -609,7 +609,7 @@ return gear;</code></pre>
             <p>When using external files with <code>get()</code> or <code>include()</code>, you can specify the file path. The system resolves paths as follows:</p>
             <ol>
                 <li id="absolute-paths"><strong>Absolute Paths:</strong> If the path starts with <code>/</code>, it is treated as an absolute path from the root of your storage.</li>
-                <li id="library-paths"><strong>Library Paths:</strong> If the path starts with <code>$lib/</code>, it is resolved relative to the <strong>Library Path</strong> setting (found in the Settings panel). For example, if your Library Path is <code>/csgLib</code>, then <code>$lib/parts.json</code> resolves to <code>/csgLib/parts.json</code>.</li>
+                <li id="library-paths"><strong>Library Paths:</strong> If the path starts with <code>$lib/</code>, it is resolved relative to the **Library Path** setting (found in the Settings panel). For example, if your Library Path is <code>/csgLib</code>, then <code>$lib/parts.json</code> resolves to <code>/csgLib/parts.json</code>.</li>
                 <li id="relative-paths"><strong>Relative Paths:</strong> Any other path is treated as relative to the directory of the currently loaded project. If no project is loaded, relative paths cannot be used.</li>
             </ol>
             <p><strong>Example:</strong></p>
@@ -628,8 +628,8 @@ const helper = include("Utils", "../shared/utils.json"); // Loads from /projects
         <h2>5. Paths: How to Create Them</h2>
         <p>In the CSG Editor, 2D paths are the foundation for creating complex extruded shapes, text, logos, gears, and more. A path is defined as a JavaScript object with two properties:</p>
         <ul>
-            <li><code>path</code>: A <strong>flat array</strong> of commands and coordinates that describe the shape.</li>
-            <li><code>fn</code>: (Optional) The <strong>number of segments</strong> used when approximating curves (arcs, beziers, ellipses). Default is 30.</li>
+            <li><code>path</code>: A **flat array** of commands and coordinates that describe the shape.</li>
+            <li><code>fn</code>: (Optional) The **number of segments** used when approximating curves (arcs, beziers, ellipses). Default is 30.</li>
         </ul>
         <h3 id="path-format">Path Format</h3>
         <pre><code>{
@@ -644,10 +644,10 @@ const helper = include("Utils", "../shared/utils.json"); // Loads from /projects
     fn: 40 // Optional: resolution for curves
 }</code></pre>
         <div class="note">
-            <p><strong>Important Note on Coordinates:</strong> The CSG Editor uses a <strong>Y-up coordinate system for 2D paths</strong>. This means:</p>
+            <p><strong>Important Note on Coordinates:</strong> The CSG Editor uses a **Y-up coordinate system for 2D paths**. This means:</p>
             <ul>
-                <li>Positive <strong>X</strong> is to the right.</li>
-                <li>Positive <strong>Y</strong> is <strong>upwards</strong>.</li>
+                <li>Positive **X** is to the right.</li>
+                <li>Positive **Y** is **upwards**.</li>
             </ul>
             <p>This is the standard mathematical/Cartesian coordinate system and matches how Three.js <code>Shape</code> works internally.</p>
         </div>
@@ -665,72 +665,72 @@ const helper = include("Utils", "../shared/utils.json"); // Loads from /projects
                 <tr>
                     <td><code>m</code></td>
                     <td><code>'m', x, y</code></td>
-                    <td><strong>Move To (Absolute)</strong>: Starts a new sub-path by moving the pen to the absolute coordinate <code>(x, y)</code>.</td>
+                    <td>**Move To (Absolute)**: Starts a new sub-path by moving the pen to the absolute coordinate <code>(x, y)</code>.</td>
                 </tr>
                 <tr>
                     <td><code>mr</code></td>
                     <td><code>'mr', dx, dy</code></td>
-                    <td><strong>Move To (Relative)</strong>: Starts a new sub-path by moving the pen from the current point by the offset <code>(dx, dy)</code>.</td>
+                    <td>**Move To (Relative)**: Starts a new sub-path by moving the pen from the current point by the offset <code>(dx, dy)</code>.</td>
                 </tr>
                 <tr>
                     <td><code>l</code></td>
                     <td><code>'l', x, y</code></td>
-                    <td><strong>Line To (Absolute)</strong>: Draws a straight line from the current point to the absolute coordinate <code>(x, y)</code>.</td>
+                    <td>**Line To (Absolute)**: Draws a straight line from the current point to the absolute coordinate <code>(x, y)</code>.</td>
                 </tr>
                 <tr>
                     <td><code>lr</code></td>
                     <td><code>'lr', dx, dy</code></td>
-                    <td><strong>Line To (Relative)</strong>: Draws a straight line from the current point to a new point offset by <code>(dx, dy)</code>.</td>
+                    <td>**Line To (Relative)**: Draws a straight line from the current point to a new point offset by <code>(dx, dy)</code>.</td>
                 </tr>
                 <tr>
                     <td><code>q</code></td>
                     <td><code>'q', cx, cy, x, y</code></td>
-                    <td><strong>Quadratic Curve (Absolute)</strong>: Draws a quadratic Bezier curve to <code>(x, y)</code> using the absolute control point <code>(cx, cy)</code>.</td>
+                    <td>**Quadratic Curve (Absolute)**: Draws a quadratic Bezier curve to <code>(x, y)</code> using the absolute control point <code>(cx, cy)</code>.</td>
                 </tr>
                 <tr>
                     <td><code>qr</code></td>
                     <td><code>'qr', dcx, dcy, dx, dy</code></td>
-                    <td><strong>Quadratic Curve (Relative)</strong>: Draws a quadratic Bezier curve to a point offset by <code>(dx, dy)</code>, using a control point offset by <code>(dcx, dcy)</code> from the starting point.</td>
+                    <td>**Quadratic Curve (Relative)**: Draws a quadratic Bezier curve to a point offset by <code>(dx, dy)</code>, using a control point offset by <code>(dcx, dcy)</code> from the starting point.</td>
                 </tr>
                 <tr>
                     <td><code>c</code></td>
                     <td><code>'c', cx1, cy1, cx2, cy2, x, y</code></td>
-                    <td><strong>Cubic Curve (Absolute)</strong>: Draws a cubic Bezier curve to <code>(x, y)</code> using absolute control points <code>(cx1, cy1)</code> and <code>(cx2, cy2)</code>.</td>
+                    <td>**Cubic Curve (Absolute)**: Draws a cubic Bezier curve to <code>(x, y)</code> using absolute control points <code>(cx1, cy1)</code> and <code>(cx2, cy2)</code>.</td>
                 </tr>
                 <tr>
                     <td><code>cr</code></td>
                     <td><code>'cr', dcx1, dcy1, dcx2, dcy2, dx, dy</code></td>
-                    <td><strong>Cubic Curve (Relative)</strong>: Draws a cubic Bezier curve to a point offset by <code>(dx, dy)</code>, using control points offset by <code>(dcx1, dcy1)</code> and <code>(dcx2, dcy2)</code> from the starting point.</td>
+                    <td>**Cubic Curve (Relative)**: Draws a cubic Bezier curve to a point offset by <code>(dx, dy)</code>, using control points offset by <code>(dcx1, dcy1)</code> and <code>(dcx2, dcy2)</code> from the starting point.</td>
                 </tr>
                 <tr>
                     <td><code>a</code></td>
                     <td><code>'a', centerX, centerY, radius, startAngle, endAngle, clockwise</code></td>
-                    <td><strong>Arc (Absolute)</strong>: Draws an arc of a circle centered at the absolute coordinate <code>(centerX, centerY)</code>.</td>
+                    <td>**Arc (Absolute)**: Draws an arc of a circle centered at the absolute coordinate <code>(centerX, centerY)</code>.</td>
                 </tr>
                 <tr>
                     <td><code>e</code></td>
                     <td><code>'e', centerX, centerY, radiusX, radiusY, startAngle, endAngle, clockwise</code></td>
-                    <td><strong>Ellipse (Absolute)</strong>: Draws an arc of an ellipse centered at the absolute coordinate <code>(centerX, centerY)</code>.</td>
+                    <td>**Ellipse (Absolute)**: Draws an arc of an ellipse centered at the absolute coordinate <code>(centerX, centerY)</code>.</td>
                 </tr>
                  <tr>
                     <td><code>n</code></td>
                     <td><code>'n', segments</code></td>
-                    <td><strong>Number of Segments</strong>: A modifier that forces the <em>next</em> line or curve segment to be subdivided into a specific number of <code>segments</code>. This overrides the default <code>fn</code> for that one segment.</td>
+                    <td>**Number of Segments**: A modifier that forces the *next* line or curve segment to be subdivided into a specific number of <code>segments</code>. This overrides the default <code>fn</code> for that one segment.</td>
                 </tr>
             </tbody>
         </table>
         <h3 id="path-usage">Creating and Using Paths</h3>
         <p>Once you have defined a path object, you use the <code>shape()</code> function to convert it into a 3D-extrudable geometry.</p>
         <ol>
-            <li><strong>Define the Path</strong>: Create your path data object.</li>
-            <li><strong>Convert to Shape</strong>: Pass the path object to the <code>shape()</code> function. This returns a <code>THREE.Shape</code> (or array of shapes) that understands holes and nesting automatically.</li>
-            <li><strong>Extrude</strong>: Use <code>linePaths3d()</code> or <code>linePaths3dEx()</code> to turn the 2D shape into a 3D object.</li>
+            <li>**Define the Path**: Create your path data object.</li>
+            <li>**Convert to Shape**: Pass the path object to the <code>shape()</code> function. This returns a <code>THREE.Shape</code> (or array of shapes) that understands holes and nesting automatically.</li>
+            <li>**Extrude**: Use <code>linePaths3d()</code> or <code>linePaths3dEx()</code> to turn the 2D shape into a 3D object.</li>
         </ol>
         <h3 id="auto-hole">Advanced: Automatic Hole Detection</h3>
         <p>The <code>shape()</code> function is intelligent. If you define multiple sub-paths in a single <code>path</code> array (using multiple <code>'m'</code> or <code>'mr'</code> commands), it will automatically determine which paths are holes based on their nesting and bounding boxes.</p>
         <ul>
             <li>A path that is completely inside another path will be treated as a hole.</li>
-            <li>You do <strong>not</strong> need to manually add holes to a shape. Just define all your outlines and cutouts in the <code>path</code> array, and <code>shape()</code> will figure it out.</li>
+            <li>You do **not** need to manually add holes to a shape. Just define all your outlines and cutouts in the <code>path</code> array, and <code>shape()</code> will figure it out.</li>
         </ul>
         <p>This makes creating complex shapes with cutouts very straightforward.</p>
         <h3 id="arcpath3d"><code>arcPath3d(config)</code></h3>
@@ -851,11 +851,11 @@ return linePaths3d(finalShape, straightPath, false);</code></pre>
         <h2>6. scadCSG Commands and How to Use Them</h2>
         <p>This section details the core functions available for creating and manipulating geometry. All these functions are available in your CSG scripts.</p>
         <div class="note">
-            <p><strong>Important Note on Coordinate System:</strong> The CSG Editor uses a <strong>Z-up coordinate system</strong> for all 3D operations, which is standard for many CAD and 3D printing applications. This means:</p>
+            <p><strong>Important Note on Coordinate System:</strong> The CSG Editor uses a **Z-up coordinate system** for all 3D operations, which is standard for many CAD and 3D printing applications. This means:</p>
             <ul>
-                <li>The <strong>X-axis</strong> represents width.</li>
-                <li>The <strong>Y-axis</strong> represents length or depth.</li>
-                <li>The <strong>Z-axis</strong> represents height (up/down).</li>
+                <li>The **X-axis** represents width.</li>
+                <li>The **Y-axis** represents length or depth.</li>
+                <li>The **Z-axis** represents height (up/down).</li>
             </ul>
             <p>This is handled automatically by the commands. For example, in <code>cube([10, 20, 5])</code>, the height of the cube is 5.</p>
         </div>
@@ -904,6 +904,9 @@ return linePaths3d(finalShape, straightPath, false);</code></pre>
         <h4 id="scaleadd-section"><code>scaleAdd({ x, y, z }, target)</code></h4>
         <p>Resizes an object by adding the specified values to its current dimensions along each axis. For example, <code>scaleAdd({ x: 5 }, myCube)</code> will make <code>myCube</code> 5 units wider.</p>
         <p><strong>Example:</strong> <code>const myCube = cube([10, 10, 10]); return scaleAdd({ x: 5, z: 2 }, myCube);</code></p>
+        <h4 id="scaleto-section"><code>scaleTo({ x, y, z }, target)</code></h4>
+        <p>Scales the entire object uniformly so that its size along a specified axis matches the target dimension. Only **one** of <code>x</code>, <code>y</code>, or <code>z</code> should be provided. The object is scaled proportionally on all axes to meet the constraint on the specified axis.</p>
+        <p><strong>Example:</strong> <code>scaleTo({ x: 50 }, myModel)</code></p>
         <h4 id="floor-section"><code>floor(target)</code></h4>
         <p>Translates the object so that its lowest point is at Z=0.</p>
         <p><strong>Example:</strong> <code>floor(sphere({ r: 10 }))</code></p>
@@ -943,8 +946,8 @@ return linePaths3d(finalShape, straightPath, false);</code></pre>
         <p><strong>Example:</strong> See the "Circle with a Square Hole" example in the Paths section.</p>
         <h4 id="linepaths3d-section"><code>linePaths3d(target, path, close)</code></h4>
         <p>Extrudes a 2D shape (<code>target</code>) along a 3D path defined by the <code>path</code> object. The <code>close</code> parameter is a boolean to close the extrusion path.</p>
-        <p>This function performs a simple linear extrusion and <strong>ignores</strong> any rotation (<code>'r'</code>) or scale (<code>'s'</code>) commands in the path data.</p>
-        <p><strong>3D Path Format:</strong> The <code>path</code> object has a <code>path</code> array and an optional <code>fn</code> property. The <code>path</code> array uses the following commands (in a <strong>Z-up coordinate system</strong>):</p>
+        <p>This function performs a simple linear extrusion and **ignores** any rotation (<code>'r'</code>) or scale (<code>'s'</code>) commands in the path data.</p>
+        <p><strong>3D Path Format:</strong> The <code>path</code> object has a <code>path</code> array and an optional <code>fn</code> property. The <code>path</code> array uses the following commands (in a **Z-up coordinate system**):</p>
         <ul>
             <li><code>'m', x, y, z</code>: Move to a point in 3D space.</li>
             <li><code>'l', x, y, z</code>: Draw a line to a point in 3D space.</li>
@@ -954,8 +957,8 @@ return linePaths3d(finalShape, straightPath, false);</code></pre>
         </ul>
         <p><strong>Example:</strong> <code>linePaths3d(myShape, my3dPath, false)</code></p>
         <h4 id="linepaths3dex-section"><code>linePaths3dEx(target, path, close)</code></h4>
-        <p>An advanced version of <code>linePaths3d</code>. It extrudes a 2D shape (<code>target</code>) along a 3D path (<code>path</code>) but <strong>respects the rotation (<code>'r'</code>) and scale (<code>'s'</code>) commands embedded within the path data</strong>. This allows for complex extrusions where the cross-section can twist and change size along the path.</p>
-        <p><strong>Additional 3D Path Commands (for <code>linePaths3dEx</code>):</strong></p>
+        <p>An advanced version of <code>linePaths3d</code>. It extrudes a 2D shape (<code>target</code>) along a 3D path (<code>path</code>) but **respects the rotation (<code>'r'</code>) and scale (<code>'s'</code>) commands embedded within the path data**. This allows for complex extrusions where the cross-section can twist and change size along the path.</p>
+        <p>**Additional 3D Path Commands (for <code>linePaths3dEx</code>):**</p>
         <ul>
             <li><code>'r', angle</code>: Set a 2D rotation (in degrees) to be applied to the cross-section at the next point(s).</li>
             <li><code>'s', scaleX, scaleY</code>: Set a 2D scale to be applied to the cross-section at the next point(s).</li>
@@ -964,8 +967,8 @@ return linePaths3d(finalShape, straightPath, false);</code></pre>
         <h4 id="arcpath3d-func"><code>arcPath3d({ startAng, endAng, r, d, fn })</code></h4>
         <p>A helper function that generates a circular arc path in the XY plane. It returns a pre-formatted object that can be passed directly as the <code>path</code> argument to <code>linePaths3d()</code> or <code>linePaths3dEx()</code>.</p>
         <ul>
-            <li><code>startAng</code>: Starting angle of the arc in <strong>degrees</strong>.</li>
-            <li><code>endAng</code>: Ending angle of the arc in <strong>degrees</strong>.</li>
+            <li><code>startAng</code>: Starting angle of the arc in **degrees**.</li>
+            <li><code>endAng</code>: Ending angle of the arc in **degrees**.</li>
             <li><code>r</code> or <code>d</code>: Radius or diameter of the arc.</li>
             <li><code>fn</code>: Number of segments to approximate the arc (default is 30).</li>
         </ul>
@@ -976,7 +979,7 @@ return linePaths3dEx(circleProfile, arc, false);</code></pre>
         <h3 id="3d-imports">3D Imports</h3>
         <p>These functions allow you to import external 3D models into your scene. The file paths work the same way as <code>get()</code> and <code>include()</code>.</p>
         <div class="note">
-            <p><strong>Note:</strong> All `import` functions are asynchronous and must be called with `await`. They return <code>THREE.Mesh</code> objects (or arrays of them), not <code>Brush</code> objects.</p>
+            <p>**Note:** All `import` functions are asynchronous and must be called with `await`. They return <code>THREE.Mesh</code> objects (or arrays of them), not <code>Brush</code> objects.</p>
         </div>
         <h4 id="import-stl"><code>importStl(filepath)</code></h4>
         <p>Loads an STL file from the specified path.</p>
@@ -1000,10 +1003,7 @@ return linePaths3dEx(circleProfile, arc, false);</code></pre>
         <h4 id="subdivide-section"><code>subdivide({ resolution }, target)</code></h4>
         <p>Subdivides the geometry of an object until all edges are shorter than the specified <code>resolution</code>. This is useful for smoothing or preparing for boolean operations.</p>
         <p><strong>Example:</strong> <code>subdivide({ resolution: 1 }, sphere({ r: 10, fn: 8 }))</code></p>
-        <h4 id="scaleto-section"><code>scaleTo({ x, y, z }, target)</code></h4>
-        <p>Scales the entire object uniformly so that its size along a specified axis matches the target dimension. Only **one** of <code>x</code>, <code>y</code>, or <code>z</code> should be provided. The object is scaled proportionally on all axes to meet the constraint on the specified axis.</p>
-        <p><strong>Example:</strong> <code>scaleTo({ x: 50 }, myModel)</code></p>
-        <h4 id="show-hide-section"><code>show(target)</code> and <code>hide(target)</code></h4>
+        <h4 id="show-hide-section"><code>show()</code> and <code>hide()</code></h4>
         <p>These functions set a <code>$csgShow</code> flag in the object's <code>userData</code>. The main rendering loop checks this flag. If it's <code>false</code> (or not present and the object is not the final result), the object is not added to the scene. This is useful for debugging or hiding intermediate construction geometry.</p>
         <p><strong>Example:</strong> <code>hide(myHelperObject)</code></p>
         <h3 id="2d-path-manipulation">2D Path Manipulation</h3>
@@ -1024,10 +1024,16 @@ return linePaths3dEx(circleProfile, arc, false);</code></pre>
         <p><code>convertTo2d</code> converts a 3D path to 2D by removing Z-axis data. <code>convertTo3d</code> converts a 2D path to 3D by adding a Z-value to all points.</p>
         <h3 id="text-functions">Text Functions</h3>
         <h4><code>font(fontPath)</code></h4>
-        <p>Loads a font file (e.g., TTF) and returns a font object. This is an async function, so you must use <code>await</code>.</p>
+        <p>Loads a font file (e.g., TTF) and returns a font object. This is an **asynchronous** function, so you must use <code>await</code>.</p>
         <p><strong>Example:</strong> <code>const myFont = await font("/fonts/arial.ttf");</code></p>
         <h4><code>text({ font, text, fontSize, fn })</code></h4>
         <p>Converts a string into a 2D path using the specified font. Returns a path data object that can be used with <code>shape()</code> or extrusion functions.</p>
+        <ul>
+            <li><code>font</code>: The font object returned by the <code>font()</code> function.</li>
+            <li><code>text</code>: The string of text to convert.</li>
+            <li><code>fontSize</code>: The size of the text.</li>
+            <li><code>fn</code>: (Optional) The resolution of the path curves (number of segments). Default is 30.</li>
+        </ul>
         <p><strong>Example:</strong> <code>const textPath = text({ font: myFont, text: "Hello", fontSize: 5, fn: 30 });</code></p>
     </section>
     <hr>

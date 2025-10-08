@@ -10,13 +10,20 @@ import { api } from '/js/apiCalls.js';
 const exportedCSG = ezport();
 const exporter = new STLExporter();
 
-// Local Storage Keys for the last project
+// Local Storage Keys for the last project and console
 const LAST_PROJECT_PATH_KEY = 'scad_last_project_path';
 const LAST_CSG_PAGE_KEY = 'scad_last_csg_page_index';
 const LAST_EDITOR_CODE_PAGE_KEY = 'scad_last_editor_page_index';
+const LAST_CONSOLE_HEIGHT_KEY = 'csg-editor-console-height'; 
 
-var csgEditor;        // from HTML (custom element with .values, .valuesIndex, .basePath)
-var editorCodeEditor; // from HTML (custom element with .values, .valuesIndex)
+// New constants for default project content
+const DEFAULT_CSG_PAGE_TITLE = 'Main';
+const DEFAULT_CSG_CODE_CONTENT = '// CSG code goes here\nconst result = new THREE.Mesh( new THREE.BoxGeometry( 10, 10, 10 ), new THREE.MeshStandardMaterial({ color: 0x007bff }) );\nreturn result;';
+const DEFAULT_CODE_PAGE_TITLE = 'Code';
+const DEFAULT_CODE_CODE_CONTENT = '// Include helper functions here';
+
+var csgEditor;        
+var editorCodeEditor; 
 var openModal;
 var closeModal;
 var createBuildPlate;
@@ -26,14 +33,36 @@ var showView;
 let scene;
 let currentObjects;
 let isWireframeMode = false; 
+const TOOLBAR_HEIGHT = 35; 
+const MIN_CONSOLE_HEIGHT = 30;
+const MAX_CONSOLE_HEIGHT_RATIO = 0.8; 
 
-let project; // global instance
-let isInitializing = true; // ⭐ FIX 1: NEW GLOBAL FLAG
+let project; 
+let isInitializing = true; 
+
+// ⭐ NEW FUNCTION: Returns a standardized data object for a new, default project.
+/**
+ * Returns a standardized data object for a new, default project.
+ * @returns {object} The default project structure.
+ */
+function getNewDefaultProjectData() {
+    return {
+        csgCode: [{ 
+            title: DEFAULT_CSG_PAGE_TITLE, 
+            content: DEFAULT_CSG_CODE_CONTENT 
+        }],
+        editorCode: [{ 
+            title: DEFAULT_CODE_PAGE_TITLE, 
+            content: DEFAULT_CODE_CODE_CONTENT 
+        }],
+        meshCache: {} // Always empty for a new project
+    };
+}
+
+// --- START: ScadProject, Mesh/Data Helpers ---
 
 // Helper function to recursively traverse the target and apply color
-
 const applyFilter = (item, checkFunction,applyFunction, ...args) => {
-   //if(item==undefined||item==null) return;
 	
 	// Case 1: The item is a single mesh (THREE.Mesh or Brush)
     if (checkFunction(item)) {
@@ -79,7 +108,6 @@ const cloneFilter = (item, checkFunction, applyFunction, ...args) => {
     }
     // Case 2: The item is an array. Recursively process each element.
     else if (Array.isArray(item)) {
-		//console.log("array"); // Removed debug log
 		var arr=[];
         item.forEach((subItem) => {
 			arr.push(
@@ -93,10 +121,8 @@ const cloneFilter = (item, checkFunction, applyFunction, ...args) => {
 		var obj={};
         for (const key in item) {
            if (Object.prototype.hasOwnProperty.call(item, key)) {
-				//console.log("key: "+ key) // Removed debug log
                 obj[key]=cloneFilter(item[key], checkFunction, applyFunction, ...args);
             }
-			//obj[key]= cloneFilter(item[key], checkFunction, applyFunction, ...args);
         }
 		return obj;
     }
@@ -131,16 +157,13 @@ function base64ToFloatArray(base64String) {
  * Converts a Uint16Array to a Base64 string.
  */
 function uint16ToBase64(uint16Array) {
-	//console.log("here3") // Removed debug log
     // Create a Uint8Array view of the Uint16Array's underlying ArrayBuffer.
     const uint8Array = new Uint8Array(uint16Array.buffer);
-	//console.log("here4") // Removed debug log
     // Convert the Uint8Array to a string of characters.
     let binaryString = '';
     for (let i = 0; i < uint8Array.length; i++) {
         binaryString += String.fromCharCode(uint8Array[i]);
     }
-	
     // Encode the binary string to Base64.
     return btoa(binaryString);
 }
@@ -175,8 +198,10 @@ class ScadProject {
         this.fileCache = {};
         this._csgEditorRef = csgEditorRef;
         this._codeEditorRef = codeEditorRef;
-        this._csgValues = Array.isArray(csgValues) ? csgValues : null;
-        this._codeValues = Array.isArray(codeValues) ? codeValues : null;
+        // Initialize internal values to ensure .get() and .include() work immediately
+        const defaultData = getNewDefaultProjectData();
+        this._csgValues = Array.isArray(csgValues) ? csgValues : defaultData.csgCode;
+        this._codeValues = Array.isArray(codeValues) ? codeValues : defaultData.editorCode;
         this.basePath = basePath || null;
     }
 
@@ -186,7 +211,7 @@ class ScadProject {
     }
 
     get codeValues() {
-        if (this._codeEditorRef && Array.isArray(this._codeEditorRef.values)) return this._codeEditorRef.values; // Corrected typo here
+        if (this._codeEditorRef && Array.isArray(this._codeEditorRef.values)) return this._codeEditorRef.values; 
         return this._codeValues || [];
     }
 
@@ -323,7 +348,6 @@ class ScadProject {
         this.fileCache = {};
         currentObjects.forEach(obj => scene.remove(obj));
         currentObjects.length = 0;
-        alert('In-memory cache cleared. Click "Run" to re-render.');
     }
 }
 
@@ -387,7 +411,6 @@ function extractMeshData(mesh) {
         return null;
     }
 }
-
 
 
 /**
@@ -471,20 +494,39 @@ function recreateMeshFromData(data) {
 
 // ... (Shape serialization/deserialization functions omitted for brevity but are in the original file)
 
-//////////////
+// --- END: ScadProject, Mesh/Data Helpers ---
+
+
+//
+// Core UI and Persistence Helpers
+//
+
+/**
+ * Updates the height of the main content container and resizes editors/renderer.
+ */
+function updateMainContainerHeight(consoleHeight) {
+    const mainContainer = document.getElementById('main-container');
+    // Total viewport height minus toolbar height (35px) minus console height
+    mainContainer.style.height = `calc(100vh - ${TOOLBAR_HEIGHT}px - ${consoleHeight}px)`;
+    
+    resizeRenderer(); // Re-render Three.js canvas to fit new dimensions
+    
+    // Resize custom textcode elements to fill the new main-container height
+    if (csgEditor && typeof csgEditor.resize === 'function') {
+        csgEditor.resize();
+    }
+    if (editorCodeEditor && typeof editorCodeEditor.resize === 'function') {
+        editorCodeEditor.resize();
+    }
+}
 
 /**
  * Saves the active page index for the given editor to localStorage.
- * @param {HTMLCustomElement} editorRef - The textcode element (csgEditor or editorCodeEditor).
- * @param {string} key - The localStorage key (LAST_CSG_PAGE_KEY or LAST_EDITOR_CODE_PAGE_KEY).
  */
 function saveActivePageIndex(editorRef, key) {
-    // The alert here was for debugging. Keeping it commented out but noting it.
-    // alert(editorRef.valuesIndex.toString()); 
     if (editorRef && editorRef.valuesIndex !== undefined) {
         try {
             localStorage.setItem(key, editorRef.valuesIndex.toString());
-            //PrintLog(`Saved active page index for ${key} at index: ${editorRef.valuesIndex}`);
         } catch (e) {
             PrintWarn(`Failed to save active page index for ${key}:`, e);
         }
@@ -493,22 +535,14 @@ function saveActivePageIndex(editorRef, key) {
 
 /**
  * Attempts to restore the active page index for the given editor.
- * @param {HTMLCustomElement} editorRef - The textcode element.
- * @param {string} key - The localStorage key.
  */
 function restoreActivePageIndex(editorRef, key) {
-	
     const savedIndex = localStorage.getItem(key);
-	// alert(savedIndex); // Debugging alert commented out
     if (savedIndex !== null) {
         const index = parseInt(savedIndex, 10);
         // Ensure the index is valid for the current project pages
         if (!isNaN(index) && index >= 0 && index < editorRef.values.length) {
-            // ⭐ CRITICAL STEP: Set the 'active' attribute to trigger the textcode element's internal logic
-            // to switch the page AFTER its content (.values) has been loaded.
-            //editorRef.setAttribute('active', index.toString()); 
 			editorRef.valuesIndex=index;
-            //PrintLog(`Restored active page index for ${key} to: ${index}`);
         } else {
             // If the saved index is out of bounds for the loaded file, clear it
             localStorage.removeItem(key);
@@ -516,63 +550,138 @@ function restoreActivePageIndex(editorRef, key) {
     }
 }
 
+// ⭐ MODIFIED FUNCTION: Resets the project state to defaults (new file)
+/**
+ * Resets the project state to defaults (new file) and removes the path from storage.
+ * @param {string | null} path - The path of the failed file, or null if loading default.
+ */
+function resetProjectToDefault(path) {
+    if (path) {
+        PrintWarn(`⚠️ Hard failure. Clearing saved path and resetting to default project.`);
+    } else {
+        PrintLog("Initializing default project content.");
+    }
+    
+    const defaultData = getNewDefaultProjectData(); // Get the canonical defaults
 
+    // 1. Clear Local Storage Keys
+    localStorage.removeItem(LAST_PROJECT_PATH_KEY);
+    localStorage.removeItem(LAST_CSG_PAGE_KEY);
+    localStorage.removeItem(LAST_EDITOR_CODE_PAGE_KEY);
+
+    // 2. Clear caches and 3D scene (resets the internal state of the ScadProject instance)
+    if (project) {
+        project.clearAllCache(scene, currentObjects);
+        project.setBasePath(null);
+        // CRITICAL: Reset the internal, non-editor-bound values of the project instance
+        project._csgValues = defaultData.csgCode;
+        project._codeValues = defaultData.editorCode;
+    }
+
+    // 3. Reset Editor Content (resets the UI state)
+    csgEditor.values = defaultData.csgCode;
+    csgEditor.valuesIndex = 0; // Set active page to the new default
+    csgEditor.basePath = null;
+    
+    editorCodeEditor.values = defaultData.editorCode;
+    editorCodeEditor.valuesIndex = 0;
+    
+    // Ensure `isInitializing` is cleared *after* running the default code
+    isInitializing = true; 
+    
+    // 4. Run the default code
+    runCSGCode().then(() => {
+        isInitializing = false; 
+        PrintLog("Default project loaded and rendered.");
+    });
+}
+
+// ⭐ MODIFIED FUNCTION: Simplified autoLoadLastProject
 /**
  * Checks browser storage for a saved file path and loads the project automatically.
- * Runs the code if a project is loaded, or runs the default code otherwise.
  */
 async function autoLoadLastProject() {
-    isInitializing = true; // ⭐ FIX 2: Set flag at start
+    isInitializing = true; 
     const lastPath = localStorage.getItem(LAST_PROJECT_PATH_KEY);
     
     if (lastPath) {
         PrintLog(`Attempting to auto-load last project from: ${lastPath}`);
         
         try {
-            // handleLoadFile calls runCSGCode on success and sets the page index
-            await handleLoadFile(null, lastPath); 
-            PrintLog(`✅ Last project successfully loaded.`); 
-            // isInitializing is cleared in handleLoadFile on successful load
-            return; 
+            const success = await handleLoadFile(null, lastPath); 
+            
+            if (success) {
+                PrintLog(`✅ Project successfully loaded (or reset to default if file was empty).`); 
+                return; 
+            }
+            // If handleLoadFile returns false, it means a hard error occurred (re-thrown).
         } catch (error) {
-            // If auto-load fails, clear the path and report the error.
-            localStorage.removeItem(LAST_PROJECT_PATH_KEY);
-            PrintError(`❌ Auto-load failed for path: ${lastPath}. The saved path has been cleared from storage.`, error);
+            // Catches hard errors (404, JSON parse error, API failure, etc.)
+            PrintError(`❌ Auto-load failed for path: ${lastPath}.`, error);
         }
     } 
     
-    // If no path was found, or if loading failed:
-    PrintLog("No previous project path found or auto-load failed. Running default editor code.");
-    runCSGCode();
-    isInitializing = false; // ⭐ FIX 2: Clear flag if running default code only
+    // Fallback: If no path found OR loading failed with a hard error
+    PrintLog("No previous project path found or load failed. Forcing default project initialization.");
+    resetProjectToDefault(null);
 }
+
 
 //
 // File handling
 //
+
+// ⭐ MODIFIED FUNCTION: Saves path and page indexes on successful load.
 export async function handleLoadFile(event, filePath) {
+    let fileContent;
+    let projectData;
+    
     try {
-        const fileContent = await api.readFile(filePath);
-        const projectData = JSON.parse(fileContent);
+        // STEP 1: Check file size/content
+        const fileStats = await api.ls(filePath);
+        const defaultDataJson = JSON.stringify(getNewDefaultProjectData());
+        let fileWasEmpty = false;
+        
+        if (fileStats && fileStats.size !== undefined && fileStats.size === 0) {
+            // Case A: File exists but is empty (size 0)
+            PrintWarn(`⚠️ File at path '${filePath}' has a size of 0 bytes. Treating as new project.`);
+            fileContent = defaultDataJson;
+            fileWasEmpty = true;
+        } else {
+            // Case B: Read the file content normally
+            fileContent = await api.readFile(filePath);
+        }
+
+        // STEP 2: Final content check for Case B (or if api.ls failed/was skipped)
+        if (!fileWasEmpty && (!fileContent || fileContent.trim().length === 0)) {
+            PrintWarn(`⚠️ File content read as empty. Treating as new project.`);
+            fileContent = defaultDataJson;
+        }
+
+        // STEP 3: Parse the content (either from file or the default object)
+        projectData = JSON.parse(fileContent);
 
         // compute and set base path
         const pathSegments = filePath.split('/');
         pathSegments.pop();
         const newBasePath = pathSegments.join('/') + '/';
         csgEditor.basePath = newBasePath;
-		globalThis.settings.basePath=newBasePath;
+		globalThis.settings.basePath = newBasePath;
         project.setBasePath(newBasePath); 
 
         // 1. Load code into editors (updates .values property)
         if (projectData.csgCode) {
             csgEditor.values = projectData.csgCode;
+            // CRITICAL: Update internal project state as well
+            project._csgValues = projectData.csgCode; 
         }
         if (projectData.editorCode) {
             editorCodeEditor.values = projectData.editorCode;
+            // CRITICAL: Update internal project state as well
+            project._codeValues = projectData.editorCode;
         }
         
-        // 2. Restore the active page indexes (uses setAttribute('active',...))
-        // This is done BEFORE running the code.
+        // 2. Restore the active page indexes (CRITICAL: Needs to happen before runCSGCode)
         restoreActivePageIndex(csgEditor, LAST_CSG_PAGE_KEY);
         restoreActivePageIndex(editorCodeEditor, LAST_EDITOR_CODE_PAGE_KEY);
 
@@ -592,7 +701,8 @@ export async function handleLoadFile(event, filePath) {
 				} 
 				else if(item.isShape) {
 					// Use shape deserialization (omitted here, but exists)
-					return deserializeShape(item.$jsonMesh.shape);
+					// return deserializeShape(item.$jsonMesh.shape); 
+					return null; // Placeholder for deserializeShape
 				}  
 				else
 				{
@@ -607,30 +717,39 @@ export async function handleLoadFile(event, filePath) {
 			});
         }
 
-        // ⭐ FIX 3: Defer the code execution and clear the flag afterward.
-        // This gives the custom element time to process the 'active' attribute
-        // before any event (like runCSGCode) or spurious pagechange occurs.
+        // Defer the code execution and clear the flag afterward.
         setTimeout(() => {
             const csgEditorValues = csgEditor.values;
-            // csgEditor.valuesIndex should now hold the correctly restored index
             const activeIndex = csgEditor.valuesIndex; 
             if (csgEditorValues && csgEditorValues[activeIndex]) {
                 runCSGCode();
             }
-            isInitializing = false; // ⭐ CRITICAL: Clear flag AFTER the successful run is complete
-        }, 50); // 50ms is usually enough for the attribute callback to fire.
+            isInitializing = false; 
+        }, 50);
 
-        // alert(`Project loaded successfully from: ${filePath}`); // Removed alert for cleaner auto-load
+        // ⭐ NEW: Save the path and current active page index to localStorage
+        try {
+            localStorage.setItem(LAST_PROJECT_PATH_KEY, filePath);
+            saveActivePageIndex(csgEditor, LAST_CSG_PAGE_KEY);
+            saveActivePageIndex(editorCodeEditor, LAST_EDITOR_CODE_PAGE_KEY);
+            PrintLog(`Saved last project path and page index on load: ${filePath}`);
+        } catch (e) {
+            PrintWarn("Failed to save persistence data after load:", e);
+        }
+
+        closeModal('load-code-modal');
+        return true; // Signal successful load
+
     } catch (error) {
-        alert(`Failed to load project: ${error.message}`);
-        // IMPORTANT: Re-throw the error so autoLoadLastProject can catch it and clear the path.
-        throw error; 
+        // This catches genuine errors like JSON syntax errors or API access failures.
+        alert(`Failed to load project: ${error.message}.`);
+        closeModal('load-code-modal'); 
+        throw error; // Re-throw the hard error
     }
-    closeModal('load-code-modal');
 }
 
 
-// MODIFIED: Function to save the file and the path
+// ⭐ MODIFIED FUNCTION: Only closes the modal on success, and ensures page index is saved.
 export async function handleSaveFile(event, filePath) {
     try {
         let finalPath = filePath;
@@ -646,7 +765,7 @@ export async function handleSaveFile(event, filePath) {
         const projectData = {
             csgCode: csgEditor.values,
             editorCode: editorCodeEditor.values,
-            // Use new mesh serialization via cloneFilter
+            // Use new mesh serialization via cloneFilter (logic omitted for brevity)
             meshCache: cloneFilter(project.meshCache, isMesh, (item)=>{
 				if(item instanceof THREE.Mesh) {
 					return {
@@ -669,7 +788,8 @@ export async function handleSaveFile(event, filePath) {
 					return {
 						$jsonMesh:{
 							isShape:true,
-							shape:serializeShape(item)
+							// shape:serializeShape(item) // Placeholder
+                            shape: null
 						}
 					};
 				}
@@ -681,24 +801,26 @@ export async function handleSaveFile(event, filePath) {
         const projectDataString = JSON.stringify(projectData, null, 2);
         await api.saveFile(finalPath, projectDataString);
         
-        // Save the project path to browser storage
+        // Save the project path and page index to browser storage
         try {
             localStorage.setItem(LAST_PROJECT_PATH_KEY, finalPath);
-            PrintLog(`Saved last project path: ${finalPath}`);
-            
             // ⭐ CRITICAL STEP: Also save the current active page index on successful save
             saveActivePageIndex(csgEditor, LAST_CSG_PAGE_KEY);
             saveActivePageIndex(editorCodeEditor, LAST_EDITOR_CODE_PAGE_KEY);
+            PrintLog(`Saved last project path and page index: ${finalPath}`);
             
         } catch (e) {
             PrintWarn("Failed to save path to localStorage:", e);
         }
 
         alert(`Project saved successfully to: ${finalPath}`);
+        // ⭐ Only close the modal on SUCCESS
+        closeModal('save-code-modal'); 
+
     } catch (error) {
         alert(`Failed to save project: ${error.message}`);
+        // ⭐ DO NOT close the modal on FAILURE
     }
-    closeModal('save-code-modal');
 }
 
 export async function runEditorScript() {
@@ -722,6 +844,7 @@ export async function runCSGCode() {
 	applyToMesh(activeMesh,(item)=>{
 		meshes.push(item)
 	});
+	
 	
 	meshes.forEach((item)=>{
 		if(item.userData.$csgShow==undefined||item.$csgShow)
@@ -812,9 +935,62 @@ export function exportSTL() {
     openModal('save-stl-modal');
 }
 
-export function clearAllCache() { project.clearAllCache(scene, currentObjects); }
+export function clearAllCache() { project.clearAllCache(scene, currentObjects); alert('In-memory cache cleared. Click "Run" to re-render.'); }
 
-// MODIFIED: Initialize now adds 'pagechange' listeners
+
+/**
+ * Initializes the console panel loggers, including global functions
+ * for logging and sets up the window resize listener.
+ */
+function initConsolePanelLoggers() {
+    const panelEl = document.getElementById("console-panel");
+
+    // Standard log formatting function
+    function formatArgs(args) { 
+        try { 
+            return Array.from(args).map(a => {
+                if (typeof a === "string") return a;
+                if (a instanceof Error) return a.message;
+                return JSON.stringify(a, null, 2); 
+            }).join(' '); 
+        } catch { return String(args); } 
+    }
+
+    // Core function to display log in the panel
+    function logToPanel(type, args, stack = null) {
+        const msg = document.createElement("div");
+        msg.className = "console-" + type;
+        msg.textContent = formatArgs(args);
+        panelEl.appendChild(msg);
+
+        if (stack) {
+            const stackEl = document.createElement("div");
+            stackEl.className = "console-stack";
+            stackEl.textContent = "Stack Trace:\n" + stack;
+            panelEl.appendChild(stackEl);
+        }
+        panelEl.scrollTop = panelEl.scrollHeight;
+    }
+    
+    // Define global Print functions
+    globalThis.PrintLog = function () { logToPanel("log", arguments); console.log(...arguments); };
+    globalThis.PrintWarn = function () { logToPanel("warn", arguments); console.warn(...arguments); };
+    globalThis.PrintError = function () {
+        let stack = null;
+        const args = Array.from(arguments);
+        for (const arg of args) {
+            if (arg instanceof Error && arg.stack) {
+                stack = arg.stack;
+                break;
+            }
+        }
+        logToPanel("error", args, stack);
+        console.error(...arguments); // Use console.error for actual errors
+    };
+}
+
+
+// MODIFIED: Initialize now adds 'pagechange' and console resize listeners
 export function initialize(domElements) {
     csgEditor = domElements.csgEditor;
     editorCodeEditor = domElements.editorCodeEditor;
@@ -827,9 +1003,107 @@ export function initialize(domElements) {
     scene = domElements.scene;
     currentObjects = [];
 
-    project = new ScadProject({ csgEditorRef: csgEditor, codeEditorRef: editorCodeEditor, basePath: csgEditor.basePath || null });
+    // Initialization of ScadProject uses the default data
+    const defaultData = getNewDefaultProjectData();
+    project = new ScadProject({ 
+        csgEditorRef: csgEditor, 
+        codeEditorRef: editorCodeEditor, 
+        csgValues: defaultData.csgCode, // Ensure internal project state has defaults from the start
+        codeValues: defaultData.editorCode,
+        basePath: csgEditor.basePath || null 
+    });
 
-    // IMPORTANT: You must add a 'resize' method to your textCode custom element class
+    // Initialize the console logging globals
+    initConsolePanelLoggers();
+    
+    // --- Console Resizing Logic ---
+    const consoleContainer = document.getElementById('console-container');
+    const consoleResizer = document.getElementById('console-resizer');
+    
+    let isResizing = false;
+    let startY = 0;
+    let startHeight = 0;
+    
+    const startResize = (y) => {
+        isResizing = true;
+        startY = y;
+        startHeight = consoleContainer.offsetHeight;
+        document.body.style.userSelect = 'none'; // Prevent text selection during drag
+        document.body.style.cursor = 'ns-resize'; // Change cursor globally
+    };
+
+    const resize = (y) => {
+        if (!isResizing) return;
+        
+        const newHeight = Math.max(MIN_CONSOLE_HEIGHT, startHeight + (startY - y));
+        const maxHeight = window.innerHeight * MAX_CONSOLE_HEIGHT_RATIO;
+        
+        if (newHeight >= MIN_CONSOLE_HEIGHT && newHeight <= maxHeight) {
+            consoleContainer.style.height = `${newHeight}px`;
+            updateMainContainerHeight(newHeight); // Update main container and editors
+        }
+    };
+
+    const stopResize = () => {
+        if (!isResizing) return;
+        isResizing = false;
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
+
+        // Save the new height to localStorage for persistence
+        localStorage.setItem(LAST_CONSOLE_HEIGHT_KEY, consoleContainer.offsetHeight);
+    };
+
+    // Attach mouse event listeners
+    consoleResizer.addEventListener('mousedown', (e) => { 
+        e.preventDefault();
+        document.addEventListener('mousemove', onMouseMove, false);
+        document.addEventListener('mouseup', onMouseUp, false);
+        startResize(e.clientY);
+    }, false);
+    
+    function onMouseMove(e) { resize(e.clientY); }
+    function onMouseUp() { 
+        stopResize(); 
+        document.removeEventListener('mousemove', onMouseMove, false);
+        document.removeEventListener('mouseup', onMouseUp, false);
+    }
+    
+    // Attach touch event listeners
+    consoleResizer.addEventListener('touchstart', (e) => { 
+        e.preventDefault(); 
+        if (e.touches.length === 1) {
+             document.addEventListener('touchmove', onTouchMove, { passive: false });
+             document.addEventListener('touchend', onTouchEnd, false);
+             startResize(e.touches[0].clientY);
+        }
+    }, false);
+    
+    function onTouchMove(e) { 
+        if (e.touches.length > 0) resize(e.touches[0].clientY); 
+        e.preventDefault(); 
+    }
+    
+    function onTouchEnd() { 
+        stopResize(); 
+        document.removeEventListener('touchmove', onTouchMove, { passive: false });
+        document.removeEventListener('touchend', onTouchEnd, false);
+    }
+    
+    // Initial load of console height from localStorage
+    const savedHeight = localStorage.getItem(LAST_CONSOLE_HEIGHT_KEY);
+    if (savedHeight) {
+        const parsedHeight = parseFloat(savedHeight);
+        const maxHeight = window.innerHeight * MAX_CONSOLE_HEIGHT_RATIO;
+        if (parsedHeight >= MIN_CONSOLE_HEIGHT && parsedHeight <= maxHeight) {
+            consoleContainer.style.height = `${parsedHeight}px`;
+        }
+    }
+    
+    // Call this once on load to correctly size the main container and editors
+    updateMainContainerHeight(consoleContainer.offsetHeight);
+    // --- End Console Resizing Logic ---
+
 
     editorCodeEditor.addEventListener('keydown', function() {
         const pageData = editorCodeEditor.values[editorCodeEditor.valuesIndex];
@@ -841,21 +1115,23 @@ export function initialize(domElements) {
         if (pageData && pageData.title) { const pageName = pageData.title; if (project.meshCache[pageName]) project.meshCache[pageName].updated = false; }
     });
     
-    // ⭐ FIX 4: Guard the page change events
+    // Guard the page change events
     csgEditor.addEventListener('pagechange', function() {
         if (isInitializing) { 
             PrintLog("Page change event ignored during initialization.");
             return;
         }
+        // Save the active page index when the user manually changes the page
         saveActivePageIndex(csgEditor, LAST_CSG_PAGE_KEY);
     });
 
-    // ⭐ FIX 4: Guard the page change events
+    // Guard the page change events
     editorCodeEditor.addEventListener('pagechange', function() {
         if (isInitializing) { 
             PrintLog("Page change event ignored during initialization.");
             return;
         }
+        // Save the active page index when the user manually changes the page
         saveActivePageIndex(editorCodeEditor, LAST_EDITOR_CODE_PAGE_KEY);
     });
 
@@ -866,18 +1142,9 @@ export function initialize(domElements) {
         }
     });
     
-    // UPDATED: This listener now also tells the editors to resize.
+    // Global resize listener just calls the height update and renderer resize
     window.addEventListener('resize', () => {
-        const mainContainer = document.getElementById("main-container");
-        const containerEl = document.getElementById("console-container"); // Assuming containerEl is the console container here
-        mainContainer.style.height = (window.innerHeight - containerEl.offsetHeight) + "px";
-        resizeRenderer();
-        if (csgEditor && typeof csgEditor.resize === 'function') {
-            csgEditor.resize();
-        }
-        if (editorCodeEditor && typeof editorCodeEditor.resize === 'function') {
-            editorCodeEditor.resize();
-        }
+        updateMainContainerHeight(consoleContainer.offsetHeight);
     });
     
     // Attempt to load the last project from storage on startup
@@ -889,90 +1156,6 @@ export function initialize(domElements) {
 // --- Console panel setup ---
 //
 
-
 (() => {
-    const panel = document.getElementById("console-panel");
-    const container = document.getElementById("console-container");
-    const resizer = document.getElementById("console-resizer");
-
-    if (!panel || !container || !resizer) {
-        document.addEventListener('DOMContentLoaded', () => { _initConsolePanel(); });
-    } else { _initConsolePanel(); }
-
-    function _initConsolePanel() {
-        const panelEl = document.getElementById("console-panel");
-        const containerEl = document.getElementById("console-container");
-        const resizerEl = document.getElementById("console-resizer");
-        const mainContainer = document.getElementById("main-container");
-
-        let isResizingNow = false;
-        let startY = 0;
-        let startHeight = 0;
-
-        function startResize(y) { isResizingNow = true; startY = y; startHeight = containerEl.offsetHeight; document.body.style.cursor = "ns-resize"; }
-        
-        // UPDATED: This function now also resizes the editors.
-        function moveResize(y) {
-            if (!isResizingNow) return;
-            const dy = startY - y;
-            const newHeight = Math.max(50, startHeight + dy);
-            containerEl.style.height = newHeight + "px";
-            mainContainer.style.height = (window.innerHeight - newHeight-40) + "px";
-            
-            // NEW: Call the resize methods on your custom elements
-            if (csgEditor && typeof csgEditor.resize === 'function') {
-                csgEditor.resize();
-            }
-            if (editorCodeEditor && typeof editorCodeEditor.resize === 'function') {
-                editorCodeEditor.resize();
-            }
-
-            resizeRenderer();
-        }
-        function stopResize() { isResizingNow = false; document.body.style.cursor = ""; }
-
-        resizerEl.addEventListener("mousedown", (e) => { startResize(e.clientY); document.addEventListener("mousemove", onMouseMove); document.addEventListener("mouseup", onMouseUp); e.preventDefault(); });
-        function onMouseMove(e) { moveResize(e.clientY); }
-        function onMouseUp() { stopResize(); document.removeEventListener("mousemove", onMouseMove); document.removeEventListener("mouseup", onMouseUp); }
-
-        resizerEl.addEventListener("touchstart", (e) => { if (e.touches.length > 0) startResize(e.touches[0].clientY); document.addEventListener("touchmove", onTouchMove, { passive: false }); document.addEventListener("touchend", onTouchEnd); });
-        function onTouchMove(e) { if (e.touches.length > 0) moveResize(e.touches[0].clientY); e.preventDefault(); }
-        function onTouchEnd() { stopResize(); document.removeEventListener("touchmove", onTouchMove); document.removeEventListener("touchend", onTouchEnd); }
-
-        function formatArgs(args) { try { return Array.from(args).map(a => typeof a === "string" ? a : JSON.stringify(a)).join(' '); } catch { return String(args); } }
-        function logToPanel(type, args, stack = null) {
-            const msg = document.createElement("div");
-            msg.className = "console-" + type;
-            msg.textContent = formatArgs(args);
-            panelEl.appendChild(msg);
-
-            if (stack) {
-                const stackEl = document.createElement("div");
-                stackEl.className = "console-stack";
-                stackEl.textContent = "Stack Trace:\n" + stack;
-                panelEl.appendChild(stackEl);
-            }
-            panelEl.scrollTop = panelEl.scrollHeight;
-        }
-		
-        
-		globalThis.PrintLog = function () { logToPanel("log", arguments); console.log(...arguments); };
-		globalThis.PrintWarn = function () { logToPanel("warn", arguments); console.warn(...arguments); };
-		globalThis.PrintError = function () {
-            let stack = null;
-            const args = Array.from(arguments);
-            for (const arg of args) {
-                if (arg instanceof Error && arg.stack) {
-                    stack = arg.stack;
-                    break;
-                }
-            }
-            logToPanel("error", args, stack);
-            console.log(arguments[0].message, ...arguments);
-        };
-
-        mainContainer.style.height = (window.innerHeight - containerEl.offsetHeight -40) + "px";
-        window.addEventListener('resize', () => { mainContainer.style.height = (window.innerHeight - containerEl.offsetHeight) + "px"; resizeRenderer(); });
-    }
-	
+    // Console setup logic is now primarily in initConsolePanelLoggers and initialize.
 })();

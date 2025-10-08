@@ -281,7 +281,8 @@ function convexHull(target) {
     })
 
     if (vertices.length < 4) {
-        console.warn(
+        
+		PrintWarn(
             'Convex hull requires at least 4 vertices. Returning null.'
         )
         return null
@@ -304,7 +305,7 @@ function align(config = {}, target) {
 
     const alignMesh = (mesh) => {
         if (!mesh || !mesh.geometry) {
-            console.warn('Align function requires a valid mesh.')
+            PrintWarn('Align function requires a valid mesh.')
             return
         }
 
@@ -736,7 +737,7 @@ function path3d(path) {
                 break
             }
             default:
-                console.warn(`Unknown path command: ${command}`)
+                PrintWarn(`Unknown path command: ${command}`)
                 i = paths.length
                 break
         }
@@ -789,7 +790,7 @@ function path3d(path) {
     if (check[0] <= tol && check[1] <= tol && check[2] <= tol) {
         isClosed = true
     }
-    console.log('isClosed:' + isClosed)
+    //console.log('isClosed:' + isClosed)
 
     if (isClosed) {
         newPath.n.push(calculateAverageTangent(lp, fp, newPath.p[1]))
@@ -1080,7 +1081,7 @@ function path2d(path) {
                 break
 
             default:
-                console.warn(`Unknown path command: ${command}`)
+                PrintWarn(`Unknown path command: ${command}`)
                 i = paths.length
                 break
         }
@@ -1260,7 +1261,7 @@ function linePaths3d(target, commandPath, close) {
     const meshes = [] // An array to store all the created meshes
 
     if (!points3d || points3d.length < 6) {
-        console.warn(
+        PrintWarn(
             'linePaths3d requires at least 6 numbers (2 points) for the 3D extrusion path.'
         )
         return null
@@ -1315,6 +1316,7 @@ function linePaths3d(target, commandPath, close) {
     }
 
     for (const shape of shapes) {
+		
         const fn = shape.userData && shape.userData.fn ? shape.userData.fn : 30
         const shapePoints = shape.extractPoints(fn)
         const extrudedShape = new THREE.Shape(shapePoints.shape)
@@ -1323,6 +1325,7 @@ function linePaths3d(target, commandPath, close) {
         )
         const geometry = new THREE.ExtrudeGeometry(
             extrudedShape,
+			//shape,
             extrudeSettings
         )
         const mesh = new THREE.Mesh(geometry, defaultMaterial.clone())
@@ -1378,7 +1381,7 @@ function linePaths3dEx(target, commandPath, close) {
     const meshes = [] // An array to store all the created meshes
 
     if (!points3d || points3d.length < 6) {
-        console.warn(
+        PrintWarn(
             'linePaths3d requires at least 6 numbers (2 points) for the 3D extrusion path.'
         )
         return null
@@ -2725,10 +2728,10 @@ async function font(fontPath) {
     try {
         const buffer = await api.readFileBinary($path(fontPath))
         const font = opentype.parse(buffer)
-        console.log(`Successfully loaded font from ${fontPath}`)
+        PrintLog(`Successfully loaded font from ${fontPath}`)
         return font
     } catch (error) {
-        console.error('Font loading error:', error)
+        PrintError('Font loading error:', error)
         throw error
     }
 }
@@ -2744,9 +2747,14 @@ async function font(fontPath) {
  * @param {number} textData.fontSize - The font size.
  * @returns {Array<string|number>} A single array of all path commands.
  */
+ 
 function text(textData) {
     let xOffset = 0
     const allCommands = []
+	if(textData.fontSize==undefined)
+	{
+		textData.fontSize=3;
+	}
 
     // Helper function to convert opentype.js commands to the custom format
     function convertPathToCustomFormat(pathCommands) {
@@ -2802,11 +2810,16 @@ function text(textData) {
         }
 
         xOffset +=
-            glyph.advanceWidth * (textData.fontSize / textData.font.unitsPerEm)
+            glyph.advanceWidth * (textData.fontSize / textData.font.unitsPerEm);
+			
+			
     }
 
     return { path: allCommands, fn: textData.fn || 40 } // Include fn here for consistency
 }
+//*/
+
+
 
 // A new ASCII STL parser that ignores normals and just gets vertices
 function parseAsciiStl(text) {
@@ -2942,7 +2955,7 @@ async function importStl(filePath) {
         //return brush;
         return new THREE.Mesh(geometry, defaultMaterial.clone())
     } catch (error) {
-        console.error('STL loading error:', error)
+        PrintError('STL loading error:', error)
         throw error
     }
 }
@@ -2964,7 +2977,7 @@ async function importGlb(filePath) {
             loader.parse(buffer, '', resolve, reject)
         })
 
-        console.log(`Successfully loaded GLB from ${filePath}`)
+        PrintLog(`Successfully loaded GLB from ${filePath}`)
 
         const brushes = []
         // Traverse the loaded scene to find all meshes
@@ -2978,7 +2991,7 @@ async function importGlb(filePath) {
                     !geometry.attributes.normal ||
                     !geometry.attributes.uv
                 ) {
-                    console.warn(
+                    PrintWarn(
                         `Mesh in GLB file is missing required attributes. Attempting to generate them.`
                     )
 
@@ -2992,7 +3005,7 @@ async function importGlb(filePath) {
                         generateUVs(geometry)
                     }
                 }
-                console.log('here: ' + defaultMaterial)
+                //console.log('here: ' + defaultMaterial)
 
                 // Create a new Brush object from the mesh's geometry and a cloned default material
                 const brush = new Brush(geometry, defaultMaterial.clone())
@@ -3012,7 +3025,7 @@ async function importGlb(filePath) {
 
         return brushes
     } catch (error) {
-        console.error('GLB loading error:', error)
+        PrintError('GLB loading error:', error)
         throw error
     }
 }
@@ -3051,7 +3064,7 @@ async function importObj(filePath) {
 
         return brushes
     } catch (error) {
-        console.error('OBJ loading error:', error)
+        PrintError('OBJ loading error:', error)
         throw error
     }
 }
@@ -3090,7 +3103,7 @@ async function importFbx(filePath) {
 
         return brushes
     } catch (error) {
-        console.error('FBX loading error:', error)
+        PrintError('FBX loading error:', error)
         throw error
     }
 }
