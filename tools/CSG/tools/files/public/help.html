@@ -547,9 +547,10 @@
                 <tr><td><code>qr</code></td><td>Relative (2D)</td><td><code>'qr', dcx, dcy, dx, dy</code></td><td>Quadratic Bezier Curve (Control point and end point are relative offsets).</td></tr>
                 <tr><td><code>c</code></td><td>Absolute (2D)</td><td><code>'c', cx1, cy1, cx2, cy2, x, y</code></td><td>Cubic Bezier Curve (Control points and end point are absolute).</td></tr>
                 <tr><td><code>cr</code></td><td>Relative (2D)</td><td><code>'cr', dcx1, dcy1, dcx2, dcy2, dx, dy</code></td><td>Cubic Bezier Curve (Control points and end point are relative offsets).</td></tr>
-                <tr><td><code>a</code></td><td>Absolute (2D)</td><td><code>'a', cx, cy, r, start, end, cw</code></td><td>Circular Arc (Center <code>cx, cy</code> and radius <code>r</code> are absolute).</td></tr>
-                <tr><td><code>e</code></td><td>Absolute (2D)</td><td><code>'e', cx, cy, rx, ry, start, end, cw</code></td><td>Elliptical Arc (Center <code>cx, cy</code> and radii <code>rx, ry</code> are absolute).</td></tr>
-                <tr><td><code>n</code></td><td>Utility</td><td><code>'n', segments</code></td><td>Force resolution for the next segment only (Overrides <code>fn</code>).</td></tr>
+                <tr><td><code>x</code></td><td>Absolute (2D)</td><td><code>'x', cx1, cy1, cx2, cy2, x, y</code></td><td>Arc Curve (Control points and end point are absolute).</td></tr>
+                <tr><td><code>xr</code></td><td>Relative (2D)</td><td><code>'xr', dcx1, dcy1, dcx2, dcy2, dx, dy</code></td><td>Arc Curve (Control points and end point are relative offsets).</td></tr>
+                
+				<tr><td><code>n</code></td><td>Utility</td><td><code>'n', segments</code></td><td>Force resolution for the next segment only (Overrides <code>fn</code>).</td></tr>
                 <tr><td><code>r</code></td><td>Modifier (3D Ex)</td><td><code>'r', angle</code></td><td>**Rotation Modifier** for the cross-section during `linePaths3dEx` (angle in degrees).</td></tr>
                 <tr><td><code>s</code></td><td>Modifier (3D Ex)</td><td><code>'s', scaleX, scaleY</code></td><td>**Scale Modifier** for the cross-section during `linePaths3dEx`.</td></tr>
             </tbody>

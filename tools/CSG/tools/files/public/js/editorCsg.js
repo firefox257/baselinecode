@@ -918,7 +918,7 @@ export function toggleWireframe() {
                 item.userData.originalMaterial = item.material;
             }
             item.material = new THREE.MeshBasicMaterial({
-                color: 0xcccccc,
+                color: 0x11ccaa,
                 wireframe: true,
                 transparent: true,
                 opacity: 0.5

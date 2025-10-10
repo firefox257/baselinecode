@@ -349,23 +349,86 @@ function align(config = {}, target) {
 }
 
 /* eslint-disable */
+
+
+
+
+
+
+//*/
+
+
+
+
+//*/
+
+
+
+
+
+
+
 /**
- * @param {string[]} paths - An array representing the 3D path with 2D transformations.
- * @param {number} fn - The default number of segments for curves.
- * @returns {object} An object containing the new path with curves and lines converted to line segments.
+ * @param {object} path - An object containing the path array and default segments.
+ * @param {string[]} path.path - An array representing the 3D path commands and parameters.
+ * @param {number} path.fn - The default number of segments for curves.
+ * @returns {object} An object containing the new path points (p), rotations (r), scales (s), and normals (n).
  */
 function path3d(path) {
     const paths = path.path
     const fn = path.fn
+	//PrintLog("here:"+fn)
 
     var newPath = {
-        p: [], // Points
+        p: [], // Points (x, y, z)
         r: [], // 2d Rotations
         s: [], // 2d Scales
-        n: [] // Normals for cross sections.
+        n: [] // Normals (Tangents/Up Vectors)
     }
 
-    // Helper function to get points at equal distance along a curve
+    // ----------------------------------------------------------------------
+    // VECTOR MATH FUNCTIONS 
+    // ----------------------------------------------------------------------
+    function vsub(p1, p2) {
+        return [p1[0] - p2[0], p1[1] - p2[1], p1[2] - p2[2]]
+    }
+
+    function vadd(p1, p2) {
+        return [p1[0] + p2[0], p1[1] + p2[1], p1[2] + p2[2]]
+    }
+
+    function vdot(p1, p2) {
+        return p1[0] * p2[0] + p1[1] * p2[1] + p1[2] * p2[2]
+    }
+
+    function vlength(p) {
+        return Math.sqrt(vdot(p, p))
+    }
+
+    function vnormalize(p) {
+        var l = vlength(p)
+        return l > 1e-6 ? [p[0] / l, p[1] / l, p[2] / l] : [0, 0, 0]
+    }
+
+    function vabs(p) {
+        return [Math.abs(p[0]), Math.abs(p[1]), Math.abs(p[2])]
+    }
+
+    function vcross(p1, p2) {
+        return [
+            p1[1] * p2[2] - p1[2] * p2[1],
+            p1[2] * p2[0] - p1[0] * p2[2],
+            p1[0] * p2[1] - p1[1] * p2[0]
+        ]
+    }
+
+    function vscale(p, s) {
+        return [p[0] * s, p[1] * s, p[2] * s]
+    }
+
+    // ----------------------------------------------------------------------
+    // CURVE SEGMENTATION (Bezier)
+    // ----------------------------------------------------------------------
     const getPointsAtEqualDistance = (
         startPoint,
         endPoint,
@@ -373,39 +436,18 @@ function path3d(path) {
         segments
     ) => {
         const getBezierPoint = (t, start, end, ...cps) => {
-            if (cps.length === 1) {
+            if (cps.length === 1) { // Quadratic
                 const cp1 = cps[0]
-                const x =
-                    (1 - t) ** 2 * start[0] +
-                    2 * (1 - t) * t * cp1[0] +
-                    t ** 2 * end[0]
-                const y =
-                    (1 - t) ** 2 * start[1] +
-                    2 * (1 - t) * t * cp1[1] +
-                    t ** 2 * end[1]
-                const z =
-                    (1 - t) ** 2 * start[2] +
-                    2 * (1 - t) * t * cp1[2] +
-                    t ** 2 * end[2]
+                const x = (1 - t) ** 2 * start[0] + 2 * (1 - t) * t * cp1[0] + t ** 2 * end[0]
+                const y = (1 - t) ** 2 * start[1] + 2 * (1 - t) * t * cp1[1] + t ** 2 * end[1]
+                const z = (1 - t) ** 2 * start[2] + 2 * (1 - t) * t * cp1[2] + t ** 2 * end[2]
                 return [x, y, z]
-            } else if (cps.length === 2) {
+            } else if (cps.length === 2) { // Cubic
                 const cp1 = cps[0]
                 const cp2 = cps[1]
-                const x =
-                    (1 - t) ** 3 * start[0] +
-                    3 * (1 - t) ** 2 * t * cp1[0] +
-                    3 * (1 - t) * t ** 2 * cp2[0] +
-                    t ** 3 * end[0]
-                const y =
-                    (1 - t) ** 3 * start[1] +
-                    3 * (1 - t) ** 2 * t * cp1[1] +
-                    3 * (1 - t) * t ** 2 * cp2[1] +
-                    t ** 3 * end[1]
-                const z =
-                    (1 - t) ** 3 * start[2] +
-                    3 * (1 - t) ** 2 * t * cp1[2] +
-                    3 * (1 - t) * t ** 2 * cp2[2] +
-                    t ** 3 * end[2]
+                const x = (1 - t) ** 3 * start[0] + 3 * (1 - t) ** 2 * t * cp1[0] + 3 * (1 - t) * t ** 2 * cp2[0] + t ** 3 * end[0]
+                const y = (1 - t) ** 3 * start[1] + 3 * (1 - t) ** 2 * t * cp1[1] + 3 * (1 - t) * t ** 2 * cp2[1] + t ** 3 * end[1]
+                const z = (1 - t) ** 3 * start[2] + 3 * (1 - t) ** 2 * t * cp1[2] + 3 * (1 - t) * t ** 2 * cp2[2] + t ** 3 * end[2]
                 return [x, y, z]
             }
         }
@@ -417,17 +459,8 @@ function path3d(path) {
         const resolution = 1000
 
         for (let t = 1 / resolution; t <= 1; t += 1 / resolution) {
-            const point = getBezierPoint(
-                t,
-                startPoint,
-                endPoint,
-                ...controlPoints
-            )
-            const dist = Math.hypot(
-                point[0] - prevPoint[0],
-                point[1] - prevPoint[1],
-                point[2] - prevPoint[2]
-            )
+            const point = getBezierPoint(t, startPoint, endPoint, ...controlPoints)
+            const dist = Math.hypot(point[0] - prevPoint[0], point[1] - prevPoint[1], point[2] - prevPoint[2])
             totalLength += dist
             highResPoints.push(point)
             prevPoint = point
@@ -473,24 +506,126 @@ function path3d(path) {
         return points
     }
 
-    var cp = [0, 0, 0]
-    var cr = 0
-    var cs = [1, 1]
-    var cn = 1
+    // ----------------------------------------------------------------------
+    // CORRECTED 3D ARC SEGMENTATION LOGIC
+    // ----------------------------------------------------------------------
+    const getArcSegmentPoints3D = (p0, p1, p2, segments) => {
+        // 1. Find Center C
+        const v01 = vsub(p1, p0)
+        const v12 = vsub(p2, p1)
+        const m01 = vadd(p0, vscale(v01, 0.5)) 
+        const m12 = vadd(p1, vscale(v12, 0.5))
+        
+        const A1 = v01[0], B1 = v01[1], C1 = v01[2], D1 = vdot(v01, m01)
+        const A2 = v12[0], B2 = v12[1], C2 = v12[2], D2 = vdot(v12, m12)
+
+        const N_arc_unnorm = vcross(v01, v12)
+        
+        // CRITICAL FIX: Return [] for degenerate cases, letting the main loop push the final point.
+        if (vlength(N_arc_unnorm) < 1e-6) {
+            return [] 
+        }
+        
+        const N_arc = vnormalize(N_arc_unnorm)
+        const A3 = N_arc[0], B3 = N_arc[1], C3 = N_arc[2], D3 = vdot(N_arc, p0) 
+
+        // Cramer's Rule for Center
+        const detA = ( A1 * (B2 * C3 - C2 * B3) - B1 * (A2 * C3 - C2 * A3) + C1 * (A2 * B3 - B2 * A3) )
+        
+        if (Math.abs(detA) < 1e-6) { return [] } // CRITICAL FIX
+
+        const detX = ( D1 * (B2 * C3 - C2 * B3) - B1 * (D2 * C3 - C2 * D3) + C1 * (D2 * B3 - B2 * D3) )
+        const detY = ( A1 * (D2 * C3 - C2 * D3) - D1 * (A2 * C3 - C2 * A3) + C1 * (A2 * D3 - D2 * A3) )
+        const detZ = ( A1 * (B2 * D3 - D2 * B3) - B1 * (A2 * D3 - D2 * A3) + D1 * (A2 * B3 - B2 * A3) )
+
+        const cx = detX / detA
+        const cy = detY / detA
+        const cz = detZ / detA
+        const center = [cx, cy, cz]
+
+        // 2. Radius R and Basis
+        const vC0 = vsub(p0, center)
+        const R = vlength(vC0)
+        
+        if (R < 1e-6) return [] // CRITICAL FIX
+
+        const X_basis = vnormalize(vC0) 
+        const Z_basis = N_arc 
+        const Y_basis = vcross(Z_basis, X_basis) 
+
+        // 3. Calculate Angles (Fixed Math.atan2 usage)
+        const PI2 = 2 * Math.PI
+        
+        const vC2 = vsub(p2, center)
+        const x_proj2 = vdot(vC2, X_basis) 
+        const y_proj2 = vdot(vC2, Y_basis) 
+        let endAngle = Math.atan2(y_proj2, x_proj2)
+
+        const vC1 = vsub(p1, center)
+        const x_proj1 = vdot(vC1, X_basis) 
+        const y_proj1 = vdot(vC1, Y_basis) 
+        const controlAngle = Math.atan2(y_proj1, x_proj1)
+        
+        endAngle = (endAngle + PI2) % PI2
+        const normControlAngle = (controlAngle + PI2) % PI2
+
+        // 4. Determine Sweep (Improved robustness)
+        let sweep = endAngle 
+        
+        const isStartEndCoincident = vlength(vsub(p0, p2)) < 1e-6;
+        const isControlDistinct = vlength(vsub(p0, p1)) > 1e-6;
+        
+        if (isStartEndCoincident && isControlDistinct) {
+            sweep = PI2;
+        } else {
+            // If control point angle is "beyond" the short arc end angle, take the long arc
+            if (normControlAngle > sweep + 1e-6) { 
+                sweep += PI2; 
+            }
+        }
+        
+        if (Math.abs(sweep) < 1e-6) {
+            return [] // CRITICAL FIX
+        }
+
+        // 5. Generate Line Segments
+        const segmentPoints = []
+        for (let j = 1; j < segments; j++) { // Loop up to segments - 1 to exclude endpoint P2
+            const angle = (sweep * j) / segments
+            
+            const cosA = Math.cos(angle)
+            const sinA = Math.sin(angle)
+            
+            const termX = vscale(X_basis, R * cosA)
+            const termY = vscale(Y_basis, R * sinA)
+            
+            const newPoint = vadd(vadd(center, termX), termY)
+            
+            segmentPoints.push(newPoint)
+        }
+
+        return segmentPoints
+    }
+
+    // ----------------------------------------------------------------------
+    // MAIN PATH PROCESSING
+    // ----------------------------------------------------------------------
+
+    var cp = [0, 0, 0] // Current Point (3D)
+    var cr = 0          // Current Rotation (2D)
+    var cs = [1, 1]     // Current Scale (2D)
     var i = 0
 
-    var atp
-    var atr = 0
-    var ats = [1, 1]
-    var atn = 1
+    var atr = 0 // Target Rotation
+    var ats = [1, 1] // Target Scale
+    var atn = 1 // Number of Segments for next command
 
-    // Main processing loop
     while (i < paths.length) {
         const command = paths[i]
 
         switch (command) {
             case 'm':
-                cp = [paths[i + 1], paths[i + 3], paths[i + 2]]
+                cp = [paths[i + 1], paths[i + 3], paths[i + 2]] 
                 newPath.p.push([...cp])
                 newPath.r.push(cr)
                 newPath.s.push([...cs])
@@ -507,9 +642,8 @@ function path3d(path) {
                 newPath.s.push([...cs])
                 i += 4
                 break
-            case 'l':
-                atp = [paths[i + 1], paths[i + 3], paths[i + 2]]
-
+            case 'l': {
+                const atp = [paths[i + 1], paths[i + 3], paths[i + 2]]
                 if (atn === 1) {
                     newPath.p.push([...atp])
                     newPath.r.push(atr)
@@ -523,27 +657,15 @@ function path3d(path) {
                         const ir = cr * (1 - t) + atr * t
                         const isx = cs[0] * (1 - t) + ats[0] * t
                         const isy = cs[1] * (1 - t) + ats[1] * t
-                        const newPoint = [ix, iy, iz]
-
-                        newPath.p.push([...newPoint])
+                        newPath.p.push([ix, iy, iz])
                         newPath.r.push(ir)
                         newPath.s.push([isx, isy])
                     }
                 }
-
-                cp = atp
-                cr = atr
-                cs = ats
-                atn = 1
-                i += 4
-                break
-            case 'lr':
-                const endPoint_lr = [
-                    cp[0] + paths[i + 1],
-                    cp[1] + paths[i + 3],
-                    cp[2] + paths[i + 2]
-                ]
-
+                cp = atp; cr = atr; cs = ats; atn = 1; i += 4; break
+            }
+            case 'lr': {
+                const endPoint_lr = [cp[0] + paths[i + 1], cp[1] + paths[i + 3], cp[2] + paths[i + 2]]
                 if (atn === 1) {
                     newPath.p.push([...endPoint_lr])
                     newPath.r.push(atr)
@@ -557,31 +679,13 @@ function path3d(path) {
                         const ir = cr * (1 - t) + atr * t
                         const isx = cs[0] * (1 - t) + ats[0] * t
                         const isy = cs[1] * (1 - t) + ats[1] * t
-                        const newPoint = [ix, iy, iz]
-
-                        newPath.p.push([...newPoint])
+                        newPath.p.push([ix, iy, iz])
                         newPath.r.push(ir)
                         newPath.s.push([isx, isy])
                     }
                 }
-                cp = endPoint_lr
-                cr = atr
-                cs = ats
-                atn = 1
-                i += 4
-                break
-            case 'r':
-                atr = paths[i + 1]
-                i += 2
-                break
-            case 's':
-                ats = [paths[i + 1], paths[i + 2]]
-                i += 3
-                break
-            case 'n':
-                atn = paths[i + 1]
-                i += 2
-                break
+                cp = endPoint_lr; cr = atr; cs = ats; atn = 1; i += 4; break
+            }
             case 'q': {
                 const endPoint_q = [paths[i + 4], paths[i + 6], paths[i + 5]]
                 const controlPoints_q = [
@@ -736,47 +840,68 @@ function path3d(path) {
                 i += 10
                 break
             }
+            case 'x': { // Absolute 3D Arc
+                const controlPoint_x = [paths[i + 1], paths[i + 3], paths[i + 2]] 
+                const endPoint_x = [paths[i + 4], paths[i + 6], paths[i + 5]]
+                
+                const segmentsToUse = atn > 1 ? atn : (fn || 16) 
+                
+                getArcSegmentPoints3D(cp, controlPoint_x, endPoint_x, segmentsToUse).forEach((p, j) => {
+                    const t = (j + 1) / segmentsToUse; newPath.p.push([...p])
+                    newPath.r.push(cr * (1 - t) + atr * t)
+                    newPath.s.push([cs[0] * (1 - t) + ats[0] * t, cs[1] * (1 - t) + ats[1] * t])
+                })
+                
+                // CRITICAL FIX: Explicitly push the final endpoint P2 after the segments
+                newPath.p.push([...endPoint_x]);
+                newPath.r.push(atr);
+                newPath.s.push([...ats]);
+
+                cp = endPoint_x; cr = atr; cs = ats; atn = 1; i += 7; break
+            }
+            case 'xr': { // Relative 3D Arc
+                const controlPoint_xr = [cp[0] + paths[i + 1], cp[1] + paths[i + 3], cp[2] + paths[i + 2]]
+                const endPoint_xr = [cp[0] + paths[i + 4], cp[1] + paths[i + 6], cp[2] + paths[i + 5]]
+                
+				//PrintLog("fn:"+fn)
+                const segmentsToUse = atn > 1 ? atn : (fn || 16)
+
+                getArcSegmentPoints3D(cp, controlPoint_xr, endPoint_xr, segmentsToUse).forEach((p, j) => {
+                    const t = (j + 1) / segmentsToUse; newPath.p.push([...p])
+                    newPath.r.push(cr * (1 - t) + atr * t)
+                    newPath.s.push([cs[0] * (1 - t) + ats[0] * t, cs[1] * (1 - t) + ats[1] * t])
+                })
+                
+                // CRITICAL FIX: Explicitly push the final endpoint P2 after the segments
+                newPath.p.push([...endPoint_xr]);
+                newPath.r.push(atr);
+                newPath.s.push([...ats]);
+
+                cp = endPoint_xr; cr = atr; cs = ats; atn = 1; i += 7; break
+            }
+            case 'r':
+                atr = paths[i + 1]; i += 2; break
+            case 's':
+                ats = [paths[i + 1], paths[i + 2]]; i += 3; break
+            case 'n':
+                atn = paths[i + 1]; i += 2; break
             default:
-                PrintWarn(`Unknown path command: ${command}`)
-                i = paths.length
-                break
+                i = paths.length; break
         }
     }
 
-    //vector math for 3d .
-    function vsub(p1, p2) {
-        return [p1[0] - p2[0], p1[1] - p2[1], p1[2] - p2[2]]
-    }
+    // ----------------------------------------------------------------------
+    // TANGENT/NORMAL CALCULATION
+    // ----------------------------------------------------------------------
 
-    function vadd(p1, p2) {
-        return [p1[0] + p2[0], p1[1] + p2[1], p1[2] + p2[2]]
-    }
-
-    function vdot(p1, p2) {
-        return p1[0] * p2[0] + p1[1] * p2[1] + p1[2] * p2[2]
-    }
-
-    function vnormalize(p) {
-        var l = Math.sqrt(vdot(p, p))
-        return [p[0] / l, p[1] / l, p[2] / l]
-    }
-
-    function vabs(p) {
-        return Math.abs(p[0]), Math.abs(p[1]), Math.abs(p[2])
-    }
-
-    // New section to calculate tangents after all points are generated
-    // Helper function to calculate a vector's normal in the XY plane
     const calculateAverageTangent = (p0, p1, p2) => {
-        //p0 is precious point if undefined then itnis a start end point
         if (p0 == undefined) {
             return vnormalize(vsub(p2, p1))
         } else if (p2 == undefined) {
             return vnormalize(vsub(p1, p0))
         } else {
-            var v1 = vsub(p1, p0) //[p1[0]-p0[0], p1[1]-p0[1], p1[2]-p0[2]];
-            var v2 = vsub(p2, p1) //[p2[0]-p1[0], p2[1]-p1[1], p2[2]-p1[2]];
-
+            var v1 = vsub(p1, p0)
+            var v2 = vsub(p2, p1)
             return vnormalize(vadd(v1, v2))
         }
     }
@@ -784,47 +909,483 @@ function path3d(path) {
     var isClosed = false
     var fp = newPath.p[0]
     var lp = newPath.p[newPath.p.length - 1]
-    //check if first and last are at the same points.
-    var check = vabs(vsub(fp, lp)) //[fp[0]-lp[0],fp[1]-lp[1],fp[2]-lp[2]];
+    
     const tol = 0.001
-    if (check[0] <= tol && check[1] <= tol && check[2] <= tol) {
-        isClosed = true
-    }
-    //console.log('isClosed:' + isClosed)
-
-    if (isClosed) {
-        newPath.n.push(calculateAverageTangent(lp, fp, newPath.p[1]))
-    } else {
-        newPath.n.push(calculateAverageTangent(undefined, fp, newPath.p[1]))
-    }
-    // Iterate through the final path points to calculate tangents
-    for (let j = 1; j < newPath.p.length - 1; j++) {
-        const p0 = newPath.p[j - 1]
-        const p1 = newPath.p[j]
-        const p2 = newPath.p[j + 1]
-        newPath.n.push(calculateAverageTangent(p0, p1, p2))
+    if (fp && lp) {
+        var check = vabs(vsub(fp, lp))
+        if (check[0] <= tol && check[1] <= tol && check[2] <= tol) {
+            isClosed = true
+        }
     }
 
-    if (isClosed) {
-        newPath.n.push(calculateAverageTangent(lp, fp, newPath.p[1]))
-    } else {
-        newPath.n.push(
-            calculateAverageTangent(
-                newPath.p[newPath.p.length - 2],
-                lp,
-                undefined
+    if (newPath.p.length > 1) {
+        // First point
+        if (isClosed) {
+            newPath.n.push(calculateAverageTangent(lp, fp, newPath.p[1]))
+        } else {
+            newPath.n.push(calculateAverageTangent(undefined, fp, newPath.p[1]))
+        }
+        
+        // Intermediate points
+        for (let j = 1; j < newPath.p.length - 1; j++) {
+            newPath.n.push(calculateAverageTangent(newPath.p[j - 1], newPath.p[j], newPath.p[j + 1]))
+        }
+
+        // Last point
+        if (isClosed) {
+            // Tangent for a closed loop is the same as the first point's tangent
+            newPath.n.push(newPath.n[0]) 
+        } else {
+            newPath.n.push(
+                calculateAverageTangent(newPath.p[newPath.p.length - 2], lp, undefined)
             )
-        )
+        }
+    } else if (newPath.p.length === 1) {
+        newPath.n.push([1, 0, 0]);
     }
 
     return newPath
 }
+
+
+
+
+
 //------------------------------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+/**
+ * @param {object} path - An object containing the 2D path and default segment number.
+ * @returns {object} An object containing the new path with curves and lines converted to line segments.
+ */
+ 
+function path2d(path) {
+    const paths = path.path
+    const fn = path.fn
+
+    const newPath = []
+
+    // Helper function to get points at equal distance along a curve (kept as is)
+    const getPointsAtEqualDistance = (
+        startPoint,
+        endPoint,
+        controlPoints,
+        segments
+    ) => {
+        const getBezierPoint = (t, start, end, ...cps) => {
+            if (cps.length === 1) {
+                // Quadratic Bezier
+                const cp1 = cps[0]
+                const x =
+                    (1 - t) ** 2 * start[0] +
+                    2 * (1 - t) * t * cp1[0] +
+                    t ** 2 * end[0]
+                const y =
+                    (1 - t) ** 2 * start[1] +
+                    2 * (1 - t) * t * cp1[1] +
+                    t ** 2 * end[1]
+                return [x, y]
+            } else if (cps.length === 2) {
+                // Cubic Bezier
+                const cp1 = cps[0]
+                const cp2 = cps[1]
+                const x =
+                    (1 - t) ** 3 * start[0] +
+                    3 * (1 - t) ** 2 * t * cp1[0] +
+                    3 * (1 - t) * t ** 2 * cp2[0] +
+                    t ** 3 * end[0]
+                const y =
+                    (1 - t) ** 3 * start[1] +
+                    3 * (1 - t) ** 2 * t * cp1[1] +
+                    3 * (1 - t) * t ** 2 * cp2[1] +
+                    t ** 3 * end[1]
+                return [x, y]
+            }
+        }
+
+        const points = []
+        const highResPoints = []
+        let totalLength = 0
+        let prevPoint = startPoint
+        const resolution = 1000
+
+        for (let t = 1 / resolution; t <= 1; t += 1 / resolution) {
+            const point = getBezierPoint(
+                t,
+                startPoint,
+                endPoint,
+                ...controlPoints
+            )
+            const dist = Math.hypot(
+                point[0] - prevPoint[0],
+                point[1] - prevPoint[1]
+            )
+            totalLength += dist
+            highResPoints.push(point)
+            prevPoint = point
+        }
+
+        const segmentLength = totalLength / segments
+        let accumulatedLength = 0
+        let currentPointIndex = 0
+        let lastPoint = startPoint
+
+        for (let j = 0; j < segments; j++) {
+            const targetLength = (j + 1) * segmentLength
+            while (
+                accumulatedLength < targetLength &&
+                currentPointIndex < highResPoints.length
+            ) {
+                const nextPoint = highResPoints[currentPointIndex]
+                const dist = Math.hypot(
+                    nextPoint[0] - lastPoint[0],
+                    nextPoint[1] - lastPoint[1]
+                )
+                accumulatedLength += dist
+                lastPoint = nextPoint
+                currentPointIndex++
+
+                if (accumulatedLength >= targetLength) {
+                    const overshoot = accumulatedLength - targetLength
+                    const undershoot = dist - overshoot
+                    const ratio = undershoot / dist
+                    const prevPoint =
+                        highResPoints[currentPointIndex - 2] || startPoint
+                    const interpolatedPoint = [
+                        prevPoint[0] + ratio * (nextPoint[0] - prevPoint[0]),
+                        prevPoint[1] + ratio * (nextPoint[1] - prevPoint[1])
+                    ]
+                    points.push(interpolatedPoint)
+                    break
+                }
+            }
+        }
+        return points
+    }
+
+    // ----------------------------------------------------------------------
+    // CORRECTED ARC SEGMENTATION LOGIC
+    // ----------------------------------------------------------------------
+    /**
+     * Finds the center, radius, and segments for a circular arc defined by three points.
+     * P0 (start), P1 (control on arc), P2 (end).
+     * @param {number[]} p0 - Start point [x, y].
+     * @param {number[]} p1 - Control point [x, y].
+     * @param {number[]} p2 - End point [x, y].
+     * @param {number} segments - Number of line segments to use.
+     * @returns {number[][]} An array of [x, y] segment points.
+     */
+    const getArcSegmentPoints = (p0, p1, p2, segments) => {
+        // Fallback for collinear or degenerate points
+        const crossProduct = (p1[1] - p0[1]) * (p2[0] - p1[0]) - (p1[0] - p0[0]) * (p2[1] - p1[1])
+        if (Math.abs(crossProduct) < 1e-6) {
+            // Points are too close or collinear, fall back to a single line segment
+            return [p2]
+        }
+
+        // 1. Get Midpoints M01 and M12
+        const m01 = [(p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2]
+        const m12 = [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2]
+
+        // 2. Get Slopes of Perpendicular Bisectors
+        // General form of a line: Ax + By = C
+        // Perpendicular bisector of P_a P_b: (x_b - x_a)x + (y_b - y_a)y = (x_b^2 - x_a^2 + y_b^2 - y_a^2) / 2
+        
+        const A1 = p1[0] - p0[0]
+        const B1 = p1[1] - p0[1]
+        const C1 = (p1[0]**2 - p0[0]**2 + p1[1]**2 - p0[1]**2) / 2
+
+        const A2 = p2[0] - p1[0]
+        const B2 = p2[1] - p1[1]
+        const C2 = (p2[0]**2 - p1[0]**2 + p2[1]**2 - p1[1]**2) / 2
+        
+        const det = A1 * B2 - A2 * B1
+
+        // 3. Find Center (Intersection Point)
+        const cx = (C1 * B2 - C2 * B1) / det
+        const cy = (A1 * C2 - A2 * C1) / det
+        const center = [cx, cy]
+
+        // 4. Calculate Radius
+        const r = Math.hypot(p0[0] - cx, p0[1] - cy)
+
+        // 5. Calculate Start, End, and Control Angles (normalized to 0 to 2*PI)
+        const PI2 = 2 * Math.PI
+        const startAngle = (Math.atan2(p0[1] - cy, p0[0] - cx) + PI2) % PI2
+        let endAngle = (Math.atan2(p2[1] - cy, p2[0] - cx) + PI2) % PI2
+        const controlAngle = (Math.atan2(p1[1] - cy, p1[0] - cx) + PI2) % PI2
+
+        // 6. Determine Arc Sweep
+        // 'sweep' is the angle from startAngle to endAngle in the CCW direction (0 to 2*PI)
+        let sweep = (endAngle - startAngle + PI2) % PI2
+        
+        // controlAngle_rel is the angle of P1 relative to P0 in the CCW direction (0 to 2*PI)
+        const controlAngle_rel = (controlAngle - startAngle + PI2) % PI2
+
+        // Check if the short sweep includes P1.
+        // If controlAngle_rel > sweep, it means P1 is on the *longer* arc.
+        // We need to add 2*PI to the sweep (or use the complementary angle).
+        if (controlAngle_rel > sweep) {
+            // The shortest arc does not contain P1. We need the long arc.
+            // We extend the sweep by 2*PI.
+            // For a full circle: P0=P2, P1 is not at P0. P1_rel > sweep (which is 0).
+            sweep = (endAngle - startAngle + PI2 * 3) % PI2 // This calculates the long sweep (sweep + 2*PI)
+        }
+
+        // This ensures the arc is drawn in a counter-clockwise direction.
+        // If the path needs to be clockwise, swap P0 and P2 or negate the sweep.
+        // For standard path commands, we assume CCW is the desired path unless otherwise specified.
+
+        // If sweep is 0 (i.e., P0=P2, P1 is not P0), force a full 2*PI circle.
+        if (sweep < 1e-6 && Math.hypot(p0[0]-p2[0], p0[1]-p2[1]) < 1e-6) {
+            sweep = PI2;
+        }
+
+        // 7. Generate Line Segments
+        const segmentPoints = []
+        for (let j = 1; j <= segments; j++) {
+            const angle = startAngle + (sweep * j) / segments
+            const x = cx + r * Math.cos(angle)
+            const y = cy + r * Math.sin(angle)
+            segmentPoints.push([x, y])
+        }
+
+        return segmentPoints
+    }
+    // ----------------------------------------------------------------------
+    // END OF CORRECTED ARC SEGMENTATION LOGIC
+    // ----------------------------------------------------------------------
+
+    let cp = [0, 0] // Current point [x, y]
+    let atn = 1 // Number of segments for the *next* command
+
+    let i = 0
+    while (i < paths.length) {
+        const command = paths[i]
+        switch (command) {
+            case 'm':
+                cp = [paths[i + 1], paths[i + 2]]
+                newPath.push('m', cp[0], cp[1])
+                i += 3
+                break
+            case 'mr':
+                cp = [cp[0] + paths[i + 1], cp[1] + paths[i + 2]]
+                newPath.push('m', cp[0], cp[1])
+                i += 3
+                break
+            case 'l':
+                const endPoint_l = [paths[i + 1], paths[i + 2]]
+
+                if (atn === 1) {
+                    newPath.push('l', endPoint_l[0], endPoint_l[1])
+                } else {
+                    for (let v = 1; v <= atn; v++) {
+                        const t = v / atn
+                        const ix = cp[0] * (1 - t) + endPoint_l[0] * t
+                        const iy = cp[1] * (1 - t) + endPoint_l[1] * t
+                        newPath.push('l', ix, iy)
+                    }
+                }
+                cp = endPoint_l
+                atn = 1
+                i += 3
+                break
+            case 'lr':
+                const endPoint_lr = [cp[0] + paths[i + 1], cp[1] + paths[i + 2]]
+
+                if (atn === 1) {
+                    newPath.push('l', endPoint_lr[0], endPoint_lr[1])
+                } else {
+                    for (let v = 1; v <= atn; v++) {
+                        const t = v / atn
+                        const ix = cp[0] * (1 - t) + endPoint_lr[0] * t
+                        const iy = cp[1] * (1 - t) + endPoint_lr[1] * t
+                        newPath.push('l', ix, iy)
+                    }
+                }
+                cp = endPoint_lr
+                atn = 1
+                i += 3
+                break
+            case 'q': {
+                const endPoint_q = [paths[i + 3], paths[i + 4]]
+                const controlPoints_q = [[paths[i + 1], paths[i + 2]]]
+                const segmentsToUse = atn > 1 ? atn : fn
+                const segmentPoints_q = getPointsAtEqualDistance(
+                    cp,
+                    endPoint_q,
+                    controlPoints_q,
+                    segmentsToUse
+                )
+
+                segmentPoints_q.forEach((p) => {
+                    newPath.push('l', p[0], p[1])
+                })
+
+                cp = endPoint_q
+                atn = 1
+                i += 5
+                break
+            }
+            case 'qr': {
+                const endPoint_qr = [cp[0] + paths[i + 3], cp[1] + paths[i + 4]]
+                const controlPoints_qr = [
+                    [cp[0] + paths[i + 1], cp[1] + paths[i + 2]]
+                ]
+                const segmentsToUse = atn > 1 ? atn : fn
+                const segmentPoints_qr = getPointsAtEqualDistance(
+                    cp,
+                    endPoint_qr,
+                    controlPoints_qr,
+                    segmentsToUse
+                )
+
+                segmentPoints_qr.forEach((p) => {
+                    newPath.push('l', p[0], p[1])
+                })
+
+                cp = endPoint_qr
+                atn = 1
+                i += 5
+                break
+            }
+            case 'c': {
+                const endPoint_c = [paths[i + 5], paths[i + 6]]
+                const controlPoints_c = [
+                    [paths[i + 1], paths[i + 2]],
+                    [paths[i + 3], paths[i + 4]]
+                ]
+                const segmentsToUse = atn > 1 ? atn : fn
+                const segmentPoints_c = getPointsAtEqualDistance(
+                    cp,
+                    endPoint_c,
+                    controlPoints_c,
+                    segmentsToUse
+                )
+
+                segmentPoints_c.forEach((p) => {
+                    newPath.push('l', p[0], p[1])
+                })
+
+                cp = endPoint_c
+                atn = 1
+                i += 7
+                break
+            }
+            case 'cr': {
+                const endPoint_cr = [cp[0] + paths[i + 5], cp[1] + paths[i + 6]]
+                const controlPoints_cr = [
+                    [cp[0] + paths[i + 1], cp[1] + paths[i + 2]],
+                    [cp[0] + paths[i + 3], cp[1] + paths[i + 4]]
+                ]
+                const segmentsToUse = atn > 1 ? atn : fn
+                const segmentPoints_cr = getPointsAtEqualDistance(
+                    cp,
+                    endPoint_cr,
+                    controlPoints_cr,
+                    segmentsToUse
+                )
+
+                segmentPoints_cr.forEach((p) => {
+                    newPath.push('l', p[0], p[1])
+                })
+
+                cp = endPoint_cr
+                atn = 1
+                i += 7
+                break
+            }
+            case 'x': { // Absolute Arc Command (P0: cp, P1: Ctr, P2: End)
+                const controlPoint_x = [paths[i + 1], paths[i + 2]]
+                const endPoint_x = [paths[i + 3], paths[i + 4]]
+                const segmentsToUse = atn > 1 ? atn : fn
+                
+                const segmentPoints_x = getArcSegmentPoints(
+                    cp,
+                    controlPoint_x,
+                    endPoint_x,
+                    segmentsToUse
+                )
+
+                segmentPoints_x.forEach((p) => {
+                    newPath.push('l', p[0], p[1])
+                })
+
+                cp = endPoint_x
+                atn = 1
+                i += 5
+                break
+            }
+            case 'xr': { // Relative Arc Command (P0: cp, P1: Ctr + cp, P2: End + cp)
+                const controlPoint_xr = [cp[0] + paths[i + 1], cp[1] + paths[i + 2]]
+                const endPoint_xr = [cp[0] + paths[i + 3], cp[1] + paths[i + 4]]
+                const segmentsToUse = atn > 1 ? atn : fn
+
+                const segmentPoints_xr = getArcSegmentPoints(
+                    cp,
+                    controlPoint_xr,
+                    endPoint_xr,
+                    segmentsToUse
+                )
+
+                segmentPoints_xr.forEach((p) => {
+                    newPath.push('l', p[0], p[1])
+                })
+
+                cp = endPoint_xr
+                atn = 1
+                i += 5
+                break
+            }
+            case 'n':
+                atn = paths[i + 1]
+                i += 2
+                break
+
+            case 'r':
+            case 's':
+                // Ignore these commands
+                i += command === 'r' ? 2 : 3
+                break
+
+            default:
+                // Assuming PrintWarn is defined elsewhere, if not, use console.warn
+                // PrintWarn(`Unknown path command: ${command}`)
+                i = paths.length
+                break
+        }
+    }
+
+    return {
+        path: newPath,
+        fn: fn
+    }
+}
+
+//*/
+
+
+
+
+
+
 /**
  * @param {string[]} paths - An array representing the 2D path.
  * @param {number} fn - The default number of segments for curves.
  * @returns {object} An object containing the new path with curves and lines converted to line segments.
  */
+ /*
 function path2d(path) {
     const paths = path.path
     const fn = path.fn
@@ -1092,6 +1653,11 @@ function path2d(path) {
         fn: fn
     }
 }
+//*/
+
+
+
+
 
 function convertTo2d(path) {
     const newPath = []
@@ -1109,6 +1675,8 @@ function convertTo2d(path) {
                 break
             case 'q':
             case 'qr':
+			case 'x':
+			case 'xr':
                 newPath.push(path[i + 1], path[i + 3], path[i + 4], path[i + 6]) // Add CPs and EP, ignore Z
                 i += 7
                 break
@@ -1157,6 +1725,8 @@ function convertTo3d(path, z = 0) {
                 break
             case 'q':
             case 'qr':
+			case 'x':
+			case 'xr':
                 newPath.push(
                     path[i + 1],
                     z,
@@ -1333,7 +1903,8 @@ function linePaths3d(target, commandPath, close) {
     }
 
     // Return the array of meshes.
-    return meshes
+	//temperaty fix because of difference needs one mesh;
+    return meshes;
 }
 
 /**
@@ -1538,8 +2109,14 @@ function union(target) {
     return result
 }
 
-function difference(mainMesh, target) {
+function difference(meshes, target) {
     //...subMeshes) {
+	var mainMesh;
+	if (Array.isArray(meshes) || typeof item === 'object'){
+		mainMesh =union(meshes);
+	} else {
+		mainMesh=meshes;
+	}
 
     var subMeshes = []
 
