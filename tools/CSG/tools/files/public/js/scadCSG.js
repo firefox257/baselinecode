@@ -227,9 +227,9 @@ function translate([x, y, z], target) {
 function rotate([x, y, z], target) {
     applyToMesh(target, (item) => {
         //item.rotation.set(x, z, y)
-        item.geometry.rotateX((x / 180) * Math.PI)
-        item.geometry.rotateZ((y / 180) * Math.PI)
-        item.geometry.rotateY((z / 180) * Math.PI)
+        item.geometry.rotateX((x / 180) * -Math.PI)
+        item.geometry.rotateZ((y / 180) * -Math.PI)
+        item.geometry.rotateY((z / 180) * -Math.PI)
     })
 
     return target
@@ -2006,14 +2006,257 @@ function linePaths3d(target, commandPath, close) {
 
 //*/
 
+
 /**
  * @param {object} target - The parent object to which the shapes are applied.
  * @param {object} path - The pre-processed path data containing points, rotations, and normals.
  * @param {boolean} close - A flag to indicate if the path should be closed.
  * @returns {THREE.Mesh[]} An array of THREE.js meshes.
  */
-//work on
+//old good
 
+function linePaths3dEx(target, commandPath, close) {
+    var path = path3d(commandPath)
+    // This part of the code is not being modified, but it's included for context
+    var shapes = []
+    applyToShape(target, (item) => {
+        shapes.push(item)
+    })
+
+    var points3d = []
+
+    var preCalc = []
+
+    var upVector = new THREE.Vector3(0, 1, 0)
+	
+    // --- Calculation for Initial Rotation from path.p ---
+    
+    // Get the first two points from the path.p array
+    // path.p[i] is [x, y, z] in 3D printer coordinates, 
+    // where x and y are the planar coordinates (ground plane).
+    const p1 = path.p[0]; 
+    const p2 = path.p[1];
+	
+    // Calculate delta x (dx) and delta y (dy)
+    const dx = p2[0] - p1[0]; // x2 - x1
+    const dy = p2[2] - p1[2]; // z2 - z1
+    
+    // Calculate the angle using Math.atan2(dy, dx). 
+    // This gives the angle in radians on the X-Y plane (3D printer coordinates).
+    // This angle corresponds to rotating the shape around the Y-axis.
+    const initialRotationRadians = -Math.atan2(dy, dx) + Math.PI/2
+    
+    const cosR = Math.cos(initialRotationRadians);
+    const sinR = Math.sin(initialRotationRadians);
+    // --- End of Calculation ---
+	
+    for (var i = 0; i < path.p.length; i++) {
+        points3d.push(...[0, 0, i])
+
+        // Apply 2D rotation on X and Z
+        const rotation = path.r[i]
+
+        var o = {}
+        o.cosR = Math.cos((rotation / 180) * Math.PI)
+        o.sinR = Math.sin((rotation / 180) * Math.PI)
+
+        // Now, we need to apply the 3D rotation from the normals and translation.
+        // Create a quaternion to handle the 3D orientation.
+        const normal = new THREE.Vector3().fromArray(path.n[i])
+        //const upVector = new THREE.Vector3(0, 1, 0);
+        o.quaternion = new THREE.Quaternion().setFromUnitVectors(
+            upVector,
+            normal
+        )
+
+       upVector.applyQuaternion(o.quaternion)
+
+        preCalc.push(o)
+    }
+
+    const meshes = [] // An array to store all the created meshes
+
+    if (!points3d || points3d.length < 6) {
+        PrintWarn(
+            'linePaths3d requires at least 6 numbers (2 points) for the 3D extrusion path.'
+        )
+        return null
+    }
+
+    const extrudePath = new THREE.CurvePath()
+
+    // Iterate through the flattened array, jumping by 3 for each point
+    for (let i = 0; i < points3d.length - 3; i += 3) {
+        const startPointIndex = i
+        const endPointIndex = i + 3
+
+        const startVector = new THREE.Vector3(
+            points3d[startPointIndex],
+            points3d[startPointIndex + 2],
+            points3d[startPointIndex + 1]
+        )
+        const endVector = new THREE.Vector3(
+            points3d[endPointIndex],
+            points3d[endPointIndex + 2],
+            points3d[endPointIndex + 1]
+        )
+
+        extrudePath.add(new THREE.LineCurve3(startVector, endVector))
+    }
+
+    // Add a closing segment if the 'close' parameter is true
+    if (close && points3d.length > 6) {
+        const startPointIndex = points3d.length - 3
+        const endPointIndex = 0
+
+        const startVector = new THREE.Vector3(
+            points3d[startPointIndex],
+            points3d[startPointIndex + 2],
+            points3d[startPointIndex + 1]
+        )
+        const endVector = new THREE.Vector3(
+            points3d[endPointIndex],
+            points3d[endPointIndex + 2],
+            points3d[endPointIndex + 1]
+        )
+
+        extrudePath.add(new THREE.LineCurve3(startVector, endVector))
+    }
+
+    const numPoints = points3d.length / 3
+
+    const extrudeSettings = {
+        steps: close ? numPoints : numPoints - 1,
+        bevelEnabled: false,
+        extrudePath: extrudePath
+    }
+
+	
+	// --- Mesh Creation Loop (Applying Shape Rotation) ---
+    for (const shape of shapes) {
+        const fn = shape.userData && shape.userData.fn ? shape.userData.fn : 30
+        const shapePoints = shape.extractPoints(fn)
+        
+        // --- NEW: Rotate Shape Points ---
+        // Rotate the primary shape points
+        for (const point of shapePoints.shape) {
+            const x = point.x
+            const y = point.y
+            point.x = x * cosR - y * sinR
+            point.y = x * sinR + y * cosR
+        }
+
+        // Rotate the hole points
+        for (const hole of shapePoints.holes) {
+            for (const point of hole) {
+                const x = point.x
+                const y = point.y
+                point.x = x * cosR - y * sinR
+                point.y = x * sinR + y * cosR
+            }
+        }
+        // --- END NEW: Rotate Shape Points ---
+
+        const extrudedShape = new THREE.Shape(shapePoints.shape)
+        extrudedShape.holes = shapePoints.holes.map(
+            (hole) => new THREE.Path(hole)
+        )
+        const geometry = new THREE.ExtrudeGeometry(
+            extrudedShape,
+            extrudeSettings
+        )
+        const mesh = new THREE.Mesh(geometry, defaultMaterial.clone())
+        
+        // OLD: mesh.rotateY(initialRotationRadians); is REMOVED
+        
+        meshes.push(mesh)
+    }
+    
+    // The completed section starts here.
+    for (const mesh of meshes) {
+        const sp = mesh.geometry.attributes.position
+        for (var i = 0; i < sp.count; i++) {
+            var yindex = sp.getY(i)
+            //PrintLog('yinde:' + yindex)
+            // Get the local cross-section coordinates from the extruded geometry.
+            var x = sp.getX(i)
+            var y = 0 // This is set to 0 to flatten out the cross section.
+            var z = sp.getZ(i)
+
+            // Apply path.s for scale
+            x = x * path.s[yindex][0]
+            z = z * path.s[yindex][1]
+
+            // Apply 2D rotation on X and Z
+            //const rotation = path.r[yindex];
+            var o = preCalc[yindex]
+            //const cosR = Math.cos(rotation/180*Math.PI);
+            //const sinR = Math.sin(rotation/180*Math.PI);
+
+            let rotatedX = x * o.cosR - z * o.sinR
+            let rotatedZ = x * o.sinR + z * o.cosR
+
+            x = rotatedX
+            z = rotatedZ
+
+            // Now, we need to apply the 3D rotation from the normals and translation.
+            // Create a quaternion to handle the 3D orientation.
+            //const normal = new THREE.Vector3().fromArray(path.n[yindex]);
+            //const upVector = new THREE.Vector3(0, 1, 0);
+            //const quaternion = new THREE.Quaternion().setFromUnitVectors(upVector, normal);
+
+            // Create a point in local space.
+            const point = new THREE.Vector3(x, y, z)
+
+            // Apply the 3D rotation to the point using the quaternion.
+			
+			for (var k = 0; k <= yindex; k++) {
+                //point.applyQuaternion(o.quaternion)
+				
+                point.applyQuaternion(preCalc[k].quaternion)
+			}
+			
+
+            // Apply the 3D translation from path.p[yindex]
+            point.x += path.p[yindex][0]
+            point.y += path.p[yindex][1]
+            point.z += path.p[yindex][2]
+
+            // Update the geometry's attributes.
+            sp.setX(i, point.x)
+            sp.setY(i, point.y)
+            sp.setZ(i, point.z)
+        }
+    }
+
+    // Return the array of meshes.
+    return meshes
+}
+
+//*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/**
+ * @param {object} target - The parent object to which the shapes are applied.
+ * @param {object} path - The pre-processed path data containing points, rotations, and normals.
+ * @param {boolean} close - A flag to indicate if the path should be closed.
+ * @returns {THREE.Mesh[]} An array of THREE.js meshes.
+ */
+//old good
+/*
 function linePaths3dEx(target, commandPath, close) {
     var path = path3d(commandPath)
     // This part of the code is not being modified, but it's included for context
@@ -2185,178 +2428,10 @@ function linePaths3dEx(target, commandPath, close) {
     return meshes
 }
 
-/**
- * @param {object} target - The parent object to which the shapes are applied.
- * @param {object} path - The pre-processed path data containing points, rotations, and normals.
- * @param {boolean} close - A flag to indicate if the path should be closed.
- * @returns {THREE.Mesh[]} An array of THREE.js meshes.
- */
-//old good
-/*
-function linePaths3dEx(target, commandPath, close) {
-    var path = path3d(commandPath)
-    // This part of the code is not being modified, but it's included for context
-    var shapes = []
-    applyToShape(target, (item) => {
-        shapes.push(item)
-    })
-
-    var points3d = []
-
-    var preCalc = []
-
-    const upVector = new THREE.Vector3(0, 1, 0)
-
-    for (var i = 0; i < path.p.length; i++) {
-        points3d.push(...[0, 0, i])
-		
-        // Apply 2D rotation on X and Z
-        const rotation = path.r[i]
-
-        var o = {}
-        o.cosR = Math.cos((rotation / 180) * Math.PI)
-        o.sinR = Math.sin((rotation / 180) * Math.PI)
-
-        // Now, we need to apply the 3D rotation from the normals and translation.
-        // Create a quaternion to handle the 3D orientation.
-        const normal = new THREE.Vector3().fromArray(path.n[i])
-        //const upVector = new THREE.Vector3(0, 1, 0);
-        o.quaternion = new THREE.Quaternion().setFromUnitVectors(
-            upVector,
-            normal
-        )
-
-        preCalc.push(o)
-    }
-
-    const meshes = [] // An array to store all the created meshes
-
-    if (!points3d || points3d.length < 6) {
-        PrintWarn(
-            'linePaths3d requires at least 6 numbers (2 points) for the 3D extrusion path.'
-        )
-        return null
-    }
-
-    const extrudePath = new THREE.CurvePath()
-
-    // Iterate through the flattened array, jumping by 3 for each point
-    for (let i = 0; i < points3d.length - 3; i += 3) {
-        const startPointIndex = i
-        const endPointIndex = i + 3
-
-        const startVector = new THREE.Vector3(
-            points3d[startPointIndex],
-            points3d[startPointIndex + 2],
-            points3d[startPointIndex + 1]
-        )
-        const endVector = new THREE.Vector3(
-            points3d[endPointIndex],
-            points3d[endPointIndex + 2],
-            points3d[endPointIndex + 1]
-        )
-
-        extrudePath.add(new THREE.LineCurve3(startVector, endVector))
-    }
-
-    // Add a closing segment if the 'close' parameter is true
-    if (close && points3d.length > 6) {
-        const startPointIndex = points3d.length - 3
-        const endPointIndex = 0
-
-        const startVector = new THREE.Vector3(
-            points3d[startPointIndex],
-            points3d[startPointIndex + 2],
-            points3d[startPointIndex + 1]
-        )
-        const endVector = new THREE.Vector3(
-            points3d[endPointIndex],
-            points3d[endPointIndex + 2],
-            points3d[endPointIndex + 1]
-        )
-
-        extrudePath.add(new THREE.LineCurve3(startVector, endVector))
-    }
-
-    const numPoints = points3d.length / 3
-
-    const extrudeSettings = {
-        steps: close ? numPoints : numPoints - 1,
-        bevelEnabled: false,
-        extrudePath: extrudePath
-    }
-
-    for (const shape of shapes) {
-        const fn = shape.userData && shape.userData.fn ? shape.userData.fn : 30
-        const shapePoints = shape.extractPoints(fn)
-        const extrudedShape = new THREE.Shape(shapePoints.shape)
-        extrudedShape.holes = shapePoints.holes.map(
-            (hole) => new THREE.Path(hole)
-        )
-        const geometry = new THREE.ExtrudeGeometry(
-            extrudedShape,
-            extrudeSettings
-        )
-        const mesh = new THREE.Mesh(geometry, defaultMaterial.clone())
-        meshes.push(mesh)
-    }
-
-    // The completed section starts here.
-    for (const mesh of meshes) {
-        const sp = mesh.geometry.attributes.position
-        for (var i = 0; i < sp.count; i++) {
-            var yindex = sp.getY(i)
-
-            // Get the local cross-section coordinates from the extruded geometry.
-            var x = sp.getX(i)
-            var y = 0 // This is set to 0 to flatten out the cross section.
-            var z = sp.getZ(i)
-
-            // Apply path.s for scale
-            x = x * path.s[yindex][0]
-            z = z * path.s[yindex][1]
-
-            // Apply 2D rotation on X and Z
-            //const rotation = path.r[yindex];
-            var o = preCalc[yindex]
-            //const cosR = Math.cos(rotation/180*Math.PI);
-            //const sinR = Math.sin(rotation/180*Math.PI);
-
-            let rotatedX = x * o.cosR - z * o.sinR
-            let rotatedZ = x * o.sinR + z * o.cosR
-
-            x = rotatedX
-            z = rotatedZ
-
-            // Now, we need to apply the 3D rotation from the normals and translation.
-            // Create a quaternion to handle the 3D orientation.
-            //const normal = new THREE.Vector3().fromArray(path.n[yindex]);
-            //const upVector = new THREE.Vector3(0, 1, 0);
-            //const quaternion = new THREE.Quaternion().setFromUnitVectors(upVector, normal);
-
-            // Create a point in local space.
-            const point = new THREE.Vector3(x, y, z)
-
-            // Apply the 3D rotation to the point using the quaternion.
-            point.applyQuaternion(o.quaternion)
-
-            // Apply the 3D translation from path.p[yindex]
-            point.x += path.p[yindex][0]
-            point.y += path.p[yindex][1]
-            point.z += path.p[yindex][2]
-
-            // Update the geometry's attributes.
-            sp.setX(i, point.x)
-            sp.setY(i, point.y)
-            sp.setZ(i, point.z)
-        }
-    }
-
-    // Return the array of meshes.
-    return meshes
-}
-
 //*/
+
+
+
 
 // === Multi-Argument CSG Operations (Corrected) ===
 function union(...target) {
@@ -2728,13 +2803,15 @@ function translatePath([x, y], pathObject) {
 /**
  * Rotates a path data object by a given angle around the origin (0,0).
  * @param {object} pathObject - An object with {path: Array, fn: number}.
- * @param {number} angle - The rotation angle in radians.
+ * @param {number} angle - The rotation angle in radians (or degrees, given the internal conversion).
  * @returns {object} A new path data object with rotated coordinates.
  */
 function rotatePath(angle, pathObject) {
     const newPath = []
-    const cos = Math.cos((angle / 180) * Math.PI)
-    const sin = Math.sin((angle / 180) * Math.PI)
+    // The angle conversion (degrees to radians) is kept as in the original code.
+    const rotationAngle = (angle / 180) * Math.PI;
+    const cos = Math.cos(rotationAngle);
+    const sin = Math.sin(rotationAngle);
     let i = 0
     while (i < pathObject.path.length) {
         const command = pathObject.path[i]
@@ -2746,7 +2823,8 @@ function rotatePath(angle, pathObject) {
             case 'l':
                 x = pathObject.path[i]
                 y = pathObject.path[i + 1]
-                newPath.push(x * cos - y * sin, x * sin + y * cos)
+                // Clockwise rotation: x' = x cos + y sin, y' = -x sin + y cos
+                newPath.push(x * cos + y * sin, -x * sin + y * cos)
                 i += 2
                 break
             case 'q':
@@ -2755,10 +2833,12 @@ function rotatePath(angle, pathObject) {
                 x = pathObject.path[i + 2]
                 y = pathObject.path[i + 3]
                 newPath.push(
-                    x1 * cos - y1 * sin,
-                    x1 * sin + y1 * cos,
-                    x * cos - y * sin,
-                    x * sin + y * cos
+                    // Control Point 1
+                    x1 * cos + y1 * sin,
+                    -x1 * sin + y1 * cos,
+                    // End Point
+                    x * cos + y * sin,
+                    -x * sin + y * cos
                 )
                 i += 4
                 break
@@ -2770,12 +2850,15 @@ function rotatePath(angle, pathObject) {
                 x = pathObject.path[i + 4]
                 y = pathObject.path[i + 5]
                 newPath.push(
-                    x1 * cos - y1 * sin,
-                    x1 * sin + y1 * cos,
-                    x2 * cos - y2 * sin,
-                    x2 * sin + y2 * cos,
-                    x * cos - y * sin,
-                    x * sin + y * cos
+                    // Control Point 1
+                    x1 * cos + y1 * sin,
+                    -x1 * sin + y1 * cos,
+                    // Control Point 2
+                    x2 * cos + y2 * sin,
+                    -x2 * sin + y2 * cos,
+                    // End Point
+                    x * cos + y * sin,
+                    -x * sin + y * cos
                 )
                 i += 6
                 break
@@ -2786,12 +2869,15 @@ function rotatePath(angle, pathObject) {
                 const radiusX = pathObject.path[i + 2]
                 const radiusY = pathObject.path[i + 3]
                 newPath.push(
-                    centerX * cos - centerY * sin,
-                    centerX * sin + centerY * cos,
+                    // Center Point
+                    centerX * cos + centerY * sin,
+                    -centerX * sin + centerY * cos,
+                    // Radii remain unchanged
                     radiusX,
                     radiusY,
-                    pathObject.path[i + 4] + angle,
-                    pathObject.path[i + 5] + angle,
+                    // Arc angles subtracted for opposite direction
+                    pathObject.path[i + 4] - angle,
+                    pathObject.path[i + 5] - angle,
                     ...(command === 'e' ? [pathObject.path[i + 6]] : [])
                 )
                 i += command === 'a' ? 6 : 7
@@ -2802,6 +2888,7 @@ function rotatePath(angle, pathObject) {
     }
     return { path: newPath, fn: pathObject.fn }
 }
+
 
 /**
  * Calculates the bounding box of a path data object, including curve calculations.

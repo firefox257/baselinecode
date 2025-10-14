@@ -2,7 +2,7 @@
   "csgCode": [
     {
       "title": "Work on",
-      "content": "\n\nvar s=shape({\n\t\tpath:[\n\t\t\t\"m\", 0,0,\n\t\t\t\"l\",0,20,\n\t\t\t\"l\",10,10,\n\t\t\t\"l\",0,0\n\t\t],\n\t\tfn:100\n\t});\n\nreturn linePaths3dEx(s, {\n\t\tpath:[\n\t\t\t\"m\", 0,0,0,\n\t\t\t\"lr\", 0,20,0,\n\t\t\t\"qr\", 0,10,0, -10,10,0 ,\n\t\t\t\"lr\", -30,0,0\n\t\t\t\n\t\t],\n\t\tfn:30\n\n\t});\n\n\n\n\n\n\n\n\n\n"
+      "content": "\n\nvar s=shape(rotatePath(0,{\n\t\tpath:[\n\t\t\t\"m\", 0,0,\n\t\t\t\"l\",0,20,\n\t\t\t\"l\",10,10,\n\t\t\t\"l\",0,0\n\t\t],\n\t\tfn:100\n\t}));\n\nreturn rotate([0,0,0],linePaths3dEx(s, {\n\t\tpath:[\n\t\t\t\"m\", 0,0,0,\n\t\t\t\"lr\",10,0,0,\n\t\t\t\"lr\", 20,20,0,\n\t\t\t\"qr\", 0,10,0, -10,10,0 ,\n\t\t\t\"lr\", -30,0,0\n\t\t\t\n\t\t],\n\t\tfn:30\n\n\t}));\n\n\n\n\n\n\n\n\n\n"
     },
     {
       "title": "Case Left",
