@@ -613,8 +613,8 @@ return linePaths3d(triangleShape, straightPath, false);</code></pre>
         <p>Functions that convert 2D path data into 3D models.</p>
         <ul>
             <li><code>shape(shapeData)</code>: Generates a 2D shape object.</li>
-            <li><code>linePaths3d(target, path, close)</code>: Extrudes a shape along a 3D path (simple, no scale/rotation).</li>
-            <li><code>linePaths3dEx(target, path, close)</code>: Extrudes a shape along a 3D path, respecting scale (<code>'s'</code>) and rotation (<code>'r'</code>) commands in the path data.</li>
+            <!--<li><code>linePaths3d(target, path, close)</code>: Extrudes a shape along a 3D path (simple, no scale/rotation).</li>-->
+            <li><code>linePaths3d(target, path, close)</code>: Extrudes a shape along a 3D path, respecting scale (<code>'s'</code>) and rotation (<code>'r'</code>) commands in the path data.</li>
             <li><code>arcPath3d(config)</code>: Helper to generate a curved 3D path.</li>
         </ul>
         <h3 id="3d-imports">3D Imports (Requires <code>await</code>)</h3>
@@ -627,11 +627,13 @@ return linePaths3d(triangleShape, straightPath, false);</code></pre>
         </ul>
         <h3 id="utilities">Utility Functions</h3>
         <ul>
-            <li><code>color(c, target)</code>: Applies a color.</li>
-            <li><code>convexHull(target)</code>: Creates a convex hull around objects.</li>
-            <li><code>subdivide({ resolution }, target)</code>: Refines geometry for smoother surfaces/better boolean ops.</li>
-            <li><code>show(target)</code> / <code>hide(target)</code>: Sets visibility flags for debugging/construction.</li>
-        </ul>
+    		<li><code>color(c, target)</code>: Applies a color.</li>
+    		<li><code>convexHull(target)</code>: Creates a convex hull around objects.</li>
+    		<li><code>subdivide({ resolution }, target)</code>: Refines geometry for smoother surfaces/better boolean ops.</li>
+    		<li><code>show(target)</code> / <code>hide(target)</code>: Sets visibility flags for debugging/construction.</li>
+    		<li><code>clone(source, target)</code> / <code>clone(source)</code>: **Creates a deep clone** of a single three.js object (`THREE.Mesh`, `THREE.Shape`, `Brush`, etc.) or a container (Array/Object) holding them. The new objects are independent of the originals. If a `target` is provided, the cloned objects/properties will be placed inside or merged into the target container.</li>
+		</ul>
+
         <h3 id="2d-path-manipulation">2D Path Manipulation</h3>
         <p>Functions that operate on 2D path data (objects with <code>path</code> and <code>fn</code> properties) *before* they are turned into 3D geometry.</p>
         <ul>

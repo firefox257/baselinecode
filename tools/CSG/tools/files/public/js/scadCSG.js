@@ -1912,6 +1912,7 @@ function arcPath3d(config) {
  * @returns {THREE.Mesh[]} An array of THREE.js meshes.
  */
 // do not use threejs is very buggy
+/*
 function linePaths3d(target, commandPath, close) {
     var path = path3d(commandPath)
     // This part of the code is not being modified, but it's included for context
@@ -2015,7 +2016,7 @@ function linePaths3d(target, commandPath, close) {
  */
 //old good
 
-function linePaths3dEx(target, commandPath, close) {
+function linePaths3d(target, commandPath, close) {
     var path = path3d(commandPath)
     // This part of the code is not being modified, but it's included for context
     var shapes = []
@@ -2234,18 +2235,6 @@ function linePaths3dEx(target, commandPath, close) {
 }
 
 //*/
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -4049,6 +4038,87 @@ async function importFbx(filePath) {
 
 //*/
 
+
+
+
+/**
+ * Recursively deep clones a THREE.js object, THREE.Shape, three-bvh-csg Brush,
+ * or an array/object containing them.
+ *
+ * It ensures a "true clone" for THREE.Mesh by also cloning its geometry
+ * to guarantee independence of geometry (including normals) and materials.
+ *
+ * @param {THREE.Mesh | THREE.Shape | Brush | Array | Object} source - The object to clone.
+ * @returns {THREE.Mesh | THREE.Shape | Brush | Array | Object} The cloned object.
+ */
+export function clone(source) {
+    // 1. Handle primitives (base case for recursion)
+    if (source === null || typeof source !== 'object') {
+        return source;
+    }
+
+    const typeName = source.constructor.name;
+
+    // 2. Handle Arrays
+    if (Array.isArray(source)) {
+        const clonedArray = [];
+        for (let i = 0; i < source.length; i++) {
+            clonedArray[i] = clone(source[i]);
+        }
+        return clonedArray;
+    }
+
+    // 3. Handle specific THREE.js objects and Brush (objects with a .clone() method)
+    if (
+        typeName === 'Mesh' ||
+        typeName === 'Shape' ||
+        typeName === 'Brush' ||
+        typeName === 'Group' ||
+        typeName === 'Object3D'
+    ) {
+        // Use the built-in clone() method first.
+        const clonedObject = source.clone();
+
+        // 💡 CRITICAL ADDITION for "true clone": Deeply clone geometry for THREE.Mesh.
+        // This ensures the cloned object has its own, independent geometry and normals.
+        // It relies on BufferGeometry having a .clone() method.
+        if (typeName === 'Mesh' && clonedObject.geometry) {
+            // Check if the geometry itself has a .clone method (e.g., BufferGeometry)
+            if (typeof clonedObject.geometry.clone === 'function') {
+                clonedObject.geometry = clonedObject.geometry.clone();
+            } else {
+                console.warn(`clone: Mesh geometry of type ${clonedObject.geometry.constructor.name} does not have a .clone() method. Geometry is shared.`);
+            }
+        }
+
+        // THREE.js built-in clone already deep-clones materials for Mesh.
+        // The children of Groups/Object3D are also handled by the built-in clone.
+
+        return clonedObject;
+    }
+
+    // 4. Handle generic Objects ({} structures)
+    if (typeName === 'Object') {
+        const clonedObject = {};
+        for (const key in source) {
+            // Ensure we only process own properties
+            if (Object.prototype.hasOwnProperty.call(source, key)) {
+                // Recursively clone the property value
+                clonedObject[key] = clone(source[key]);
+            }
+        }
+        return clonedObject;
+    }
+
+    // 5. Fallback for other non-clonable objects
+    console.warn(`clone: Cannot deep clone object of type: ${typeName}. Returning original reference.`);
+    return source;
+}
+
+
+
+
+
 // Private object containing all exportable functions
 // This is a private, self-contained list within the module.
 const _exportedFunctions = {
@@ -4072,8 +4142,8 @@ const _exportedFunctions = {
     convertTo2d,
     convertTo3d,
     arcPath3d,
-    linePaths3d,
-    linePaths3dEx,
+    linePaths3d, // this is the new linePaths3dEx
+    //linePaths3dEx,
     scaleTo,
     scaleAdd,
     show,
@@ -4090,7 +4160,8 @@ const _exportedFunctions = {
     importStl,
     importGlb,
     importObj,
-    importFbx
+    importFbx, 
+	clone
 }
 
 // --- Revised `ezport` function ---
