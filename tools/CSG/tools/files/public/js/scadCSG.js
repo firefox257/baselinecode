@@ -281,10 +281,7 @@ function convexHull(target) {
     })
 
     if (vertices.length < 4) {
-        
-		PrintWarn(
-            'Convex hull requires at least 4 vertices. Returning null.'
-        )
+        PrintWarn('Convex hull requires at least 4 vertices. Returning null.')
         return null
     }
 
@@ -350,23 +347,9 @@ function align(config = {}, target) {
 
 /* eslint-disable */
 
-
-
-
-
-
 //*/
 
-
-
-
 //*/
-
-
-
-
-
-
 
 /**
  * @param {object} path - An object containing the path array and default segments.
@@ -374,10 +357,12 @@ function align(config = {}, target) {
  * @param {number} path.fn - The default number of segments for curves.
  * @returns {object} An object containing the new path points (p), rotations (r), scales (s), and normals (n).
  */
+//old good
+
 function path3d(path) {
     const paths = path.path
     const fn = path.fn
-	//PrintLog("here:"+fn)
+    //PrintLog("here:"+fn)
 
     var newPath = {
         p: [], // Points (x, y, z)
@@ -387,7 +372,7 @@ function path3d(path) {
     }
 
     // ----------------------------------------------------------------------
-    // VECTOR MATH FUNCTIONS 
+    // VECTOR MATH FUNCTIONS
     // ----------------------------------------------------------------------
     function vsub(p1, p2) {
         return [p1[0] - p2[0], p1[1] - p2[1], p1[2] - p2[2]]
@@ -436,18 +421,41 @@ function path3d(path) {
         segments
     ) => {
         const getBezierPoint = (t, start, end, ...cps) => {
-            if (cps.length === 1) { // Quadratic
+            if (cps.length === 1) {
+                // Quadratic
                 const cp1 = cps[0]
-                const x = (1 - t) ** 2 * start[0] + 2 * (1 - t) * t * cp1[0] + t ** 2 * end[0]
-                const y = (1 - t) ** 2 * start[1] + 2 * (1 - t) * t * cp1[1] + t ** 2 * end[1]
-                const z = (1 - t) ** 2 * start[2] + 2 * (1 - t) * t * cp1[2] + t ** 2 * end[2]
+                const x =
+                    (1 - t) ** 2 * start[0] +
+                    2 * (1 - t) * t * cp1[0] +
+                    t ** 2 * end[0]
+                const y =
+                    (1 - t) ** 2 * start[1] +
+                    2 * (1 - t) * t * cp1[1] +
+                    t ** 2 * end[1]
+                const z =
+                    (1 - t) ** 2 * start[2] +
+                    2 * (1 - t) * t * cp1[2] +
+                    t ** 2 * end[2]
                 return [x, y, z]
-            } else if (cps.length === 2) { // Cubic
+            } else if (cps.length === 2) {
+                // Cubic
                 const cp1 = cps[0]
                 const cp2 = cps[1]
-                const x = (1 - t) ** 3 * start[0] + 3 * (1 - t) ** 2 * t * cp1[0] + 3 * (1 - t) * t ** 2 * cp2[0] + t ** 3 * end[0]
-                const y = (1 - t) ** 3 * start[1] + 3 * (1 - t) ** 2 * t * cp1[1] + 3 * (1 - t) * t ** 2 * cp2[1] + t ** 3 * end[1]
-                const z = (1 - t) ** 3 * start[2] + 3 * (1 - t) ** 2 * t * cp1[2] + 3 * (1 - t) * t ** 2 * cp2[2] + t ** 3 * end[2]
+                const x =
+                    (1 - t) ** 3 * start[0] +
+                    3 * (1 - t) ** 2 * t * cp1[0] +
+                    3 * (1 - t) * t ** 2 * cp2[0] +
+                    t ** 3 * end[0]
+                const y =
+                    (1 - t) ** 3 * start[1] +
+                    3 * (1 - t) ** 2 * t * cp1[1] +
+                    3 * (1 - t) * t ** 2 * cp2[1] +
+                    t ** 3 * end[1]
+                const z =
+                    (1 - t) ** 3 * start[2] +
+                    3 * (1 - t) ** 2 * t * cp1[2] +
+                    3 * (1 - t) * t ** 2 * cp2[2] +
+                    t ** 3 * end[2]
                 return [x, y, z]
             }
         }
@@ -459,8 +467,17 @@ function path3d(path) {
         const resolution = 1000
 
         for (let t = 1 / resolution; t <= 1; t += 1 / resolution) {
-            const point = getBezierPoint(t, startPoint, endPoint, ...controlPoints)
-            const dist = Math.hypot(point[0] - prevPoint[0], point[1] - prevPoint[1], point[2] - prevPoint[2])
+            const point = getBezierPoint(
+                t,
+                startPoint,
+                endPoint,
+                ...controlPoints
+            )
+            const dist = Math.hypot(
+                point[0] - prevPoint[0],
+                point[1] - prevPoint[1],
+                point[2] - prevPoint[2]
+            )
             totalLength += dist
             highResPoints.push(point)
             prevPoint = point
@@ -513,30 +530,53 @@ function path3d(path) {
         // 1. Find Center C
         const v01 = vsub(p1, p0)
         const v12 = vsub(p2, p1)
-        const m01 = vadd(p0, vscale(v01, 0.5)) 
+        const m01 = vadd(p0, vscale(v01, 0.5))
         const m12 = vadd(p1, vscale(v12, 0.5))
-        
-        const A1 = v01[0], B1 = v01[1], C1 = v01[2], D1 = vdot(v01, m01)
-        const A2 = v12[0], B2 = v12[1], C2 = v12[2], D2 = vdot(v12, m12)
+
+        const A1 = v01[0],
+            B1 = v01[1],
+            C1 = v01[2],
+            D1 = vdot(v01, m01)
+        const A2 = v12[0],
+            B2 = v12[1],
+            C2 = v12[2],
+            D2 = vdot(v12, m12)
 
         const N_arc_unnorm = vcross(v01, v12)
-        
+
         // CRITICAL FIX: Return [] for degenerate cases, letting the main loop push the final point.
         if (vlength(N_arc_unnorm) < 1e-6) {
-            return [] 
+            return []
         }
-        
+
         const N_arc = vnormalize(N_arc_unnorm)
-        const A3 = N_arc[0], B3 = N_arc[1], C3 = N_arc[2], D3 = vdot(N_arc, p0) 
+        const A3 = N_arc[0],
+            B3 = N_arc[1],
+            C3 = N_arc[2],
+            D3 = vdot(N_arc, p0)
 
         // Cramer's Rule for Center
-        const detA = ( A1 * (B2 * C3 - C2 * B3) - B1 * (A2 * C3 - C2 * A3) + C1 * (A2 * B3 - B2 * A3) )
-        
-        if (Math.abs(detA) < 1e-6) { return [] } // CRITICAL FIX
+        const detA =
+            A1 * (B2 * C3 - C2 * B3) -
+            B1 * (A2 * C3 - C2 * A3) +
+            C1 * (A2 * B3 - B2 * A3)
 
-        const detX = ( D1 * (B2 * C3 - C2 * B3) - B1 * (D2 * C3 - C2 * D3) + C1 * (D2 * B3 - B2 * D3) )
-        const detY = ( A1 * (D2 * C3 - C2 * D3) - D1 * (A2 * C3 - C2 * A3) + C1 * (A2 * D3 - D2 * A3) )
-        const detZ = ( A1 * (B2 * D3 - D2 * B3) - B1 * (A2 * D3 - D2 * A3) + D1 * (A2 * B3 - B2 * A3) )
+        if (Math.abs(detA) < 1e-6) {
+            return []
+        } // CRITICAL FIX
+
+        const detX =
+            D1 * (B2 * C3 - C2 * B3) -
+            B1 * (D2 * C3 - C2 * D3) +
+            C1 * (D2 * B3 - B2 * D3)
+        const detY =
+            A1 * (D2 * C3 - C2 * D3) -
+            D1 * (A2 * C3 - C2 * A3) +
+            C1 * (A2 * D3 - D2 * A3)
+        const detZ =
+            A1 * (B2 * D3 - D2 * B3) -
+            B1 * (A2 * D3 - D2 * A3) +
+            D1 * (A2 * B3 - B2 * A3)
 
         const cx = detX / detA
         const cy = detY / detA
@@ -546,61 +586,62 @@ function path3d(path) {
         // 2. Radius R and Basis
         const vC0 = vsub(p0, center)
         const R = vlength(vC0)
-        
+
         if (R < 1e-6) return [] // CRITICAL FIX
 
-        const X_basis = vnormalize(vC0) 
-        const Z_basis = N_arc 
-        const Y_basis = vcross(Z_basis, X_basis) 
+        const X_basis = vnormalize(vC0)
+        const Z_basis = N_arc
+        const Y_basis = vcross(Z_basis, X_basis)
 
         // 3. Calculate Angles (Fixed Math.atan2 usage)
         const PI2 = 2 * Math.PI
-        
+
         const vC2 = vsub(p2, center)
-        const x_proj2 = vdot(vC2, X_basis) 
-        const y_proj2 = vdot(vC2, Y_basis) 
+        const x_proj2 = vdot(vC2, X_basis)
+        const y_proj2 = vdot(vC2, Y_basis)
         let endAngle = Math.atan2(y_proj2, x_proj2)
 
         const vC1 = vsub(p1, center)
-        const x_proj1 = vdot(vC1, X_basis) 
-        const y_proj1 = vdot(vC1, Y_basis) 
+        const x_proj1 = vdot(vC1, X_basis)
+        const y_proj1 = vdot(vC1, Y_basis)
         const controlAngle = Math.atan2(y_proj1, x_proj1)
-        
+
         endAngle = (endAngle + PI2) % PI2
         const normControlAngle = (controlAngle + PI2) % PI2
 
         // 4. Determine Sweep (Improved robustness)
-        let sweep = endAngle 
-        
-        const isStartEndCoincident = vlength(vsub(p0, p2)) < 1e-6;
-        const isControlDistinct = vlength(vsub(p0, p1)) > 1e-6;
-        
+        let sweep = endAngle
+
+        const isStartEndCoincident = vlength(vsub(p0, p2)) < 1e-6
+        const isControlDistinct = vlength(vsub(p0, p1)) > 1e-6
+
         if (isStartEndCoincident && isControlDistinct) {
-            sweep = PI2;
+            sweep = PI2
         } else {
             // If control point angle is "beyond" the short arc end angle, take the long arc
-            if (normControlAngle > sweep + 1e-6) { 
-                sweep += PI2; 
+            if (normControlAngle > sweep + 1e-6) {
+                sweep += PI2
             }
         }
-        
+
         if (Math.abs(sweep) < 1e-6) {
             return [] // CRITICAL FIX
         }
 
         // 5. Generate Line Segments
         const segmentPoints = []
-        for (let j = 1; j < segments; j++) { // Loop up to segments - 1 to exclude endpoint P2
+        for (let j = 1; j < segments; j++) {
+            // Loop up to segments - 1 to exclude endpoint P2
             const angle = (sweep * j) / segments
-            
+
             const cosA = Math.cos(angle)
             const sinA = Math.sin(angle)
-            
+
             const termX = vscale(X_basis, R * cosA)
             const termY = vscale(Y_basis, R * sinA)
-            
+
             const newPoint = vadd(vadd(center, termX), termY)
-            
+
             segmentPoints.push(newPoint)
         }
 
@@ -612,8 +653,8 @@ function path3d(path) {
     // ----------------------------------------------------------------------
 
     var cp = [0, 0, 0] // Current Point (3D)
-    var cr = 0          // Current Rotation (2D)
-    var cs = [1, 1]     // Current Scale (2D)
+    var cr = 0 // Current Rotation (2D)
+    var cs = [1, 1] // Current Scale (2D)
     var i = 0
 
     var atr = 0 // Target Rotation
@@ -625,7 +666,7 @@ function path3d(path) {
 
         switch (command) {
             case 'm':
-                cp = [paths[i + 1], paths[i + 3], paths[i + 2]] 
+                cp = [paths[i + 1], paths[i + 3], paths[i + 2]]
                 newPath.p.push([...cp])
                 newPath.r.push(cr)
                 newPath.s.push([...cs])
@@ -662,10 +703,19 @@ function path3d(path) {
                         newPath.s.push([isx, isy])
                     }
                 }
-                cp = atp; cr = atr; cs = ats; atn = 1; i += 4; break
+                cp = atp
+                cr = atr
+                cs = ats
+                atn = 1
+                i += 4
+                break
             }
             case 'lr': {
-                const endPoint_lr = [cp[0] + paths[i + 1], cp[1] + paths[i + 3], cp[2] + paths[i + 2]]
+                const endPoint_lr = [
+                    cp[0] + paths[i + 1],
+                    cp[1] + paths[i + 3],
+                    cp[2] + paths[i + 2]
+                ]
                 if (atn === 1) {
                     newPath.p.push([...endPoint_lr])
                     newPath.r.push(atr)
@@ -684,7 +734,12 @@ function path3d(path) {
                         newPath.s.push([isx, isy])
                     }
                 }
-                cp = endPoint_lr; cr = atr; cs = ats; atn = 1; i += 4; break
+                cp = endPoint_lr
+                cr = atr
+                cs = ats
+                atn = 1
+                i += 4
+                break
             }
             case 'q': {
                 const endPoint_q = [paths[i + 4], paths[i + 6], paths[i + 5]]
@@ -840,53 +895,102 @@ function path3d(path) {
                 i += 10
                 break
             }
-            case 'x': { // Absolute 3D Arc
-                const controlPoint_x = [paths[i + 1], paths[i + 3], paths[i + 2]] 
+            case 'x': {
+                // Absolute 3D Arc
+                const controlPoint_x = [
+                    paths[i + 1],
+                    paths[i + 3],
+                    paths[i + 2]
+                ]
                 const endPoint_x = [paths[i + 4], paths[i + 6], paths[i + 5]]
-                
-                const segmentsToUse = atn > 1 ? atn : (fn || 16) 
-                
-                getArcSegmentPoints3D(cp, controlPoint_x, endPoint_x, segmentsToUse).forEach((p, j) => {
-                    const t = (j + 1) / segmentsToUse; newPath.p.push([...p])
-                    newPath.r.push(cr * (1 - t) + atr * t)
-                    newPath.s.push([cs[0] * (1 - t) + ats[0] * t, cs[1] * (1 - t) + ats[1] * t])
-                })
-                
-                // CRITICAL FIX: Explicitly push the final endpoint P2 after the segments
-                newPath.p.push([...endPoint_x]);
-                newPath.r.push(atr);
-                newPath.s.push([...ats]);
 
-                cp = endPoint_x; cr = atr; cs = ats; atn = 1; i += 7; break
+                const segmentsToUse = atn > 1 ? atn : fn || 16
+
+                getArcSegmentPoints3D(
+                    cp,
+                    controlPoint_x,
+                    endPoint_x,
+                    segmentsToUse
+                ).forEach((p, j) => {
+                    const t = (j + 1) / segmentsToUse
+                    newPath.p.push([...p])
+                    newPath.r.push(cr * (1 - t) + atr * t)
+                    newPath.s.push([
+                        cs[0] * (1 - t) + ats[0] * t,
+                        cs[1] * (1 - t) + ats[1] * t
+                    ])
+                })
+
+                // CRITICAL FIX: Explicitly push the final endpoint P2 after the segments
+                newPath.p.push([...endPoint_x])
+                newPath.r.push(atr)
+                newPath.s.push([...ats])
+
+                cp = endPoint_x
+                cr = atr
+                cs = ats
+                atn = 1
+                i += 7
+                break
             }
-            case 'xr': { // Relative 3D Arc
-                const controlPoint_xr = [cp[0] + paths[i + 1], cp[1] + paths[i + 3], cp[2] + paths[i + 2]]
-                const endPoint_xr = [cp[0] + paths[i + 4], cp[1] + paths[i + 6], cp[2] + paths[i + 5]]
-                
-				//PrintLog("fn:"+fn)
-                const segmentsToUse = atn > 1 ? atn : (fn || 16)
+            case 'xr': {
+                // Relative 3D Arc
+                const controlPoint_xr = [
+                    cp[0] + paths[i + 1],
+                    cp[1] + paths[i + 3],
+                    cp[2] + paths[i + 2]
+                ]
+                const endPoint_xr = [
+                    cp[0] + paths[i + 4],
+                    cp[1] + paths[i + 6],
+                    cp[2] + paths[i + 5]
+                ]
 
-                getArcSegmentPoints3D(cp, controlPoint_xr, endPoint_xr, segmentsToUse).forEach((p, j) => {
-                    const t = (j + 1) / segmentsToUse; newPath.p.push([...p])
+                //PrintLog("fn:"+fn)
+                const segmentsToUse = atn > 1 ? atn : fn || 16
+
+                getArcSegmentPoints3D(
+                    cp,
+                    controlPoint_xr,
+                    endPoint_xr,
+                    segmentsToUse
+                ).forEach((p, j) => {
+                    const t = (j + 1) / segmentsToUse
+                    newPath.p.push([...p])
                     newPath.r.push(cr * (1 - t) + atr * t)
-                    newPath.s.push([cs[0] * (1 - t) + ats[0] * t, cs[1] * (1 - t) + ats[1] * t])
+                    newPath.s.push([
+                        cs[0] * (1 - t) + ats[0] * t,
+                        cs[1] * (1 - t) + ats[1] * t
+                    ])
                 })
-                
-                // CRITICAL FIX: Explicitly push the final endpoint P2 after the segments
-                newPath.p.push([...endPoint_xr]);
-                newPath.r.push(atr);
-                newPath.s.push([...ats]);
 
-                cp = endPoint_xr; cr = atr; cs = ats; atn = 1; i += 7; break
+                // CRITICAL FIX: Explicitly push the final endpoint P2 after the segments
+                newPath.p.push([...endPoint_xr])
+                newPath.r.push(atr)
+                newPath.s.push([...ats])
+
+                cp = endPoint_xr
+                cr = atr
+                cs = ats
+                atn = 1
+                i += 7
+                break
             }
             case 'r':
-                atr = paths[i + 1]; i += 2; break
+                atr = paths[i + 1]
+                i += 2
+                break
             case 's':
-                ats = [paths[i + 1], paths[i + 2]]; i += 3; break
+                ats = [paths[i + 1], paths[i + 2]]
+                i += 3
+                break
             case 'n':
-                atn = paths[i + 1]; i += 2; break
+                atn = paths[i + 1]
+                i += 2
+                break
             default:
-                i = paths.length; break
+                i = paths.length
+                break
         }
     }
 
@@ -909,7 +1013,7 @@ function path3d(path) {
     var isClosed = false
     var fp = newPath.p[0]
     var lp = newPath.p[newPath.p.length - 1]
-    
+
     const tol = 0.001
     if (fp && lp) {
         var check = vabs(vsub(fp, lp))
@@ -925,51 +1029,45 @@ function path3d(path) {
         } else {
             newPath.n.push(calculateAverageTangent(undefined, fp, newPath.p[1]))
         }
-        
+
         // Intermediate points
         for (let j = 1; j < newPath.p.length - 1; j++) {
-            newPath.n.push(calculateAverageTangent(newPath.p[j - 1], newPath.p[j], newPath.p[j + 1]))
+            newPath.n.push(
+                calculateAverageTangent(
+                    newPath.p[j - 1],
+                    newPath.p[j],
+                    newPath.p[j + 1]
+                )
+            )
         }
 
         // Last point
         if (isClosed) {
             // Tangent for a closed loop is the same as the first point's tangent
-            newPath.n.push(newPath.n[0]) 
+            newPath.n.push(newPath.n[0])
         } else {
             newPath.n.push(
-                calculateAverageTangent(newPath.p[newPath.p.length - 2], lp, undefined)
+                calculateAverageTangent(
+                    newPath.p[newPath.p.length - 2],
+                    lp,
+                    undefined
+                )
             )
         }
     } else if (newPath.p.length === 1) {
-        newPath.n.push([1, 0, 0]);
+        newPath.n.push([1, 0, 0])
     }
 
     return newPath
 }
 
-
-
-
-
 //------------------------------------------------------------------------------------------------------
-
-
-
-
-
-
-
-
-
-
-
-
 
 /**
  * @param {object} path - An object containing the 2D path and default segment number.
  * @returns {object} An object containing the new path with curves and lines converted to line segments.
  */
- 
+
 function path2d(path) {
     const paths = path.path
     const fn = path.fn
@@ -1088,7 +1186,9 @@ function path2d(path) {
      */
     const getArcSegmentPoints = (p0, p1, p2, segments) => {
         // Fallback for collinear or degenerate points
-        const crossProduct = (p1[1] - p0[1]) * (p2[0] - p1[0]) - (p1[0] - p0[0]) * (p2[1] - p1[1])
+        const crossProduct =
+            (p1[1] - p0[1]) * (p2[0] - p1[0]) -
+            (p1[0] - p0[0]) * (p2[1] - p1[1])
         if (Math.abs(crossProduct) < 1e-6) {
             // Points are too close or collinear, fall back to a single line segment
             return [p2]
@@ -1101,15 +1201,15 @@ function path2d(path) {
         // 2. Get Slopes of Perpendicular Bisectors
         // General form of a line: Ax + By = C
         // Perpendicular bisector of P_a P_b: (x_b - x_a)x + (y_b - y_a)y = (x_b^2 - x_a^2 + y_b^2 - y_a^2) / 2
-        
+
         const A1 = p1[0] - p0[0]
         const B1 = p1[1] - p0[1]
-        const C1 = (p1[0]**2 - p0[0]**2 + p1[1]**2 - p0[1]**2) / 2
+        const C1 = (p1[0] ** 2 - p0[0] ** 2 + p1[1] ** 2 - p0[1] ** 2) / 2
 
         const A2 = p2[0] - p1[0]
         const B2 = p2[1] - p1[1]
-        const C2 = (p2[0]**2 - p1[0]**2 + p2[1]**2 - p1[1]**2) / 2
-        
+        const C2 = (p2[0] ** 2 - p1[0] ** 2 + p2[1] ** 2 - p1[1] ** 2) / 2
+
         const det = A1 * B2 - A2 * B1
 
         // 3. Find Center (Intersection Point)
@@ -1129,7 +1229,7 @@ function path2d(path) {
         // 6. Determine Arc Sweep
         // 'sweep' is the angle from startAngle to endAngle in the CCW direction (0 to 2*PI)
         let sweep = (endAngle - startAngle + PI2) % PI2
-        
+
         // controlAngle_rel is the angle of P1 relative to P0 in the CCW direction (0 to 2*PI)
         const controlAngle_rel = (controlAngle - startAngle + PI2) % PI2
 
@@ -1148,8 +1248,8 @@ function path2d(path) {
         // For standard path commands, we assume CCW is the desired path unless otherwise specified.
 
         // If sweep is 0 (i.e., P0=P2, P1 is not P0), force a full 2*PI circle.
-        if (sweep < 1e-6 && Math.hypot(p0[0]-p2[0], p0[1]-p2[1]) < 1e-6) {
-            sweep = PI2;
+        if (sweep < 1e-6 && Math.hypot(p0[0] - p2[0], p0[1] - p2[1]) < 1e-6) {
+            sweep = PI2
         }
 
         // 7. Generate Line Segments
@@ -1177,6 +1277,7 @@ function path2d(path) {
             case 'm':
                 cp = [paths[i + 1], paths[i + 2]]
                 newPath.push('m', cp[0], cp[1])
+
                 i += 3
                 break
             case 'mr':
@@ -1306,11 +1407,12 @@ function path2d(path) {
                 i += 7
                 break
             }
-            case 'x': { // Absolute Arc Command (P0: cp, P1: Ctr, P2: End)
+            case 'x': {
+                // Absolute Arc Command (P0: cp, P1: Ctr, P2: End)
                 const controlPoint_x = [paths[i + 1], paths[i + 2]]
                 const endPoint_x = [paths[i + 3], paths[i + 4]]
                 const segmentsToUse = atn > 1 ? atn : fn
-                
+
                 const segmentPoints_x = getArcSegmentPoints(
                     cp,
                     controlPoint_x,
@@ -1327,8 +1429,12 @@ function path2d(path) {
                 i += 5
                 break
             }
-            case 'xr': { // Relative Arc Command (P0: cp, P1: Ctr + cp, P2: End + cp)
-                const controlPoint_xr = [cp[0] + paths[i + 1], cp[1] + paths[i + 2]]
+            case 'xr': {
+                // Relative Arc Command (P0: cp, P1: Ctr + cp, P2: End + cp)
+                const controlPoint_xr = [
+                    cp[0] + paths[i + 1],
+                    cp[1] + paths[i + 2]
+                ]
                 const endPoint_xr = [cp[0] + paths[i + 3], cp[1] + paths[i + 4]]
                 const segmentsToUse = atn > 1 ? atn : fn
 
@@ -1375,17 +1481,12 @@ function path2d(path) {
 
 //*/
 
-
-
-
-
-
 /**
  * @param {string[]} paths - An array representing the 2D path.
  * @param {number} fn - The default number of segments for curves.
  * @returns {object} An object containing the new path with curves and lines converted to line segments.
  */
- /*
+/*
 function path2d(path) {
     const paths = path.path
     const fn = path.fn
@@ -1655,10 +1756,6 @@ function path2d(path) {
 }
 //*/
 
-
-
-
-
 function convertTo2d(path) {
     const newPath = []
     let i = 0
@@ -1675,8 +1772,8 @@ function convertTo2d(path) {
                 break
             case 'q':
             case 'qr':
-			case 'x':
-			case 'xr':
+            case 'x':
+            case 'xr':
                 newPath.push(path[i + 1], path[i + 3], path[i + 4], path[i + 6]) // Add CPs and EP, ignore Z
                 i += 7
                 break
@@ -1725,8 +1822,8 @@ function convertTo3d(path, z = 0) {
                 break
             case 'q':
             case 'qr':
-			case 'x':
-			case 'xr':
+            case 'x':
+            case 'xr':
                 newPath.push(
                     path[i + 1],
                     z,
@@ -1814,6 +1911,7 @@ function arcPath3d(config) {
  * @param {boolean} close - A flag to indicate if the path should be closed.
  * @returns {THREE.Mesh[]} An array of THREE.js meshes.
  */
+// do not use threejs is very buggy
 function linePaths3d(target, commandPath, close) {
     var path = path3d(commandPath)
     // This part of the code is not being modified, but it's included for context
@@ -1886,7 +1984,6 @@ function linePaths3d(target, commandPath, close) {
     }
 
     for (const shape of shapes) {
-		
         const fn = shape.userData && shape.userData.fn ? shape.userData.fn : 30
         const shapePoints = shape.extractPoints(fn)
         const extrudedShape = new THREE.Shape(shapePoints.shape)
@@ -1895,7 +1992,7 @@ function linePaths3d(target, commandPath, close) {
         )
         const geometry = new THREE.ExtrudeGeometry(
             extrudedShape,
-			//shape,
+            //shape,
             extrudeSettings
         )
         const mesh = new THREE.Mesh(geometry, defaultMaterial.clone())
@@ -1903,8 +2000,189 @@ function linePaths3d(target, commandPath, close) {
     }
 
     // Return the array of meshes.
-	//temperaty fix because of difference needs one mesh;
-    return meshes;
+    //temperaty fix because of difference needs one mesh;
+    return meshes
+}
+
+//*/
+
+/**
+ * @param {object} target - The parent object to which the shapes are applied.
+ * @param {object} path - The pre-processed path data containing points, rotations, and normals.
+ * @param {boolean} close - A flag to indicate if the path should be closed.
+ * @returns {THREE.Mesh[]} An array of THREE.js meshes.
+ */
+//work on
+
+function linePaths3dEx(target, commandPath, close) {
+    var path = path3d(commandPath)
+    // This part of the code is not being modified, but it's included for context
+    var shapes = []
+    applyToShape(target, (item) => {
+        shapes.push(item)
+    })
+
+    var points3d = []
+
+    var preCalc = []
+
+    var upVector = new THREE.Vector3(0, 1, 0)
+
+    for (var i = 0; i < path.p.length; i++) {
+        points3d.push(...[0, 0, i])
+
+        // Apply 2D rotation on X and Z
+        const rotation = path.r[i]
+
+        var o = {}
+        o.cosR = Math.cos((rotation / 180) * Math.PI)
+        o.sinR = Math.sin((rotation / 180) * Math.PI)
+
+        // Now, we need to apply the 3D rotation from the normals and translation.
+        // Create a quaternion to handle the 3D orientation.
+        const normal = new THREE.Vector3().fromArray(path.n[i])
+        //const upVector = new THREE.Vector3(0, 1, 0);
+        o.quaternion = new THREE.Quaternion().setFromUnitVectors(
+            upVector,
+            normal
+        )
+
+       upVector.applyQuaternion(o.quaternion)
+
+        preCalc.push(o)
+    }
+
+    const meshes = [] // An array to store all the created meshes
+
+    if (!points3d || points3d.length < 6) {
+        PrintWarn(
+            'linePaths3d requires at least 6 numbers (2 points) for the 3D extrusion path.'
+        )
+        return null
+    }
+
+    const extrudePath = new THREE.CurvePath()
+
+    // Iterate through the flattened array, jumping by 3 for each point
+    for (let i = 0; i < points3d.length - 3; i += 3) {
+        const startPointIndex = i
+        const endPointIndex = i + 3
+
+        const startVector = new THREE.Vector3(
+            points3d[startPointIndex],
+            points3d[startPointIndex + 2],
+            points3d[startPointIndex + 1]
+        )
+        const endVector = new THREE.Vector3(
+            points3d[endPointIndex],
+            points3d[endPointIndex + 2],
+            points3d[endPointIndex + 1]
+        )
+
+        extrudePath.add(new THREE.LineCurve3(startVector, endVector))
+    }
+
+    // Add a closing segment if the 'close' parameter is true
+    if (close && points3d.length > 6) {
+        const startPointIndex = points3d.length - 3
+        const endPointIndex = 0
+
+        const startVector = new THREE.Vector3(
+            points3d[startPointIndex],
+            points3d[startPointIndex + 2],
+            points3d[startPointIndex + 1]
+        )
+        const endVector = new THREE.Vector3(
+            points3d[endPointIndex],
+            points3d[endPointIndex + 2],
+            points3d[endPointIndex + 1]
+        )
+
+        extrudePath.add(new THREE.LineCurve3(startVector, endVector))
+    }
+
+    const numPoints = points3d.length / 3
+
+    const extrudeSettings = {
+        steps: close ? numPoints : numPoints - 1,
+        bevelEnabled: false,
+        extrudePath: extrudePath
+    }
+
+    for (const shape of shapes) {
+        const fn = shape.userData && shape.userData.fn ? shape.userData.fn : 30
+        const shapePoints = shape.extractPoints(fn)
+        const extrudedShape = new THREE.Shape(shapePoints.shape)
+        extrudedShape.holes = shapePoints.holes.map(
+            (hole) => new THREE.Path(hole)
+        )
+        const geometry = new THREE.ExtrudeGeometry(
+            extrudedShape,
+            extrudeSettings
+        )
+        const mesh = new THREE.Mesh(geometry, defaultMaterial.clone())
+        meshes.push(mesh)
+    }
+
+    // The completed section starts here.
+    for (const mesh of meshes) {
+        const sp = mesh.geometry.attributes.position
+        for (var i = 0; i < sp.count; i++) {
+            var yindex = sp.getY(i)
+            //PrintLog('yinde:' + yindex)
+            // Get the local cross-section coordinates from the extruded geometry.
+            var x = sp.getX(i)
+            var y = 0 // This is set to 0 to flatten out the cross section.
+            var z = sp.getZ(i)
+
+            // Apply path.s for scale
+            x = x * path.s[yindex][0]
+            z = z * path.s[yindex][1]
+
+            // Apply 2D rotation on X and Z
+            //const rotation = path.r[yindex];
+            var o = preCalc[yindex]
+            //const cosR = Math.cos(rotation/180*Math.PI);
+            //const sinR = Math.sin(rotation/180*Math.PI);
+
+            let rotatedX = x * o.cosR - z * o.sinR
+            let rotatedZ = x * o.sinR + z * o.cosR
+
+            x = rotatedX
+            z = rotatedZ
+
+            // Now, we need to apply the 3D rotation from the normals and translation.
+            // Create a quaternion to handle the 3D orientation.
+            //const normal = new THREE.Vector3().fromArray(path.n[yindex]);
+            //const upVector = new THREE.Vector3(0, 1, 0);
+            //const quaternion = new THREE.Quaternion().setFromUnitVectors(upVector, normal);
+
+            // Create a point in local space.
+            const point = new THREE.Vector3(x, y, z)
+
+            // Apply the 3D rotation to the point using the quaternion.
+			
+			for (var k = 0; k <= yindex; k++) {
+                //point.applyQuaternion(o.quaternion)
+				
+                point.applyQuaternion(preCalc[k].quaternion)
+			}
+			
+
+            // Apply the 3D translation from path.p[yindex]
+            point.x += path.p[yindex][0]
+            point.y += path.p[yindex][1]
+            point.z += path.p[yindex][2]
+
+            // Update the geometry's attributes.
+            sp.setX(i, point.x)
+            sp.setY(i, point.y)
+            sp.setZ(i, point.z)
+        }
+    }
+
+    // Return the array of meshes.
+    return meshes
 }
 
 /**
@@ -1913,7 +2191,8 @@ function linePaths3d(target, commandPath, close) {
  * @param {boolean} close - A flag to indicate if the path should be closed.
  * @returns {THREE.Mesh[]} An array of THREE.js meshes.
  */
-
+//old good
+/*
 function linePaths3dEx(target, commandPath, close) {
     var path = path3d(commandPath)
     // This part of the code is not being modified, but it's included for context
@@ -1930,6 +2209,7 @@ function linePaths3dEx(target, commandPath, close) {
 
     for (var i = 0; i < path.p.length; i++) {
         points3d.push(...[0, 0, i])
+		
         // Apply 2D rotation on X and Z
         const rotation = path.r[i]
 
@@ -2079,7 +2359,7 @@ function linePaths3dEx(target, commandPath, close) {
 //*/
 
 // === Multi-Argument CSG Operations (Corrected) ===
-function union(target) {
+function union(...target) {
     //...meshes) {
 
     var meshes = []
@@ -2087,6 +2367,7 @@ function union(target) {
     applyToMesh(target, (item) => {
         meshes.push(item)
     })
+    PrintLog('len:' + meshes.length)
 
     if (meshes.length === 0) return null
     if (meshes.length === 1) return meshes[0]
@@ -2109,14 +2390,14 @@ function union(target) {
     return result
 }
 
-function difference(meshes, target) {
+function difference(meshes, ...target) {
     //...subMeshes) {
-	var mainMesh;
-	if (Array.isArray(meshes) || typeof item === 'object'){
-		mainMesh =union(meshes);
-	} else {
-		mainMesh=meshes;
-	}
+    var mainMesh
+    if (Array.isArray(meshes) || typeof item === 'object') {
+        mainMesh = union(meshes)
+    } else {
+        mainMesh = meshes
+    }
 
     var subMeshes = []
 
@@ -2146,7 +2427,7 @@ function difference(meshes, target) {
     //return new THREE.Mesh(result.geometry, defaultMaterial.clone());
 }
 
-function intersect(target) {
+function intersect(...target) {
     //...meshes) {
 
     var meshes = []
@@ -2183,7 +2464,7 @@ function intersect(target) {
  * @param {THREE.Mesh|Brush|Array|Object} target The mesh(es) to operate on.
  * @returns {THREE.Mesh|Brush} The resulting mesh representing the symmetric difference.
  */
-function inverseIntersect(target) {
+function inverseIntersect(...target) {
     var meshes = []
 
     applyToMesh(target, (item) => {
@@ -2370,7 +2651,6 @@ function scaleAdd(config = {}, target) {
 
     return target
 }
-
 
 function show(target) {
     applyToMesh(target, (item) => {
@@ -3324,14 +3604,13 @@ async function font(fontPath) {
  * @param {number} textData.fontSize - The font size.
  * @returns {Array<string|number>} A single array of all path commands.
  */
- 
+
 function text(textData) {
     let xOffset = 0
     const allCommands = []
-	if(textData.fontSize==undefined)
-	{
-		textData.fontSize=3;
-	}
+    if (textData.fontSize == undefined) {
+        textData.fontSize = 3
+    }
 
     // Helper function to convert opentype.js commands to the custom format
     function convertPathToCustomFormat(pathCommands) {
@@ -3387,16 +3666,12 @@ function text(textData) {
         }
 
         xOffset +=
-            glyph.advanceWidth * (textData.fontSize / textData.font.unitsPerEm);
-			
-			
+            glyph.advanceWidth * (textData.fontSize / textData.font.unitsPerEm)
     }
 
     return { path: allCommands, fn: textData.fn || 40 } // Include fn here for consistency
 }
 //*/
-
-
 
 // A new ASCII STL parser that ignores normals and just gets vertices
 function parseAsciiStl(text) {
