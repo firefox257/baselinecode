@@ -86,8 +86,16 @@ function getNewDefaultProjectData() {
 
 // --- START: ScadProject, Mesh/Data Helpers ---
 
-// Helper function to recursively traverse the target and apply color
-const applyFilter = (item, checkFunction,applyFunction, ...args) => {
+/**
+ * Helper function to recursively traverse a target structure and apply a function
+ * to specific items that pass a check.
+ *
+ * @param {any} item - The current item being processed (mesh, array, object, etc.).
+ * @param {function} checkFunction - A function that returns true if 'item' is a target mesh.
+ * @param {function} applyFunction - The function to apply to the target mesh.
+ * @param {...any} args - Additional arguments to pass to the applyFunction.
+ */
+const applyFilter = (item, checkFunction, applyFunction, ...args) => {
 	
 	// Case 1: The item is a single mesh (THREE.Mesh or Brush)
     if (checkFunction(item)) {
@@ -97,16 +105,34 @@ const applyFilter = (item, checkFunction,applyFunction, ...args) => {
     else if (Array.isArray(item)) {
         item.forEach((subItem) => applyFilter(subItem, checkFunction, applyFunction, ...args))
     }
-    // Case 3: The item is a generic object. Recursively process its properties.
-    else if (item !== null&& item !== undefined && typeof item === 'object') {
+    // Case 3: The item is a generic object. Recursively process its properties,
+    // EXCLUDING functions, getters, and setters.
+    else if (item !== null && item !== undefined && typeof item === 'object') {
         for (const key in item) {
+            // 1. Check if the property is directly on the object (not inherited)
             if (Object.prototype.hasOwnProperty.call(item, key)) {
+
+                const descriptor = Object.getOwnPropertyDescriptor(item, key);
+
+                // 2. Check to exclude functions
+                if (typeof item[key] === 'function') {
+                    continue; // Skip function properties
+                }
+                
+                // 3. Check to exclude getters and setters (accessor properties)
+                // If 'descriptor' exists, check if it has a 'get' or 'set' function defined.
+                if (descriptor && (descriptor.get || descriptor.set)) {
+                    continue; // Skip getter/setter properties
+                }
+
+                // If it passes all checks, continue recursion
                 applyFilter(item[key], checkFunction, applyFunction, ...args)
             }
         }
     }
     // All other data types (strings, numbers, etc.) are ignored.
 }
+
 
 function isMesh(item) 
 {     
