@@ -315,7 +315,10 @@ async function handleReadFile(res, filePathHeader) {
 }
 
 async function handleReadFileBinary(req, res, filePathHeader) {
-    const fullPath = path.join(FILES_ROOT, filePathHeader);
+   
+console.log("filePathHeader:"+filePathHeader)
+
+   const fullPath = path.join(FILES_ROOT, filePathHeader);
 
     if (!fullPath.startsWith(FILES_ROOT)) {
         return sendPlainTextResponse(res, 'Access Denied: Invalid file path.', 403);
@@ -675,7 +678,73 @@ function webHandler(req, res) {
 
     const requestedUrl = new URL(req.url, `http://${req.headers.host}`);
     const pathname = requestedUrl.pathname;
-
+	
+	const xcmd=req.headers['x-cmd'];
+	if(xcmd)
+	{
+		//console.log("xcmd:"+xcmd)
+		//console.log("x-src:"+req.headers['x-src'])
+		switch(xcmd)
+		{
+		case "ls":
+		handleLs(res, req.headers['x-src']);
+		return;
+		case "fread":
+		handleReadFile(res, req.headers['x-src']);
+		return;
+		case "freadb":
+		
+		handleReadFileBinary(req, res, req.headers['x-src']);
+		return;
+		case "fwrite":
+		if (req.method === 'POST' || req.method === 'PUT') {
+		handleSaveFile(req, res, req.headers['x-src']);
+		} else {
+		sendPlainTextResponse(res, 'SAVEFILE requires POST or PUT method.', 405);
+		}
+		return;
+		case "mkdir":
+		if (req.method === 'POST' || req.method === 'PUT') {
+		handleMkpath(res, req.headers['x-src']);
+		} else {
+		sendPlainTextResponse(res, 'MKPATH requires POST or PUT method.', 405);
+		}
+		return;
+		case "mv":
+		if (req.method === 'POST' || req.method === 'PUT') {
+		handleMv(res, req.headers['x-src'], req.headers['x-dst']);
+		} else {
+		sendPlainTextResponse(res, 'MV requires POST or PUT method.', 405);
+		}
+		return;
+		case "cp":
+		if (req.method === 'POST' || req.method === 'PUT') {
+		handleCopy(res, es, req.headers['x-src'], req.headers['x-dst']);
+		} else {
+		sendPlainTextResponse(res, 'COPY requires POST or PUT method.', 405);
+		}
+		return;
+		case "rn":
+		if (req.method === 'POST' || req.method === 'PUT') {
+		handleRn(res, req.headers['x-src'], req.headers['x-dst']);
+		} else {
+		sendPlainTextResponse(res, 'RN requires POST or PUT method.', 405);
+		}
+		return;
+		case "rm":
+		if (req.method === 'DELETE') {
+		handleDel(res, req.headers['x-src']);
+		} else {
+		sendPlainTextResponse(res, 'DEL requires DELETE method.', 405);
+		}
+		return;
+		default:
+		sendPlainTextResponse(res, 'Command not found ' + xcmd +"..." , 405);
+		return
+		
+		}
+	}
+	/*
     const lsPath = req.headers['x-ls-path'];
     const readFileHeader = req.headers['x-read-file'];
     const readFileBinaryHeader = req.headers['x-read-file-binary'];
@@ -767,6 +836,7 @@ function webHandler(req, res) {
         }
         return;
     }
+	//*/
 
     if (pathname.endsWith('.api.js')) {
         const apiName = path.basename(pathname, '.api.js');

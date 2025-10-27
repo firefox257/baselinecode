@@ -1,6 +1,3 @@
-
-
-
 // ./ux/textCode.js
 
 import {
@@ -80,6 +77,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
     const undoButton = editorContainerWrapper.querySelector('.undo-btn');
     const redoButton = editorContainerWrapper.querySelector('.redo-btn');
     const selectAllButton = editorContainerWrapper.querySelector('.select-all-btn');
+    const selectBracketButton = editorContainerWrapper.querySelector('.select-bracket-btn'); // <--- NEW REFERENCE
     const goToLineButton = editorContainerWrapper.querySelector('.goto-btn');
     const findButton = editorContainerWrapper.querySelector('.find-btn');
     const pagesButton = editorContainerWrapper.querySelector('.pages-btn');
@@ -221,7 +219,8 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
                     redoStack: []
                 }));
 
-                // Reset the current page index to the first page
+                // Reset the current page index to the first page (0)
+                const oldPageIndex = currentPageIndex;
                 currentPageIndex = 0;
 
                 // Update the UI with the first page's content and title
@@ -239,6 +238,23 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
                 updateUndoRedoButtons();
                 setCaretPosition(contentDiv, 1, 1);
                 scrollCaretIntoView(contentDiv);
+                
+                // Dispatch pagechange event if the pages array changed and the index implicitly reset
+                if (oldPageIndex !== currentPageIndex) {
+                    const detail = {
+                        valuesIndex: currentPageIndex,
+                        title: firstPage.title,
+                        content: firstPage.content
+                    };
+                    if (_onPageChangeHandler) {
+                        try {
+                            _onPageChangeHandler.call(editorContainerWrapper, detail);
+                        } catch (err) {
+                            console.error("Error executing programmatic onpagechange handler:", err);
+                        }
+                    }
+                    editorContainerWrapper.dispatchEvent(new CustomEvent('pagechange', { detail: detail, bubbles: true, composed: true }));
+                }
 
             } else {
                 console.warn("Attempted to set 'values' to a non-array value:", newValues);
@@ -266,6 +282,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
     let _onSaveHandler = null;
     let _onCloseHandler = null;
     let _onRunHandler = null;
+    let _onPageChangeHandler = null; // <-- NEW: Page Change Handler
 
     Object.defineProperty(editorContainerWrapper, 'oninput', {
         get() { return _onInputHandler; },
@@ -332,6 +349,20 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
         },
         configurable: true
     });
+    
+    // NEW: onpagechange property definition
+    Object.defineProperty(editorContainerWrapper, 'onpagechange', {
+        get() { return _onPageChangeHandler; },
+        set(newValue) {
+            if (typeof newValue === 'function' || newValue === null) {
+                _onPageChangeHandler = newValue;
+            } else {
+                console.warn("Attempted to set onpagechange to a non-function value:", newValue);
+            }
+        },
+        configurable: true
+    });
+
 
     // --- Helper Functions for Editor Instance ---
     const updateLineNumbers = () => {
@@ -353,42 +384,68 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
         pagesMenuDropdown.innerHTML = pages.map((p, i) => `<option value="${i}" ${i === currentPageIndex ? 'selected' : ''}>${p.title}</option>`).join('');
     };
 
+    // VITAL CHANGE IS HERE
     const switchPage = (index) => {
         if (index < 0 || index >= pages.length) return;
 
-        // Save the current page's content
-        pages[currentPageIndex].content = contentDiv.textContent;
+        const oldPageIndex = currentPageIndex;
+        const isPageChanging = index !== oldPageIndex;
+        
+        // 1. Save the content of the currently active page (before the switch)
+        pages[oldPageIndex].content = contentDiv.textContent;
 
-        // Switch to the new page
+        // 2. Switch the index
         currentPageIndex = index;
         const newPage = pages[currentPageIndex];
 
-        // Restore the new page's content, history pointer, and redo stack
+        // 3. Restore the new page's content, history pointer, and redo stack
         const stateToRestore = newPage.history[newPage.historyPointer] || {
             content: newPage.content,
-            caret: {
-                line: 1,
-                column: 1,
-                charIndex: 0
-            }
+            caret: getCaretPosition(contentDiv) // Use current caret position as fallback
         };
-
+        
         contentDiv.textContent = stateToRestore.content;
         titleTextSpan.textContent = newPage.title;
         pagesMenuTitleInput.value = newPage.title;
 
-        // Apply caret position
-        setCaretPosition(contentDiv, stateToRestore.caret.line, stateToRestore.caret.column);
-
-        // If the new page has no history, initialize it
+        // 4. If the new page has no history, initialize it
         if (newPage.history.length === 0) {
             pushToHistory(true);
         }
 
+        // 5. Update secondary UI elements
         updateLineNumbers();
         updateUndoRedoButtons();
         updatePageMenuDropdown();
+        
+        // 6. Apply caret position and scroll
+        setCaretPosition(contentDiv, stateToRestore.caret.line, stateToRestore.caret.column);
         scrollCaretIntoView(contentDiv);
+        
+        // 7. Dispatch 'pagechange' event ONLY if the index actually changed
+        if (isPageChanging) {
+            const detail = {
+                valuesIndex: currentPageIndex,
+                title: newPage.title,
+                content: newPage.content
+            };
+            
+            // 1. Programmatic Handler
+            if (_onPageChangeHandler) {
+                try {
+                    _onPageChangeHandler.call(editorContainerWrapper, detail);
+                } catch (err) {
+                    console.error("Error executing programmatic onpagechange handler:", err);
+                }
+            }
+            
+            // 2. Custom Event Dispatch
+            editorContainerWrapper.dispatchEvent(new CustomEvent('pagechange', {
+                detail: detail,
+                bubbles: true,
+                composed: true
+            }));
+        }
     };
 
     const pushToHistory = (force = false) => {
@@ -466,6 +523,137 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
         selection.removeAllRanges();
         selection.addRange(range);
     };
+    
+    // --- NEW: Bracket Selector Logic ---
+    const BRACKET_PAIRS = {
+        '{': '}',
+        '[': ']',
+        '(': ')',
+        '<': '>',
+        '}': '{',
+        ']': '[',
+        ')': '(',
+        '>': '<'
+    };
+
+    const isBracket = (char) => !!BRACKET_PAIRS[char];
+
+    /**
+     * Finds the matching bracket for the bracket at or near the current caret position
+     * and selects all content, including the brackets.
+     */
+    const selectBracketContent = () => {
+        const content = contentDiv.textContent;
+        const { charIndex } = getCaretPosition(contentDiv);
+        let startCharIndex = -1;
+        let endCharIndex = -1;
+        let targetBracket = '';
+
+        // 1. Determine if the caret is near a bracket
+        let checkIndex = charIndex;
+        let caretChar = content[checkIndex];
+        let prevChar = content[checkIndex - 1];
+
+        if (isBracket(prevChar)) {
+            // Case 1: Caret is immediately after a bracket (e.g., cursor is before the space after '{' or just after '{')
+            targetBracket = prevChar;
+            startCharIndex = checkIndex - 1;
+        } else if (isBracket(caretChar)) {
+            // Case 2: Caret is exactly on a bracket
+            targetBracket = caretChar;
+            startCharIndex = checkIndex;
+        } else {
+            // Not near a bracket, nothing to do
+            return;
+        }
+
+        const matchingBracket = BRACKET_PAIRS[targetBracket];
+        const isOpening = ['{', '[', '(', '<'].includes(targetBracket);
+        const searchDirection = isOpening ? 1 : -1;
+        let currentCount = 1;
+
+        let currentIndex = startCharIndex + searchDirection;
+
+        // 2. Search for the matching bracket
+        while (currentIndex >= 0 && currentIndex < content.length) {
+            const currentChar = content[currentIndex];
+
+            if (currentChar === targetBracket) {
+                currentCount++;
+            } else if (currentChar === matchingBracket) {
+                currentCount--;
+            }
+
+            if (currentCount === 0) {
+                // Found the match!
+                endCharIndex = currentIndex;
+                break;
+            }
+
+            currentIndex += searchDirection;
+        }
+
+        // 3. If a match is found, set the selection
+        if (endCharIndex !== -1) {
+            // Determine selection start and end (always start < end)
+            const selectionStart = Math.min(startCharIndex, endCharIndex);
+            const selectionEnd = Math.max(startCharIndex, endCharIndex) + 1; // +1 to include the closing bracket
+
+            // Set caret start position based on absolute character index
+            setCaretPosition(contentDiv, null, null, selectionStart);
+            const selection = window.getSelection();
+            if (!selection.rangeCount) return;
+            
+            const range = selection.getRangeAt(0);
+
+            // Find the end node/offset to set the selection end
+            let charsCounted = 0;
+            let endNode = contentDiv;
+            let endOffset = 0;
+            let currentNode = contentDiv.firstChild;
+            
+            // Handle case for empty contentDiv (shouldn't happen here but safe)
+            if (!currentNode && selectionEnd === 0) {
+                range.setEnd(contentDiv, 0);
+            }
+
+            while (currentNode) {
+                if (currentNode.nodeType === Node.TEXT_NODE) {
+                    const nodeLength = currentNode.length;
+                    if (selectionEnd <= charsCounted + nodeLength) {
+                        endNode = currentNode;
+                        endOffset = selectionEnd - charsCounted;
+                        break;
+                    }
+                    charsCounted += nodeLength;
+                } else if (currentNode.nodeType === Node.ELEMENT_NODE) {
+                     // Non-text nodes should be handled if present, but typically contenteditable
+                     // uses text nodes for code content.
+                     charsCounted += (currentNode.textContent ? currentNode.textContent.length : 0);
+                }
+                
+                // If selectionEnd is exactly the length of all content, the loop might finish without a break.
+                if (selectionEnd === content.length && !currentNode.nextSibling) {
+                    // Fallback to setting end at the end of the last node/container.
+                    endNode = contentDiv.lastChild || contentDiv;
+                    endOffset = endNode.nodeType === Node.TEXT_NODE ? endNode.length : (endNode.childNodes.length || 0);
+                }
+                
+                currentNode = currentNode.nextSibling;
+            }
+            
+            if (endNode) {
+                // Ensure endOffset doesn't exceed the node's length/child count
+                const maxOffset = endNode.nodeType === Node.TEXT_NODE ? endNode.length : endNode.childNodes.length;
+                range.setEnd(endNode, Math.min(endOffset, maxOffset));
+            }
+
+            selection.removeAllRanges();
+            selection.addRange(range);
+        }
+    };
+    // --- END NEW BRACKET SELECTOR LOGIC ---
+
 
     const showGoToLineDialog = () => {
         const currentLine = getCaretPosition(contentDiv).line;
@@ -494,14 +682,16 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
     };
 
     const toggleMenu = (menuName) => {
-        const mainMenuButtons = [undoButton.parentElement, redoButton.parentElement, selectAllButton.parentElement, goToLineButton.parentElement, findButton.parentElement, pagesButton.parentElement, runButton.parentElement, saveButton.parentElement, closeButton.parentElement];
+        // Find the index of the selectBracketButton's parent cell in the button array for correct slicing
+        const allButtonCells = Array.from(menuBar.querySelectorAll('td:not(.code-editor-title-bar)'));
+        
+        // Define all main menu buttons (including the new one)
+        const mainMenuButtons = [undoButton.parentElement, redoButton.parentElement, selectAllButton.parentElement, selectBracketButton.parentElement, goToLineButton.parentElement, findButton.parentElement, pagesButton.parentElement, runButton.parentElement, saveButton.parentElement, closeButton.parentElement];
         const findMenuButtons = [findInputCell, prevFindCell, nextFindCell, findCloseCell];
         const pagesMenuButtons = [pagesPrevCell, pagesTitleCell, pagesDropdownCell, pagesNextCell, pagesCloseCell];
 
         // First, hide all menus
-        mainMenuButtons.forEach(cell => cell.style.display = 'none');
-        findMenuButtons.forEach(cell => cell.style.display = 'none');
-        pagesMenuButtons.forEach(cell => cell.style.display = 'none');
+        allButtonCells.forEach(cell => cell.style.display = 'none');
         titleBarRow.style.display = 'none'; // Initially hide the title bar as well
 
         // Then, show the selected menu and the title bar if needed
@@ -592,6 +782,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
     undoButton.addEventListener('click', undo);
     redoButton.addEventListener('click', redo);
     selectAllButton.addEventListener('click', selectAll);
+    selectBracketButton.addEventListener('click', selectBracketContent); // <--- NEW ATTACHMENT
     goToLineButton.addEventListener('click', showGoToLineDialog);
     goToLineOkButton.addEventListener('click', goToLine);
     goToLineCancelButton.addEventListener('click', hideGoToLineDialog);
@@ -762,7 +953,51 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
             let lines = currentText.split('\n');
             const targetLineIndex = originalCaret.line - 1;
 
-            let shouldDeindentClosingBracket = false;
+			
+			
+			
+			
+            const currentLineContent = lines[targetLineIndex] || '';
+            let charIndexInLine = 0;
+            let visualColCounter = 0;
+            for (let i = 0; i < currentLineContent.length; i++) {
+                if (visualColCounter >= originalCaret.column) {
+                    charIndexInLine = i;
+                    break;
+                }
+                if (currentLineContent[i] === '\t') {
+                    visualColCounter += TAB_SPACES;
+                } else {
+                    visualColCounter += 1;
+                }
+                charIndexInLine = i + 1;
+            }
+            const contentBeforeCaretInLine = currentLineContent.substring(0, charIndexInLine);
+            const contentAfterCaretInLine = currentLineContent.substring(charIndexInLine);
+            let calculatedIndentLevel = 0;
+            const leadingTabsMatch = contentBeforeCaretInLine.match(/^\t*/);
+            const leadingTabs = leadingTabsMatch ? leadingTabsMatch[0].length : 0;
+            calculatedIndentLevel = leadingTabs;
+			
+			PrintLog("leadingTabs:"+leadingTabs)
+			
+            const bracketOpenings = (contentBeforeCaretInLine.match(/[{[(]/g) || []).length;
+            const bracketClosings = (contentBeforeCaretInLine.match(/[}\])]/g) || []).length;
+            calculatedIndentLevel += (bracketOpenings - bracketClosings);
+            
+			PrintLog("calculatedIndentLevel:"+calculatedIndentLevel);
+			const trimmedContentAfterCaret = contentAfterCaretInLine.trim();
+            if (trimmedContentAfterCaret.length > 0 && ['}', ']', ')'].includes(trimmedContentAfterCaret.charAt(0))) {
+                calculatedIndentLevel = Math.max(0, calculatedIndentLevel - 1);
+            }
+			
+            const newIndent = '\t'.repeat(Math.max(0, calculatedIndentLevel));
+            lines[targetLineIndex] = contentBeforeCaretInLine;
+            lines.splice(originalCaret.line, 0, newIndent + contentAfterCaretInLine);
+            
+			
+			
+			let shouldDeindentClosingBracket = false;
             if (['}', ']', ')'].includes(lastTypedChar) && targetLineIndex >= 0) {
                 const lineContentWhereBracketWasTyped = lines[targetLineIndex];
                 const trimmedLine = lineContentWhereBracketWasTyped.trim();
@@ -789,39 +1024,16 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
             if (shouldDeindentClosingBracket && lines[targetLineIndex] && lines[targetLineIndex].startsWith('\t')) {
                 lines[targetLineIndex] = lines[targetLineIndex].substring(1);
             }
-            const currentLineContent = lines[targetLineIndex] || '';
-            let charIndexInLine = 0;
-            let visualColCounter = 0;
-            for (let i = 0; i < currentLineContent.length; i++) {
-                if (visualColCounter >= originalCaret.column) {
-                    charIndexInLine = i;
-                    break;
-                }
-                if (currentLineContent[i] === '\t') {
-                    visualColCounter += TAB_SPACES;
-                } else {
-                    visualColCounter += 1;
-                }
-                charIndexInLine = i + 1;
-            }
-            const contentBeforeCaretInLine = currentLineContent.substring(0, charIndexInLine);
-            const contentAfterCaretInLine = currentLineContent.substring(charIndexInLine);
-            let calculatedIndentLevel = 0;
-            const leadingTabsMatch = contentBeforeCaretInLine.match(/^\t*/);
-            const leadingTabs = leadingTabsMatch ? leadingTabsMatch[0].length : 0;
-            calculatedIndentLevel = leadingTabs;
-            const bracketOpenings = (contentBeforeCaretInLine.match(/[{[(]/g) || []).length;
-            const bracketClosings = (contentBeforeCaretInLine.match(/[}\])]/g) || []).length;
-            calculatedIndentLevel += (bracketOpenings - bracketClosings);
-            const trimmedContentAfterCaret = contentAfterCaretInLine.trim();
-            if (trimmedContentAfterCaret.length > 0 && ['}', ']', ')'].includes(trimmedContentAfterCaret.charAt(0))) {
-                calculatedIndentLevel = Math.max(0, calculatedIndentLevel - 1);
-            }
-            const newIndent = '\t'.repeat(Math.max(0, calculatedIndentLevel));
-            lines[targetLineIndex] = contentBeforeCaretInLine;
-            lines.splice(originalCaret.line, 0, newIndent + contentAfterCaretInLine);
-            contentDiv.textContent = lines.join('\n');
-            const newCaretLine = originalCaret.line + 1;
+			
+			
+			
+			
+			
+			
+			
+			contentDiv.textContent = lines.join('\n');
+            
+			const newCaretLine = originalCaret.line + 1;
             const newCaretColumn = newIndent.length * TAB_SPACES;
             setCaretPosition(contentDiv, newCaretLine, newCaretColumn);
             scrollCaretIntoView(contentDiv);
@@ -1059,5 +1271,3 @@ function observeTextcodeElements() {
 document.addEventListener('DOMContentLoaded', () => {
     observeTextcodeElements();
 });
-
-

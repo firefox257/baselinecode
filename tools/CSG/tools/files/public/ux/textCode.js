@@ -12,7 +12,7 @@ import {
 
 // --- Module-level Variables ---
 let lastTypedChar = ''; // Tracks the last typed character for smart indentation
-
+let secLastTypedChar = ''; // Tracks the second last typed character for smart indentation. thisnisnfor }, senarios.
 // --- Core Editor Setup Function ---
 
 /**
@@ -934,6 +934,10 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
             composed: true
         }));
     });
+	
+	contentDiv.addEventListener('click', (e) => {
+		secLastTypedChar=lastTypedChar='';
+	});
 
     contentDiv.addEventListener('keydown', (e) => {
         if (e.key === 'Tab') {
@@ -944,6 +948,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
             range.insertNode(document.createTextNode('\t'));
             range.collapse(false);
             scrollCaretIntoView(contentDiv);
+			secLastTypedChar=lastTypedChar;
             lastTypedChar = '\t';
             pushToHistory();
         } else if (e.key === 'Enter') {
@@ -953,33 +958,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
             let lines = currentText.split('\n');
             const targetLineIndex = originalCaret.line - 1;
 
-            let shouldDeindentClosingBracket = false;
-            if (['}', ']', ')'].includes(lastTypedChar) && targetLineIndex >= 0) {
-                const lineContentWhereBracketWasTyped = lines[targetLineIndex];
-                const trimmedLine = lineContentWhereBracketWasTyped.trim();
-                let hasOpeningCounterpart = false;
-                switch (trimmedLine[0]) {
-                    case '}':
-                        hasOpeningCounterpart = lineContentWhereBracketWasTyped.includes('{');
-                        break;
-                    case ']':
-                        hasOpeningCounterpart = lineContentWhereBracketWasTyped.includes('[');
-                        break;
-                    case ')':
-                        hasOpeningCounterpart = lineContentWhereBracketWasTyped.includes('(');
-                        break;
-                }
-                if (trimmedLine === lastTypedChar ||
-                    (!hasOpeningCounterpart && lineContentWhereBracketWasTyped.startsWith(lastTypedChar))
-                ) {
-					
-					
-                    shouldDeindentClosingBracket = true;
-                }
-            }
-            if (shouldDeindentClosingBracket && lines[targetLineIndex] && lines[targetLineIndex].startsWith('\t')) {
-                lines[targetLineIndex] = lines[targetLineIndex].substring(1);
-            }
+			
             const currentLineContent = lines[targetLineIndex] || '';
             let charIndexInLine = 0;
             let visualColCounter = 0;
@@ -997,31 +976,104 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
             }
             const contentBeforeCaretInLine = currentLineContent.substring(0, charIndexInLine);
             const contentAfterCaretInLine = currentLineContent.substring(charIndexInLine);
-            let calculatedIndentLevel = 0;
+            
+			
+			
+			
+			let calculatedIndentLevel = 0;
+			//*/
             const leadingTabsMatch = contentBeforeCaretInLine.match(/^\t*/);
-            const leadingTabs = leadingTabsMatch ? leadingTabsMatch[0].length : 0;
+            
+			const leadingTabs = leadingTabsMatch ? leadingTabsMatch[0].length : 0;
             calculatedIndentLevel = leadingTabs;
+			
+			//PrintLog("leadingTabs:"+leadingTabs)
+			
             const bracketOpenings = (contentBeforeCaretInLine.match(/[{[(]/g) || []).length;
             const bracketClosings = (contentBeforeCaretInLine.match(/[}\])]/g) || []).length;
-            calculatedIndentLevel += (bracketOpenings - bracketClosings);
-            const trimmedContentAfterCaret = contentAfterCaretInLine.trim();
+			//PrintLog("secLastTypedChar:"+secLastTypedChar)
+			if ((['}', ']', ')'].includes(lastTypedChar)
+				|| ['}', ']', ')'].includes(secLastTypedChar)
+			
+				|| ['{', '[', '('].includes(contentBeforeCaretInLine[contentBeforeCaretInLine.length-1]) )
+				)
+				//&& targetLineIndex >= 0) 
+			{
+				calculatedIndentLevel += (bracketOpenings - bracketClosings);
+			}
+            
+			
+			
+			//PrintLog("calculatedIndentLevel:"+calculatedIndentLevel);
+			const trimmedContentAfterCaret = contentAfterCaretInLine.trim();
             if (trimmedContentAfterCaret.length > 0 && ['}', ']', ')'].includes(trimmedContentAfterCaret.charAt(0))) {
                 calculatedIndentLevel = Math.max(0, calculatedIndentLevel - 1);
             }
+			
             const newIndent = '\t'.repeat(Math.max(0, calculatedIndentLevel));
             lines[targetLineIndex] = contentBeforeCaretInLine;
             lines.splice(originalCaret.line, 0, newIndent + contentAfterCaretInLine);
-            contentDiv.textContent = lines.join('\n');
-            const newCaretLine = originalCaret.line + 1;
+            //*/
+			
+			
+			let shouldDeindentClosingBracket = false;
+            /*
+			if ((['}', ']', ')'].includes(lastTypedChar) ||  ['}', ']', ')'].includes(secLastTypedChar)) && targetLineIndex >= 0) {
+                const lineContentWhereBracketWasTyped = lines[targetLineIndex];
+                const trimmedLine = lineContentWhereBracketWasTyped.trim()[0];
+                let hasOpeningCounterpart = false;
+                switch (trimmedLine[0]) {
+                    case '}':
+                        hasOpeningCounterpart = lineContentWhereBracketWasTyped.includes('{');
+                        break;
+                    case ']':
+                        hasOpeningCounterpart = lineContentWhereBracketWasTyped.includes('[');
+                        break;
+                    case ')':
+                        hasOpeningCounterpart = lineContentWhereBracketWasTyped.includes('(');
+                        break;
+                }
+				
+				PrintLog("trimmedLine:"+trimmedLine);
+				PrintLog("hasOpeningCounterpart"+hasOpeningCounterpart)
+				
+                if (trimmedLine === lastTypedChar || trimmedLine === secLastTypedChar ||
+                    (!hasOpeningCounterpart && (lineContentWhereBracketWasTyped.startsWith(lastTypedChar))
+                ) {
+					
+					
+                    shouldDeindentClosingBracket = true;
+                }
+				shouldDeindentClosingBracket = true;
+            }
+			//*/
+			if ((['}', ']', ')'].includes(lastTypedChar) 
+			||  ['}', ']', ')'].includes(secLastTypedChar)) 
+			&& (bracketClosings - bracketOpenings) >0
+			&& targetLineIndex >= 0) {
+				shouldDeindentClosingBracket = true;
+			}
+			
+            if (shouldDeindentClosingBracket && lines[targetLineIndex] && lines[targetLineIndex].startsWith('\t')) {
+                lines[targetLineIndex] = lines[targetLineIndex].substring(1);
+            }
+			//*/
+			
+			
+			contentDiv.textContent = lines.join('\n');
+            
+			const newCaretLine = originalCaret.line + 1;
             const newCaretColumn = newIndent.length * TAB_SPACES;
             setCaretPosition(contentDiv, newCaretLine, newCaretColumn);
             scrollCaretIntoView(contentDiv);
             updateLineNumbers();
+			secLastTypedChar=lastTypedChar;
             lastTypedChar = '\n';
             contentDiv.dispatchEvent(new Event('input', { bubbles: true }));
             pushToHistory(true);
         } else if (['}', ']', ')'].includes(e.key)) {
-            lastTypedChar = e.key;
+            secLastTypedChar=lastTypedChar;
+			lastTypedChar = e.key;
         } else if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
             e.preventDefault();
             toggleMenu('find');
@@ -1032,6 +1084,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
             e.preventDefault();
             findPrevious();
         } else {
+			secLastTypedChar=lastTypedChar;
             lastTypedChar = '';
         }
     });

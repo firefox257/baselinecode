@@ -1,6 +1,3 @@
-
-
-
 /*
 for the apiCalls lets add some security.
 at 
@@ -27,7 +24,6 @@ do not remove!!!
 location is at ./js/apiCalls.js
 */
 
-
 /** @typedef {Object} FileInfo
  * @property {string} name - The name of the file or directory.
  * @property {'file' | 'directory'} type - The type of the item.
@@ -51,29 +47,29 @@ async function makeApiCall(method, endpoint, headers = {}, body = null) {
             'Content-Type': 'text/plain', // Default for most of our custom API calls
             ...headers
         }
-    };
+    }
 
     if (body !== null) {
-        options.body = body;
+        options.body = body
     }
 
     try {
-        const response = await fetch(endpoint, options);
+        const response = await fetch(endpoint, options)
 
         if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`API Error ${response.status}: ${errorText}`);
+            const errorText = await response.text()
+            throw new Error(`API Error ${response.status}: ${errorText}`)
         }
 
-        const contentType = response.headers.get('content-type');
+        const contentType = response.headers.get('content-type')
         if (contentType && contentType.includes('application/json')) {
-            return await response.json();
+            return await response.json()
         } else {
-            return await response.text();
+            return await response.text()
         }
     } catch (error) {
-        console.error("Network or API call error:", error);
-        throw error;
+        console.error('Network or API call error:', error)
+        throw error
     }
 }
 
@@ -83,8 +79,8 @@ const api = {
      * @param {string} path - The path to list, relative to the server's 'files' root. Can include wildcards (e.g., 'public/*.html').
      * @returns {Promise<FileInfo[]>} - A promise that resolves to an array of file/directory information.
      */
-	 
-	 /*example result
+
+    /*example result
 	 
 	 ls()
 [
@@ -145,9 +141,10 @@ const api = {
 	 */
     ls: async (path) => {
         if (!path) {
-            throw new Error("LS: Path is required.");
+            throw new Error('LS: Path is required.')
         }
-        return makeApiCall('GET', '/', { 'X-LS-Path': path });
+        //return makeApiCall('GET', '/', { 'X-LS-Path': path });
+        return makeApiCall('GET', '/', { 'X-CMD': 'ls', 'X-SRC': path })
     },
 
     /**
@@ -157,11 +154,12 @@ const api = {
      */
     readFile: async (filePath) => {
         if (!filePath) {
-            throw new Error("ReadFile: File path is required.");
+            throw new Error('ReadFile: File path is required.')
         }
-        return makeApiCall('GET', '/', { 'X-Read-File': filePath });
+        //return makeApiCall('GET', '/', { 'X-Read-File': filePath });
+        return makeApiCall('GET', '/', { 'X-CMD': 'fread', 'X-SRC': filePath })
     },
-    
+
     /**
      * Reads the content of a file as a binary ArrayBuffer.
      * @param {string} filePath - The path to the file to read, relative to the server's 'files' root.
@@ -169,21 +167,31 @@ const api = {
      */
     readFileBinary: async (filePath) => {
         if (!filePath) {
-            throw new Error("ReadFileBinary: File path is required.");
+            throw new Error('ReadFileBinary: File path is required.')
         }
-        const response = await fetch('/', {
+        /*const response = await fetch('/', {
             method: 'GET',
             headers: {
                 'X-Read-File-Binary': filePath
             }
+        });*/
+        //return makeApiCall('GET', '/', { 'X-CMD': 'freadb', 'X-SRC': filePath })
+		
+		const response = await fetch('/', {
+            method: 'GET',
+            headers: {
+				'X-CMD': 'freadb',
+                'X-SRC': filePath
+            }
         });
-
+		
+		
         if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`API Error ${response.status}: ${errorText}`);
+            const errorText = await response.text()
+            throw new Error(`API Error ${response.status}: ${errorText}`)
         }
 
-        return await response.arrayBuffer();
+        return await response.arrayBuffer()
     },
 
     /**
@@ -194,9 +202,16 @@ const api = {
      */
     saveFile: async (filePath, content) => {
         if (!filePath || content === undefined) {
-            throw new Error("SaveFile: File path and content are required.");
+            throw new Error('SaveFile: File path and content are required.')
         }
-        return makeApiCall('POST', '/', { 'X-Save-File': filePath }, content);
+        //return makeApiCall('POST', '/', { 'X-Save-File': filePath }, content);
+
+        return makeApiCall(
+            'POST',
+            '/',
+            { 'X-CMD': 'fwrite', 'X-SRC': filePath },
+            content
+        )
     },
 
     /**
@@ -206,9 +221,10 @@ const api = {
      */
     mkPath: async (mkPath) => {
         if (!mkPath) {
-            throw new Error("MkPath: Path to create is required.");
+            throw new Error('MkPath: Path to create is required.')
         }
-        return makeApiCall('POST', '/', { 'X-MKPATH': mkPath });
+        //return makeApiCall('POST', '/', { 'X-MKPATH': mkPath });
+        return makeApiCall('POST', '/', { 'X-CMD': 'mkdir', 'X-SRC': mkPath })
     },
 
     /**
@@ -219,12 +235,19 @@ const api = {
      */
     mv: async (sourcePath, destinationPath) => {
         if (!sourcePath || !destinationPath) {
-            throw new Error("MV: Source and destination paths are required.");
+            throw new Error('MV: Source and destination paths are required.')
         }
+        /*
         return makeApiCall('POST', '/', {
             'X-MV-Source': sourcePath,
             'X-MV-Destination': destinationPath
         });
+		//*/
+        return makeApiCall('POST', '/', {
+            'X-CMD': 'mv',
+            'X-SRC': sourcePath,
+            'X-DST': destinationPath
+        })
     },
 
     /**
@@ -235,12 +258,19 @@ const api = {
      */
     copy: async (sourcePath, destinationPath) => {
         if (!sourcePath || !destinationPath) {
-            throw new Error("COPY: Source and destination paths are required.");
+            throw new Error('COPY: Source and destination paths are required.')
         }
+        /*
         return makeApiCall('POST', '/', {
             'X-COPY-Source': sourcePath,
             'X-COPY-Destination': destinationPath
         });
+		//*/
+        return makeApiCall('POST', '/', {
+            'X-CMD': 'cp',
+            'X-SRC': sourcePath,
+            'X-DST': destinationPath
+        })
     },
 
     /**
@@ -251,14 +281,21 @@ const api = {
      */
     rn: async (sourcePath, newPath) => {
         if (!sourcePath || !newPath) {
-            throw new Error("RN: Source and destination paths are required.");
+            throw new Error('RN: Source and destination paths are required.')
         }
+        /*
         return makeApiCall('POST', '/', {
             'X-RN-Source': sourcePath,
             'X-RN-Destination': newPath
         });
+		//*/
+        return makeApiCall('POST', '/', {
+            'X-CMD': 'rn',
+            'X-SRC': sourcePath,
+            'X-DST': newPath
+        })
     },
-    
+
     /**
      * Deletes files or directories. Moves to trash first if not already in trash, then permanently deletes from trash.
      * @param {string} delPath - The path(s) to delete, relative to the server's 'files' root. Can include wildcards (e.g., 'temp/*.log').
@@ -266,10 +303,11 @@ const api = {
      */
     del: async (delPath) => {
         if (!delPath) {
-            throw new Error("DEL: Path to delete is required.");
+            throw new Error('DEL: Path to delete is required.')
         }
-        return makeApiCall('DELETE', '/', { 'X-DEL-Path': delPath });
+        //return makeApiCall('DELETE', '/', { 'X-DEL-Path': delPath });
+        return makeApiCall('DELETE', '/', { 'X-CMD': 'rm', 'X-SRC': delPath })
     }
-};
+}
 
-export { api };
+export { api }
