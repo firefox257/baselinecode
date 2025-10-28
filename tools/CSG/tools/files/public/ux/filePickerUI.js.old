@@ -1,3 +1,5 @@
+
+
 // ./ux/filePickerUI.js
 
 // --- Constants ---
@@ -30,12 +32,6 @@ export function injectStyles() {
             font-family: 'Fira Code', 'Cascadia Code', 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
             font-size: 14px;
             line-height: ${LINE_HEIGHT_EM};
-            box-sizing: border-box; /* ADDED: Global box-sizing */
-        }
-        
-        /* ADDED: Global box-sizing for descendants */
-        .file-picker-container-wrapper * {
-            box-sizing: border-box;
         }
 
         /* Title Bar Styles to show the full path */
@@ -49,16 +45,10 @@ export function injectStyles() {
             white-space: nowrap; /* Prevent text wrapping */
             display: flex; /* Always show the title bar */
             align-items: center;
-            /* FIX: Align title text to the left for start truncation */
-            justify-content: flex-start; 
+            justify-content: flex-end; /* Align title text to the right */
         }
         .file-picker-title-bar span {
-            /* FIX: Use RTL to achieve start-truncation */
-            flex-grow: 1;
-            direction: rtl;
-            text-align: left;
-            
-            text-overflow: ellipsis; 
+            text-overflow: ellipsis; /* Applies ellipsis to the start of the text */
             overflow: hidden;
             white-space: nowrap;
         }
@@ -260,8 +250,7 @@ export function injectStyles() {
             padding: 20px;
             border-radius: 8px;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-            z-index: 99999999999; 
-            display: flex; /* FIX: Added display: flex */
+            z-index: 99999999999; /* Above popup */
             flex-direction: column;
             gap: 15px;
             min-width: 280px;
@@ -313,7 +302,6 @@ export function injectStyles() {
             border-radius: 8px;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
             z-index: 99999999999;
-            display: flex; /* FIX: Added display: flex */
             flex-direction: column;
             gap: 15px;
             min-width: 280px;
@@ -364,58 +352,6 @@ export function injectStyles() {
         .file-picker-prompt-dialog-buttons button.cancel:hover {
             background-color: #5a6268;
         }
-        
-        /* New Creation Dialog Styles (Prompt with Radio Buttons) */
-        .file-picker-creation-dialog {
-            background-color: #fff;
-            border: 1px solid #ccc;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-            z-index: 99999999999;
-            display: flex; 
-            flex-direction: column;
-            gap: 15px;
-            min-width: 320px; 
-            max-width: 90%;
-        }
-
-        .file-picker-creation-dialog p {
-            margin: 0;
-            font-size: 1.1em;
-            color: #333;
-            text-align: center;
-        }
-
-        .file-picker-creation-dialog-options {
-            display: flex;
-            justify-content: center;
-            gap: 20px;
-            font-size: 1em;
-        }
-        
-        .file-picker-creation-dialog-options label {
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .file-picker-creation-dialog input[type="text"] {
-            width: calc(100% - 16px);
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 1em;
-            box-sizing: border-box;
-        }
-
-        .file-picker-creation-dialog-buttons {
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-        }
-
     `;
     document.head.appendChild(style);
     stylesInjected = true;
@@ -485,13 +421,23 @@ export function showConfirmDialog(message) {
 
         dialogOverlay.style.display = 'flex';
 
-        const handleResolve = (result) => {
+        const cleanup = () => {
+            okBtn.removeEventListener('click', handleOk);
+            cancelBtn.removeEventListener('click', handleCancel);
             dialogOverlay.style.display = 'none';
-            resolve(result);
-        }
+        };
 
-        okBtn.addEventListener('click', () => handleResolve(true), { once: true });
-        cancelBtn.addEventListener('click', () => handleResolve(false), { once: true });
+        const handleOk = () => {
+            cleanup();
+            resolve(true);
+        };
+        const handleCancel = () => {
+            cleanup();
+            resolve(false);
+        };
+
+        okBtn.addEventListener('click', handleOk);
+        cancelBtn.addEventListener('click', handleCancel);
     });
 }
 
@@ -523,91 +469,21 @@ export function showPromptDialog(message, defaultValue = '') {
         inputEl.focus();
         inputEl.select(); // Select the default value
 
-        const handleResolve = (result) => {
-            // Remove listeners for Enter/Escape
+        const cleanup = () => {
+            okBtn.removeEventListener('click', handleOk);
+            cancelBtn.removeEventListener('click', handleCancel);
             inputEl.removeEventListener('keydown', handleKeyDown);
             dialogOverlay.style.display = 'none';
-            resolve(result);
-        }
-        
-        const handleOk = () => handleResolve(inputEl.value);
-        const handleCancel = () => handleResolve(null);
-        
-        const handleKeyDown = (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                handleOk();
-            } else if (e.key === 'Escape') {
-                e.preventDefault();
-                handleCancel();
-            }
         };
-
-        okBtn.addEventListener('click', handleOk, { once: true });
-        cancelBtn.addEventListener('click', handleCancel, { once: true });
-        inputEl.addEventListener('keydown', handleKeyDown);
-    });
-}
-
-/**
- * Shows a dialog to create a new file or directory.
- * @returns {Promise<{name: string, type: 'file'|'directory'}|null>} Resolves to object with name and type, or null if canceled.
- */
-export function showCreationDialog() {
-    return new Promise(resolve => {
-        const dialogOverlay = getDialogOverlay();
-        dialogOverlay.innerHTML = `
-            <div class="file-picker-creation-dialog">
-                <p>Create New Item</p>
-                
-                <div class="file-picker-creation-dialog-options">
-                    <label>
-                        <input type="radio" name="creationType" value="file" checked>
-                        📄 File
-                    </label>
-                    <label>
-                        <input type="radio" name="creationType" value="directory">
-                        📁 Directory
-                    </label>
-                </div>
-
-                <input type="text" class="file-picker-item-name-input" placeholder="Enter name" />
-                
-                <div class="file-picker-creation-dialog-buttons">
-                    <button class="create-ok">Create</button>
-                    <button class="cancel">Cancel</button>
-                </div>
-            </div>
-        `;
-
-        const inputEl = dialogOverlay.querySelector('.file-picker-item-name-input');
-        const okBtn = dialogOverlay.querySelector('.create-ok');
-        const cancelBtn = dialogOverlay.querySelector('.cancel');
-
-        dialogOverlay.style.display = 'flex';
-        inputEl.focus();
-
-        const handleResolve = (result) => {
-            // Remove listeners for Enter/Escape
-            inputEl.removeEventListener('keydown', handleKeyDown);
-            dialogOverlay.style.display = 'none';
-            resolve(result);
-        }
 
         const handleOk = () => {
-            const name = inputEl.value.trim();
-            const type = dialogOverlay.querySelector('input[name="creationType"]:checked').value;
-
-            if (!name) {
-                inputEl.placeholder = "Name cannot be empty!";
-                inputEl.focus();
-                return;
-            }
-
-            handleResolve({ name, type });
+            cleanup();
+            resolve(inputEl.value);
         };
-        const handleCancel = () => handleResolve(null);
-        
+        const handleCancel = () => {
+            cleanup();
+            resolve(null);
+        };
         const handleKeyDown = (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
@@ -618,12 +494,11 @@ export function showCreationDialog() {
             }
         };
 
-        okBtn.addEventListener('click', handleOk, { once: true });
-        cancelBtn.addEventListener('click', handleCancel, { once: true });
+        okBtn.addEventListener('click', handleOk);
+        cancelBtn.addEventListener('click', handleCancel);
         inputEl.addEventListener('keydown', handleKeyDown);
     });
 }
-
 
 /**
  * Gets or creates a single, global overlay for all dialogs.
@@ -658,7 +533,8 @@ export function createPickerDOM(originalClass, originalId, initialPath) {
             <table class="file-picker-menu-bar">
                 <tbody>
                     <tr>
-                        <td><button class="create-btn" title="Create New File or Directory">➕</button></td>
+                        <td><button class="create-file-btn" title="Create New File">➕📄</button></td>
+                        <td><button class="create-dir-btn" title="Create New Directory">➕📁</button></td>
                         <td><button class="rename-btn" title="Rename" disabled>✏️</button></td>
                         <td><button class="copy-btn" title="Copy Selected" disabled>📋</button></td>
                         <td><button class="cut-btn" title="Cut Selected" disabled>✂️</button></td>
@@ -696,3 +572,7 @@ export function createPickerDOM(originalClass, originalId, initialPath) {
     pickerContainerWrapper.innerHTML = pickerHtml;
     return pickerContainerWrapper.firstElementChild;
 }
+
+
+
+

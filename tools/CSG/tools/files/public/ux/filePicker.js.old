@@ -1,3 +1,6 @@
+
+
+
 // ./ux/filePicker.js
 
 import { api } from '../js/apiCalls.js';
@@ -7,7 +10,6 @@ import {
     showPopupMessage,
     showConfirmDialog,
     showPromptDialog,
-    showCreationDialog,
     createPickerDOM
 } from './filePickerUI.js';
 
@@ -37,7 +39,6 @@ function setupFilePickerInstance(originalElement = null) {
     let instanceOnFilePickHandler = null;
     let instanceOnCancelHandler = null;
     let instanceSelectedFilePath = null;
-    let instanceSelectedFileType = null; // Track type for download check
 
     // Store original attributes from <filepicker> for emulation
     let originalId = null;
@@ -56,9 +57,8 @@ function setupFilePickerInstance(originalElement = null) {
         originalButtonTextAttribute = originalElement.getAttribute('useFileButtonText');
         initialFilePathAttribute = originalElement.getAttribute('file-path');
         if (initialFilePathAttribute) {
-            // Find the directory path from the file path
             const pathParts = initialFilePathAttribute.split('/');
-            pathParts.pop(); 
+            pathParts.pop(); // Remove the file name
             instanceCurrentPath = pathParts.join('/') + (pathParts.length > 1 ? '/' : '');
             if (pathParts.length === 1 && pathParts[0] === '') instanceCurrentPath = '/';
         }
@@ -67,31 +67,13 @@ function setupFilePickerInstance(originalElement = null) {
     // --- Create DOM Elements and Get References ---
     const pickerContainer = createPickerDOM(originalClass, originalId, instanceCurrentPath);
     const titleTextEl = pickerContainer.querySelector('.file-picker-title-text');
-    const createButton = pickerContainer.querySelector('.create-btn'); 
+    const createFileButton = pickerContainer.querySelector('.create-file-btn');
+    const createDirectoryButton = pickerContainer.querySelector('.create-dir-btn');
     const renameButton = pickerContainer.querySelector('.rename-btn');
     const copyButton = pickerContainer.querySelector('.copy-btn');
     const cutButton = pickerContainer.querySelector('.cut-btn');
     const pasteButton = pickerContainer.querySelector('.paste-btn');
     const deleteButton = pickerContainer.querySelector('.delete-btn');
-    
-    // --- DOWNLOAD BUTTON ADDITION ---
-    const downloadButton = document.createElement('button');
-    downloadButton.className = 'download-btn';
-    downloadButton.title = 'Download Selected File';
-    downloadButton.textContent = '📥';
-    
-    // Inject the download button into the menu bar's table row (after delete)
-    const menuRow = pickerContainer.querySelector('.file-picker-menu-bar tbody tr');
-    const deleteCell = deleteButton.closest('td');
-    if (deleteCell) {
-        const downloadCell = document.createElement('td');
-        downloadCell.appendChild(downloadButton);
-        // Insert before cancel button's cell
-        const cancelButtonCell = pickerContainer.querySelector('.cancel-btn').closest('td');
-        menuRow.insertBefore(downloadCell, cancelButtonCell);
-    }
-    // --- END DOWNLOAD BUTTON ADDITION ---
-
     const cancelButton = pickerContainer.querySelector('.cancel-btn');
     const usePathButton = pickerContainer.querySelector('.use-path-btn');
     const currentPathSpan = pickerContainer.querySelector('.file-picker-current-path');
@@ -149,21 +131,18 @@ function setupFilePickerInstance(originalElement = null) {
                 
                 renderFileList(dirPath || '/').then(() => {
                     const checkbox = fileListTbody.querySelector(`.file-checkbox[data-path="${normalizedPath}"]`);
-                    const row = checkbox ? checkbox.closest('tr') : fileListTbody.querySelector(`.file-name[data-path="${normalizedPath}"]`)?.closest('tr');
+                    const dirNameEl = fileListTbody.querySelector(`.file-name[data-path="${normalizedPath}"]`);
                     
                     if (checkbox) {
                         checkbox.checked = true;
                         instanceSelectedFilePath = normalizedPath;
-                        instanceSelectedFileType = row.dataset.type; // Set type
                         titleTextEl.textContent = normalizedPath;
-                    } else if (row) {
+                    } else if (dirNameEl) {
                         instanceSelectedFilePath = normalizedPath;
-                        instanceSelectedFileType = row.dataset.type; // Set type
                         titleTextEl.textContent = normalizedPath;
                     } else {
                         console.warn(`File or directory '${newValue}' not found.`);
                         instanceSelectedFilePath = null;
-                        instanceSelectedFileType = null; // Clear type
                         titleTextEl.textContent = 'No file selected';
                     }
                     updateButtonStates();
@@ -179,7 +158,6 @@ function setupFilePickerInstance(originalElement = null) {
         get() { return usePathButton.textContent; },
         set(newValue) {
             if (newValue && typeof newValue === 'string') {
-                usePathButton.textContent = newValue; // Update button text
                 usePathButton.title = `Use Selected File Path (${newValue})`;
             }
         },
@@ -213,19 +191,12 @@ function setupFilePickerInstance(originalElement = null) {
         deleteButton.disabled = !hasSelection;
         renameButton.disabled = !isSingleSelection;
         
-        // Download button logic: only enabled for a single file selection
-        const isSingleFileSelection = isSingleSelection && 
-            fileListTbody.querySelector(`.file-checkbox[data-path="${instanceSelectedFilePath}"]`)?.closest('tr')?.dataset.type === 'file';
-        downloadButton.disabled = !isSingleFileSelection; 
-        
         pasteButton.disabled = instanceClipboard.type === null || instanceClipboard.paths.length === 0;
 
-        // Check if selection is a single item (file or directory, not '..')
-        const isSingleItemPath = instanceSelectedFilePath && instanceSelectedFilePath !== 'Multiple files selected';
+        const isSingleItem = selectedCheckboxes.length === 1 || (instanceSelectedFilePath && !instanceSelectedFilePath.endsWith('/..') && !hasSelection);
         const isGoUpDir = instanceSelectedFilePath && instanceSelectedFilePath.endsWith('/..');
-        usePathButton.disabled = !isSingleItemPath || isGoUpDir;
+        usePathButton.disabled = !isSingleItem || isGoUpDir;
         
-        // Update Select All Checkbox state
         const allCheckboxes = fileListTbody.querySelectorAll('.file-checkbox');
         const allFileCheckboxes = Array.from(allCheckboxes).filter(cb => !cb.closest('.up-directory-row'));
         selectAllCheckbox.checked = allFileCheckboxes.length > 0 && selectedCheckboxes.length === allFileCheckboxes.length;
@@ -244,19 +215,15 @@ function setupFilePickerInstance(originalElement = null) {
         selectAllCheckbox.indeterminate = false;
 
         instanceSelectedFilePath = null;
-        instanceSelectedFileType = null; // Clear type
         titleTextEl.textContent = 'No file selected';
 
 
         try {
             const files = await api.ls(instanceCurrentPath === '/' ? '*' : `${instanceCurrentPath.endsWith('/') ? instanceCurrentPath + '*' : instanceCurrentPath + '/*'}`);
             let fileListHtml = '';
-            
-            // Add '..' row if not at root
             if (instanceCurrentPath !== '/') {
-                const parentPath = instanceCurrentPath.split('/').filter(p => p).slice(0, -1).join('/') + '/';
-                const upPath = parentPath === '/' ? '/' : parentPath || '/';
-
+                const parentPath = instanceCurrentPath.split('/').slice(0, -2).join('/') + '/';
+                const upPath = parentPath === '//' ? '/' : parentPath;
                 fileListHtml += `
                     <tr class="up-directory-row" data-type="directory">
                         <td>⬆️</td>
@@ -266,21 +233,16 @@ function setupFilePickerInstance(originalElement = null) {
                     </tr>
                 `;
             }
-            
-            // Sort files (Directories first, then by name)
             files.sort((a, b) => {
                 if (a.type === 'directory' && b.type === 'file') return -1;
                 if (a.type === 'file' && b.type === 'directory') return 1;
                 return a.name.localeCompare(b.name);
             });
-            
-            // Ensure path ends with '/' for consistent concatenation
-            const normalizedCurrentPath = instanceCurrentPath.endsWith('/') ? instanceCurrentPath : instanceCurrentPath + '/';
 
             files.forEach(file => {
                 const icon = file.type === 'directory' ? '📂' : '📄';
                 const size = file.type === 'file' ? formatBytes(file.size) : '';
-                const fullPath = normalizedCurrentPath + file.name;
+                const fullPath = instanceCurrentPath === '/' ? `/${file.name}` : `${instanceCurrentPath}${file.name}`;
                 const dataType = file.type === 'directory' ? 'data-type="directory"' : 'data-type="file"';
 
                 fileListHtml += `
@@ -304,36 +266,31 @@ function setupFilePickerInstance(originalElement = null) {
     /**
      * Updates the UI and state based on the current selection.
      */
-    const updateSelectionState = (path) => {
-        const selectedCheckboxes = fileListTbody.querySelectorAll('.file-checkbox:checked');
-        const checkedCount = selectedCheckboxes.length;
+    const updateSelectionState = (fullPath) => {
+        const checkboxes = fileListTbody.querySelectorAll('.file-checkbox');
+        checkboxes.forEach(cb => {
+            if (cb.dataset.path !== fullPath) {
+                cb.checked = false;
+            }
+        });
+
+        const selectedCheckbox = fileListTbody.querySelector(`.file-checkbox[data-path="${fullPath}"]`);
         
-        if (checkedCount === 1) {
-            const checkedBox = selectedCheckboxes[0];
-            instanceSelectedFilePath = checkedBox.dataset.path;
-            const row = checkedBox.closest('tr');
-            instanceSelectedFileType = row.dataset.type; // Update type
-            titleTextEl.textContent = instanceSelectedFilePath;
-        } else if (checkedCount > 1) {
-            instanceSelectedFilePath = 'Multiple files selected';
-            instanceSelectedFileType = null; // Clear type
-            titleTextEl.textContent = instanceSelectedFilePath;
+        if (selectedCheckbox && selectedCheckbox.checked) {
+            instanceSelectedFilePath = fullPath;
+            titleTextEl.textContent = fullPath;
         } else {
-            // Check if a directory row was clicked (without checking the checkbox)
-            const selectedDirNameEl = fileListTbody.querySelector(`.file-name[data-path="${path}"]`);
-            if (selectedDirNameEl && selectedDirNameEl.closest('tr').dataset.type === 'directory') {
-                instanceSelectedFilePath = path;
-                instanceSelectedFileType = 'directory'; // Set type
-                titleTextEl.textContent = path;
+            const selectedDirNameEl = fileListTbody.querySelector(`.file-name[data-path="${fullPath}"]`);
+            if (selectedDirNameEl) {
+                instanceSelectedFilePath = fullPath;
+                titleTextEl.textContent = fullPath;
             } else {
                 instanceSelectedFilePath = null;
-                instanceSelectedFileType = null; // Clear type
                 titleTextEl.textContent = 'No file selected';
             }
         }
         updateButtonStates();
     };
-
 
     /** Gets selected file/directory paths. */
     const getSelectedPaths = () => {
@@ -342,6 +299,9 @@ function setupFilePickerInstance(originalElement = null) {
             .map(cb => cb.dataset.path)
             .filter(name => name);
         
+        if (instanceSelectedFilePath && !paths.includes(instanceSelectedFilePath)) {
+            paths.push(instanceSelectedFilePath);
+        }
         return paths;
     };
     
@@ -362,10 +322,12 @@ function setupFilePickerInstance(originalElement = null) {
             return;
         }
 
+        // Correctly construct the new path based on the parent directory of the old path
         const parentDir = oldPath.substring(0, oldPath.lastIndexOf('/') + 1);
         const newPath = parentDir + newName;
         
         try {
+            // Use api.rn for renaming, which requires the new path to be in the same directory.
             await api.rn(oldPath, newPath);
             showPopupMessage(`Renamed '${oldName}' to '${newName}' successfully.`);
             renderFileList(instanceCurrentPath);
@@ -375,32 +337,49 @@ function setupFilePickerInstance(originalElement = null) {
         }
     };
 
-    /** Handles creating a new empty file or directory. (COMBINED) */
-    const handleCreate = async () => {
-        const result = await showCreationDialog();
-        
-        if (result === null || !result.name.trim()) {
-            showPopupMessage("Creation cancelled.", true);
+    /** Handles creating a new empty file. */
+    const handleCreateFile = async () => {
+        const fileName = await showPromptDialog('Enter new file name:');
+        if (fileName === null) {
+            showPopupMessage("File creation cancelled.", true);
+            return;
+        }
+        if (!fileName.trim()) {
+            showPopupMessage("File name cannot be empty.", true);
             return;
         }
 
-        const { name, type } = result;
-        const normalizedName = name.trim();
-        const pathSuffix = type === 'directory' ? '/' : '';
-        const fullPath = instanceCurrentPath.endsWith('/') ? `${instanceCurrentPath}${normalizedName}${pathSuffix}` : `${instanceCurrentPath}/${normalizedName}${pathSuffix}`;
-
+        const fullPath = instanceCurrentPath === '/' ? `/${fileName}` : `${instanceCurrentPath}${fileName}`;
         try {
-            if (type === 'file') {
-                await api.saveFile(fullPath, '');
-                showPopupMessage(`File '${normalizedName}' created successfully.`);
-            } else { // directory
-                await api.mkPath(fullPath);
-                showPopupMessage(`Directory '${normalizedName}' created successfully.`);
-            }
+            await api.saveFile(fullPath, '');
+            showPopupMessage(`File '${fileName}' created successfully.`);
             renderFileList(instanceCurrentPath);
         } catch (error) {
-            console.error(`Error creating ${type}:`, error);
-            showPopupMessage(`Failed to create ${type} '${normalizedName}': ${error.message}`, true);
+            console.error("Error creating file:", error);
+            showPopupMessage(`Failed to create file '${fileName}': ${error.message}`, true);
+        }
+    };
+
+    /** Handles creating a new directory. */
+    const handleCreateDirectory = async () => {
+        const dirName = await showPromptDialog('Enter new directory name:');
+        if (dirName === null) {
+            showPopupMessage("Directory creation cancelled.", true);
+            return;
+        }
+        if (!dirName.trim()) {
+            showPopupMessage("Directory name cannot be empty.", true);
+            return;
+        }
+
+        const fullPath = instanceCurrentPath === '/' ? `/${dirName}/` : `${instanceCurrentPath}${dirName}/`;
+        try {
+            await api.mkPath(fullPath);
+            showPopupMessage(`Directory '${dirName}' created successfully.`);
+            renderFileList(instanceCurrentPath);
+        } catch (error) {
+            console.error("Error creating directory:", error);
+            showPopupMessage(`Failed to create directory '${dirName}': ${error.message}`, true);
         }
     };
 
@@ -442,57 +421,43 @@ function setupFilePickerInstance(originalElement = null) {
         let successCount = 0;
         let failCount = 0;
 
-        // Fetch destination file list once for duplicate checking
-        let filesInDest = [];
-        try {
-            // Note: api.ls expects a path that can be wildcarded, but for duplicate check we need the directory content
-            const lsPath = destination === '/' ? '*' : destination + '*';
-            filesInDest = await api.ls(lsPath); 
-        } catch (error) {
-            console.error("Error fetching destination list:", error);
-            // Non-critical, continue with paste
-        }
-
         for (const sourcePath of instanceClipboard.paths) {
             const fileName = sourcePath.split('/').pop();
             let newFileName = fileName;
 
             if (instanceClipboard.type === 'copy') {
-                
-                let fileExists = filesInDest.some(f => f.name === newFileName);
+                try {
+                    const filesInDest = await api.ls(destination);
+                    const fileExists = filesInDest.some(f => f.name === newFileName);
 
-                if (fileExists) {
-                    let copyIndex = 0;
-                    let foundUniqueName = false;
-                    while (!foundUniqueName) {
-                        const nameParts = newFileName.split('.');
-                        const nameBase = nameParts.length > 1 ? nameParts.slice(0, -1).join('.') : newFileName;
-                        const nameExt = nameParts.length > 1 ? `.${nameParts.pop()}` : '';
-                        
-                        // Prevent adding 'copy' repeatedly if original name already contains it
-                        const baseWithoutCopy = nameBase.replace(/_copy\d+$/, '');
-
-                        const testName = `${baseWithoutCopy}_copy${copyIndex}${nameExt}`;
-
-                        const nameExists = filesInDest.some(f => f.name === testName);
-                        
-                        if (!nameExists) {
-                            newFileName = testName;
-                            foundUniqueName = true;
-                        } else {
-                            copyIndex++;
+                    if (fileExists) {
+						
+                        let copyIndex = 0;
+                        let foundUniqueName = false;
+                        while (!foundUniqueName) {
+                            const newName = `${newFileName}_copy${copyIndex}`;
+                            const nameExists = filesInDest.some(f => f.name === newName);
+                            if (!nameExists) {
+                                newFileName = newName;
+                                foundUniqueName = true;
+                            } else {
+                                copyIndex++;
+                            }
                         }
                     }
+                } catch (error) {
+                    console.error("Error checking for file existence:", error);
+                    // Continue with original filename if we can't check
                 }
             }
 
             try {
                 if (instanceClipboard.type === 'copy') {
                     await api.copy(sourcePath, destination + newFileName);
+                    showPopupMessage(`Copied ${sourcePath.split('/').pop()} to ${destination + newFileName}`);
                 } else if (instanceClipboard.type === 'cut') {
-                    // When cutting, we move to the destination directory. 
-                    // The backend should handle the final file name (usually keeps original).
                     await api.mv(sourcePath, destination);
+                    showPopupMessage(`Moved ${sourcePath.split('/').pop()} to ${destination}`);
                 }
                 successCount++;
             } catch (error) {
@@ -506,12 +471,10 @@ function setupFilePickerInstance(originalElement = null) {
             showPopupMessage(`${successCount} item(s) ${instanceClipboard.type}ed successfully.`);
         }
         if (failCount > 0) {
-            // Note: This popup will overwrite the success message if both occur, which is intended priority.
             showPopupMessage(`${failCount} item(s) failed to ${instanceClipboard.type}.`, true);
         }
 
-        // Clear clipboard only if cut operation succeeded on all items
-        if (instanceClipboard.type === 'cut' && failCount === 0) {
+        if (instanceClipboard.type === 'cut') {
             instanceClipboard = { type: null, paths: [] };
         }
         renderFileList(instanceCurrentPath);
@@ -541,7 +504,6 @@ function setupFilePickerInstance(originalElement = null) {
 
         for (const name of selected) {
             try {
-                // If in trash, delete permanently. Otherwise, move to trash.
                 if (instanceCurrentPath.startsWith('/trash/')) {
                     await api.del(name);
                 } else {
@@ -565,58 +527,15 @@ function setupFilePickerInstance(originalElement = null) {
         renderFileList(instanceCurrentPath);
         updateButtonStates();
     };
-    
-    /**
-     * Handles downloading the selected file.
-     */
-    const handleDownload = async () => {
-        if (!instanceSelectedFilePath || instanceSelectedFileType !== 'file') {
-            showPopupMessage("Please select a single file to download.", true);
-            return;
-        }
-
-        showPopupMessage(`Starting download for ${instanceSelectedFilePath.split('/').pop()}...`);
-
-        try {
-            // Use the binary API call to fetch file content
-            const arrayBuffer = await api.readFileBinary(instanceSelectedFilePath);
-            
-            // Get file name for the download
-            const fileName = instanceSelectedFilePath.split('/').pop();
-            
-            // Create a Blob from the ArrayBuffer
-            const blob = new Blob([arrayBuffer]);
-
-            // Create a temporary anchor element to trigger the download
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.style.display = 'none';
-            a.href = url;
-            a.download = fileName; 
-            
-            document.body.appendChild(a);
-            a.click();
-            
-            // Clean up the temporary elements and URL
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-
-            showPopupMessage(`Download of '${fileName}' completed.`);
-
-        } catch (error) {
-            console.error("Error during file download:", error);
-            showPopupMessage(`Download failed: ${error.message}`, true);
-        }
-    };
 
     // Handle "Use File Path" operation
     const handleUsePath = (e) => {
-        if (!instanceSelectedFilePath || instanceSelectedFilePath === 'Multiple files selected') {
-            showPopupMessage("Please select a single file or directory path to use.", true);
+        if (!instanceSelectedFilePath) {
+            showPopupMessage("No file is currently selected.", true);
             return;
         }
 
-        // Prioritize programmatic handler over attribute handler
+        // --- FIX: Prioritize programmatic handler over attribute handler to prevent double trigger ---
         if (instanceOnFilePickHandler) {
             try {
                 instanceOnFilePickHandler.call(pickerContainer, e, instanceSelectedFilePath);
@@ -626,6 +545,7 @@ function setupFilePickerInstance(originalElement = null) {
         } else if (originalOnFilePickAttribute) {
             executeAttributeHandler(originalOnFilePickAttribute, pickerContainer, e, instanceSelectedFilePath);
         }
+        // --- End of Fix ---
 
         pickerContainer.dispatchEvent(new CustomEvent('filepick', {
             detail: { filePath: instanceSelectedFilePath },
@@ -656,7 +576,6 @@ function setupFilePickerInstance(originalElement = null) {
 
     // --- Event Listeners ---
 
-    // Initial render or file path load
     if (initialFilePathAttribute) {
         pickerContainer.filePath = initialFilePathAttribute;
     } else {
@@ -664,13 +583,13 @@ function setupFilePickerInstance(originalElement = null) {
     }
     updateButtonStates();
 
-    createButton.addEventListener('click', handleCreate); 
+    createFileButton.addEventListener('click', handleCreateFile);
+    createDirectoryButton.addEventListener('click', handleCreateDirectory);
     renameButton.addEventListener('click', handleRename);
     copyButton.addEventListener('click', handleCopy);
     cutButton.addEventListener('click', handleCut);
     pasteButton.addEventListener('click', handlePaste);
     deleteButton.addEventListener('click', handleDelete);
-    downloadButton.addEventListener('click', handleDownload); // Add download listener
     refreshButton.addEventListener('click', () => renderFileList(instanceCurrentPath));
     cancelButton.addEventListener('click', handleCancel);
     usePathButton.addEventListener('click', handleUsePath);
@@ -679,30 +598,18 @@ function setupFilePickerInstance(originalElement = null) {
         const isChecked = e.target.checked;
         const checkboxes = fileListTbody.querySelectorAll('.file-checkbox');
         checkboxes.forEach(cb => {
-            if (!cb.closest('.up-directory-row')) { // Do not select '..'
+            if (!cb.disabled) {
                 cb.checked = isChecked;
             }
         });
 
-        // Update state based on selection count
-        const checkedBoxes = fileListTbody.querySelectorAll('.file-checkbox:checked');
-        const checkedCount = checkedBoxes.length;
-
-        if (checkedCount > 1) {
-            instanceSelectedFilePath = 'Multiple files selected';
-            instanceSelectedFileType = null;
-            titleTextEl.textContent = instanceSelectedFilePath;
-        } else if (checkedCount === 1) {
-            const checkedBox = checkedBoxes[0];
-            instanceSelectedFilePath = checkedBox.dataset.path;
-            instanceSelectedFileType = checkedBox.closest('tr').dataset.type;
+        if (isChecked && checkboxes.length > 0) {
+            instanceSelectedFilePath = "Multiple files selected";
             titleTextEl.textContent = instanceSelectedFilePath;
         } else {
             instanceSelectedFilePath = null;
-            instanceSelectedFileType = null;
             titleTextEl.textContent = 'No file selected';
         }
-
         updateButtonStates();
     });
 
@@ -711,35 +618,24 @@ function setupFilePickerInstance(originalElement = null) {
         if (!targetRow) return;
 
         const nameCell = targetRow.querySelector('.file-name');
-        
+        const checkbox = targetRow.querySelector('.file-checkbox');
+
         if (targetRow.classList.contains('up-directory-row')) {
             const upPath = nameCell.dataset.path;
             renderFileList(upPath);
             return;
         }
 
-        const fullPath = nameCell.dataset.path;
-        const isDirectory = targetRow.dataset.type === 'directory';
-        const checkbox = targetRow.querySelector('.file-checkbox');
-        const isCheckboxClick = e.target.classList.contains('file-checkbox');
-        
-        if (nameCell && !isCheckboxClick) {
-            // Case 1: Clicked on the file/directory name or row (but not the checkbox)
+        if (nameCell && !e.target.classList.contains('file-checkbox')) {
+            const fullPath = nameCell.dataset.path;
+            const isDirectory = targetRow.dataset.type === 'directory';
 
             if (isDirectory) {
-                // Directories: If the specific name element is clicked, navigate.
-                if (e.target.classList.contains('file-name')) {
-                    renderFileList(fullPath + '/');
-                } else {
-                    // If directory row is clicked elsewhere, toggle the checkbox for selection.
-                    checkbox.checked = !checkbox.checked;
-                    // Trigger change event manually to update selection state.
-                    checkbox.dispatchEvent(new Event('change', { bubbles: true }));
-                }
+                updateSelectionState(fullPath);
+                renderFileList(fullPath + '/');
             } else {
-                // Files: Toggle checkbox for selection.
                 checkbox.checked = !checkbox.checked;
-                checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+                updateSelectionState(fullPath);
             }
         }
     });
@@ -747,9 +643,19 @@ function setupFilePickerInstance(originalElement = null) {
     fileListTbody.addEventListener('change', (e) => {
         if (e.target.classList.contains('file-checkbox')) {
             const fullPath = e.target.dataset.path;
-            // The selection state is updated based on the total count of checked boxes, 
-            // ensuring multiselection is properly reflected in the title.
-            updateSelectionState(fullPath); 
+            const checkedCount = fileListTbody.querySelectorAll('.file-checkbox:checked').length;
+            if (e.target.checked) {
+                updateSelectionState(fullPath);
+            } else {
+                if (checkedCount === 0) {
+                    instanceSelectedFilePath = null;
+                    titleTextEl.textContent = 'No file selected';
+                } else {
+                    instanceSelectedFilePath = 'Multiple files selected';
+                    titleTextEl.textContent = instanceSelectedFilePath;
+                }
+            }
+            updateButtonStates();
         }
     });
 
@@ -849,3 +755,4 @@ function observeFilePickerElements() {
 document.addEventListener('DOMContentLoaded', () => {
     observeFilePickerElements();
 });
+

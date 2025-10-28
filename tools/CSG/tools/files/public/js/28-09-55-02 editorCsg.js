@@ -709,7 +709,7 @@ export async function handleLoadFile(event, filePath) {
             PrintWarn(`⚠️ File content read as empty. Treating as new project.`);
             fileContent = defaultDataJson;
         }
-		
+		PrintLog(fileContent)
         // STEP 3: Parse the content (either from file or the default object)
         projectData = JSON.parse(fileContent);
 

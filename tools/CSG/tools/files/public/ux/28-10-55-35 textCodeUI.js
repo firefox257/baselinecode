@@ -133,7 +133,7 @@ export function injectStyles() {
         .code-editor-line-numbers {
             flex-shrink: 0; /* Prevents shrinking of line numbers column */
             text-align: right;
-            padding: 5mm 0 calc(100vh) 0; /* Changed from 10px to 0 */
+            padding: 0; /* Changed from 10px to 0 */
             background-color: #f0f0f0; /* Lighter background for line numbers */
             color: #888; /* Darker text for line numbers */
             user-select: none; /* Prevents selection of line numbers */
@@ -150,7 +150,7 @@ export function injectStyles() {
         /* Styles for the content editable area */
         .code-editor-content {
             flex-grow: 1; /* Takes remaining space */
-            padding: 5mm calc(100vw) calc(100vh) 5mm; /* Changed from 10px to 0 */
+            padding: 0; /* Changed from 10px to 0 */
             outline: none; /* Removes default focus outline */
             overflow: auto; /* Enables scrolling for content */
             background-color: #ffffff; /* White background for editor content */
@@ -176,7 +176,7 @@ export function injectStyles() {
         /* Styling for the beautify button, now positioned absolutely */
         .code-editor-beautify-button-container {
             position: absolute;
-            top: 48px; /* Distance from bottom */
+            bottom: 0px; /* Distance from bottom */
             right: 0px; /* Distance from right */
             z-index: 10; /* Ensures it's above the editor content */
         }
