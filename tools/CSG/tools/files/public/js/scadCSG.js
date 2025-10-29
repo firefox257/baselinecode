@@ -1662,6 +1662,7 @@ function arcPath3d(config) {
 
 function linePaths3d(target, commandPath, close) {
     var path = path3d(commandPath)
+	//PrintLog(JSON.stringify(path));
     // This part of the code is not being modified, but it's included for context
     var shapes = []
     applyToShape(target, (item) => {
@@ -1821,7 +1822,9 @@ function linePaths3d(target, commandPath, close) {
         const sp = mesh.geometry.attributes.position
         for (var i = 0; i < sp.count; i++) {
             var yindex = sp.getY(i)
-            //PrintLog('yinde:' + yindex)
+			//PrintLog("i"+i)
+			
+            //PrintLog('yindez:' + yindex)
             // Get the local cross-section coordinates from the extruded geometry.
             var x = sp.getX(i)
             var y = 0 // This is set to 0 to flatten out the cross section.
@@ -2468,6 +2471,9 @@ function placement(offsets = {}, obj, ...target) {
  * @returns {object} A new path data object with translated coordinates.
  */
 function translatePath([x, y], pathObject) {
+	//PrintLog("x:"+x, "y:"+y)
+	//PrintLog("here1:"+JSON.stringify(pathObject))
+	
     const newPath = []
     let i = 0
     while (i < pathObject.path.length) {
@@ -2820,8 +2826,11 @@ function scaleAddPath(config = {}, pathObject) {
  */
 function alignPath(config = {}, pathObject) {
     const bbox = boundingBoxPath(pathObject)
-    const currentCx = (bbox.minX + bbox.maxX) / 2
-    const currentCy = (bbox.minY + bbox.maxY) / 2
+	//PrintLog("bbox: "+JSON.stringify(bbox))
+	
+	
+    const currentCx = (bbox.min.x + bbox.max.x) / 2
+    const currentCy = (bbox.min.y + bbox.max.y) / 2
 
     let offsetX = 0
     let offsetY = 0
