@@ -93,6 +93,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
     const findCloseButton = editorContainerWrapper.querySelector('.find-close-btn');
     const findCloseCell = findCloseButton.parentElement;
     const lineNumbersDiv = editorContainerWrapper.querySelector('.code-editor-line-numbers');
+	const contentDivScroller = editorContainerWrapper.querySelector('.code-editor-content-scroller');
     const contentDiv = editorContainerWrapper.querySelector('.code-editor-content');
     const beautifyButton = editorContainerWrapper.querySelector('.beautify-btn');
     const goToLineDialog = editorContainerWrapper.querySelector('.code-editor-goto-dialog');
@@ -198,7 +199,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
             const lines = newValue.split('\n');
             const lastLineLength = (lines.pop() || '').length;
             setCaretPosition(contentDiv, lines.length + 1, lastLineLength * TAB_SPACES);
-            scrollCaretIntoView(contentDiv);
+            scrollCaretIntoView(contentDivScroller);
             pushToHistory(true);
         },
         configurable: true
@@ -238,7 +239,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
                 updateLineNumbers();
                 updateUndoRedoButtons();
                 setCaretPosition(contentDiv, 1, 1);
-                scrollCaretIntoView(contentDiv);
+                scrollCaretIntoView(contentDivScroller);
                 
                 // Dispatch pagechange event if the pages array changed and the index implicitly reset
                 if (oldPageIndex !== currentPageIndex) {
@@ -402,7 +403,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
         // 3. Restore the new page's content, history pointer, and redo stack
         const stateToRestore = newPage.history[newPage.historyPointer] || {
             content: newPage.content,
-            caret: getCaretPosition(contentDiv) // Use current caret position as fallback
+            caret: getCaretPosition(contentDivScroller) // Use current caret position as fallback
         };
         
         contentDiv.textContent = stateToRestore.content;
@@ -421,7 +422,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
         
         // 6. Apply caret position and scroll
         setCaretPosition(contentDiv, stateToRestore.caret.line, stateToRestore.caret.column);
-        scrollCaretIntoView(contentDiv);
+        scrollCaretIntoView(contentDivScroller);
         
         // 7. Dispatch 'pagechange' event ONLY if the index actually changed
         if (isPageChanging) {
@@ -488,7 +489,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
         contentDiv.textContent = state.content;
         updateLineNumbers();
         setCaretPosition(contentDiv, state.caret.line, state.caret.column);
-        scrollCaretIntoView(contentDiv);
+        scrollCaretIntoView(contentDivScroller);
         updateUndoRedoButtons();
     };
 
@@ -677,7 +678,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
             return;
         }
         setCaretPosition(contentDiv, lineNumber, 1);
-        scrollCaretIntoView(contentDiv);
+        scrollCaretIntoView(contentDivScroller);
         hideGoToLineDialog();
         contentDiv.focus();
     };
@@ -735,7 +736,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
         }
         if (foundIndex !== -1) {
             setCaretPosition(contentDiv, null, null, foundIndex);
-            scrollCaretIntoView(contentDiv);
+            scrollCaretIntoView(contentDivScroller);
         }
     };
 
@@ -756,7 +757,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
         }
         if (foundIndex !== -1) {
             setCaretPosition(contentDiv, null, null, foundIndex);
-            scrollCaretIntoView(contentDiv);
+            scrollCaretIntoView(contentDivScroller);
         }
     };
 
@@ -889,14 +890,14 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
         }
     });
 
-    contentDiv.addEventListener('scroll', () => {
-        lineNumbersDiv.scrollTop = contentDiv.scrollTop;
+    contentDivScroller.addEventListener('scroll', () => {
+        lineNumbersDiv.scrollTop = contentDivScroller.scrollTop;
     });
 
     contentDiv.addEventListener('input', (e) => {
         pages[currentPageIndex].content = contentDiv.textContent;
         updateLineNumbers();
-        scrollCaretIntoView(contentDiv);
+        scrollCaretIntoView(contentDivScroller);
         pushToHistory();
         if (e.inputType === 'insertText') {
             lastTypedChar = e.data;
@@ -948,7 +949,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
             const range = selection.getRangeAt(0);
             range.insertNode(document.createTextNode('\t'));
             range.collapse(false);
-            scrollCaretIntoView(contentDiv);
+            scrollCaretIntoView(contentDivScroller);
 			secLastTypedChar=lastTypedChar;
             lastTypedChar = '\t';
             pushToHistory();
@@ -1066,7 +1067,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
 			const newCaretLine = originalCaret.line + 1;
             const newCaretColumn = newIndent.length * TAB_SPACES;
             setCaretPosition(contentDiv, newCaretLine, newCaretColumn);
-            scrollCaretIntoView(contentDiv);
+            scrollCaretIntoView(contentDivScroller);
             updateLineNumbers();
 			secLastTypedChar=lastTypedChar;
             lastTypedChar = '\n';
@@ -1092,8 +1093,8 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
 	
 	beautifyButton.addEventListener('click', () => {
 		
-		const originalScrollTop = contentDiv.scrollTop;
-		const originalScrollLeft = contentDiv.scrollLeft;
+		const originalScrollTop = contentDivScroller.scrollTop;
+		const originalScrollLeft = contentDivScroller.scrollLeft;
 
 		
 		
@@ -1194,21 +1195,21 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
         contentDiv.textContent = beautifiedLines.join('\n');
         updateLineNumbers();
         setCaretPosition(contentDiv, originalCaretPos.line, originalCaretPos.column);
-        scrollCaretIntoView(contentDiv);
+        scrollCaretIntoView(contentDivScroller);
         contentDiv.dispatchEvent(new Event('input', { bubbles: true }));
         pushToHistory(true);
 		
 		
 		
-		contentDiv.scrollTop = originalScrollTop;
-		contentDiv.scrollLeft = originalScrollLeft;
+		contentDivScroller.scrollTop = originalScrollTop;
+		contentDivScroller.scrollLeft = originalScrollLeft;
 
 		
     });
 
     const resizeObserver = new ResizeObserver(entries => {
         updateLineNumbers();
-        scrollCaretIntoView(contentDiv);
+        scrollCaretIntoView(contentDivScroller);
     });
     resizeObserver.observe(editorContainerWrapper);
     resizeObserver.observe(contentDiv);

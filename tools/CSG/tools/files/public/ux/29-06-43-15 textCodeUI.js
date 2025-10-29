@@ -133,7 +133,7 @@ export function injectStyles() {
         .code-editor-line-numbers {
             flex-shrink: 0; /* Prevents shrinking of line numbers column */
             text-align: right;
-            padding: 10mm 0 200vh 0; /*5mm 0 calc(100vh) 0;  Changed from 10px to 0 */
+            padding: 0; /*5mm 0 calc(100vh) 0;  Changed from 10px to 0 */
             background-color: #f0f0f0; /* Lighter background for line numbers */
             color: #888; /* Darker text for line numbers */
             user-select: none; /* Prevents selection of line numbers */
@@ -146,24 +146,13 @@ export function injectStyles() {
             line-height: ${LINE_HEIGHT_EM}em; /* Ensure text within div also matches */
             padding: 0 10px; /* Add padding here for visual spacing */
         }
-		
-		.code-editor-content-scroller {
-            flex-grow: 1; /* Takes remaining space */
-            padding: 0; /* 5mm calc(100vw) calc(100vh) 5mm;  Changed from 10px to 0 */
-            
-            overflow: auto; /* Enables scrolling for content */
-            background-color: #ffffff; /* White background for editor content */
-        }
-		
 
         /* Styles for the content editable area */
         .code-editor-content {
-            margin:0;
+            flex-grow: 1; /* Takes remaining space */
             padding:0; /* 5mm calc(100vw) calc(100vh) 5mm;  Changed from 10px to 0 */
             outline: none; /* Removes default focus outline */
-            
-			display: inline-block;
-			
+            overflow: auto; /* Enables scrolling for content */
             background-color: #ffffff; /* White background for editor content */
             color: #000000; /* Black font color for editor content */
             tab-size: ${TAB_SPACES}; /* Key CSS property for tab visual width */
@@ -500,11 +489,7 @@ export const editorHtml = `
     </table>
     <div class="code-editor-wrapper">
         <div class="code-editor-line-numbers"></div>
-		<div class="code-editor-content-scroller">
-			<span style="font-size:0; height:10mm; width:2000%; display:flex;padding:0; margin:0;border:0;"></span>
-        	<div class="code-editor-content" contenteditable="true" spellcheck="false" autocorrect="off" autocapitalize="off"></div>
-			<span style="height:100vh; width:2000%; display:inline-block;"></span>
-		</div>
+        <div class="code-editor-content" contenteditable="true" spellcheck="false" autocorrect="off" autocapitalize="off"></div>
     </div>
     <div class="code-editor-beautify-button-container">
         <button class="beautify-btn" title="Beautify Code">&#x2728;</button>
