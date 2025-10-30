@@ -201,7 +201,6 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
             setCaretPosition(contentDiv, lines.length + 1, lastLineLength * TAB_SPACES);
             scrollCaretIntoView(contentDivScroller);
             pushToHistory(true);
-			
         },
         configurable: true
     });
@@ -234,7 +233,6 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
 
                 // Initialize history for the new first page
                 pushToHistory(true);
-				
 
                 // Update UI elements that depend on the pages array and current page
                 updatePageMenuDropdown();
@@ -380,8 +378,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
 
     const updateUndoRedoButtons = () => {
         const currentPage = pages[currentPageIndex];
-        //undoButton.disabled = currentPage.historyPointer <= 0;
-		undoButton.disabled = currentPage.history.length === 0;
+        undoButton.disabled = currentPage.historyPointer <= 0;
         redoButton.disabled = currentPage.redoStack.length === 0;
     };
 
@@ -414,9 +411,9 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
         pagesMenuTitleInput.value = newPage.title;
 
         // 4. If the new page has no history, initialize it
-        //if (newPage.history.length === 0) {
-            //(true);
-        //}
+        if (newPage.history.length === 0) {
+            pushToHistory(true);
+        }
 
         // 5. Update secondary UI elements
         updateLineNumbers();
@@ -452,42 +449,37 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
             }));
         }
     };
-	
-	var oncurrentState;
+
     const pushToHistory = (force = false) => {
         const currentPage = pages[currentPageIndex];
         const currentState = {
             content: contentDiv.textContent,
             caret: getCaretPosition(contentDiv)
         };
-		
         // Check if the content has actually changed since the last history state
-        
-		if (currentPage.history.length > 0) {
-            const lastState = currentPage.history[currentPage.history.length-1];
+        if (currentPage.history.length > 0) {
+            const lastState = currentPage.history[currentPage.historyPointer];
             if (lastState.content === currentState.content &&
                 lastState.caret.line === currentState.caret.line &&
                 lastState.caret.column === currentState.caret.column) {
                 return;
             }
         }
-		
-		
         if (historyTimeout) {
             clearTimeout(historyTimeout);
         }
         if (force) {
             currentPage.redoStack = [];
+            currentPage.history = currentPage.history.slice(0, currentPage.historyPointer + 1);
             currentPage.history.push(currentState);
+            currentPage.historyPointer = currentPage.history.length - 1;
             updateUndoRedoButtons();
         } else {
-			if(oncurrentState==undefined) {
-				oncurrentState=currentState;
-			}
             historyTimeout = setTimeout(() => {
                 currentPage.redoStack = [];
-                currentPage.history.push(oncurrentState);
-				oncurrentState=undefined;
+                currentPage.history = currentPage.history.slice(0, currentPage.historyPointer + 1);
+                currentPage.history.push(currentState);
+                currentPage.historyPointer = currentPage.history.length - 1;
                 updateUndoRedoButtons();
             }, HISTORY_DEBOUNCE_TIME);
         }
@@ -503,15 +495,13 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
 
     const undo = () => {
         const currentPage = pages[currentPageIndex];
-        
-		if (currentPage.history.length > 0) {
-			const stateToApply = currentPage.history.pop();
-			
+        if (currentPage.historyPointer > 0) {
             currentPage.redoStack.push({
                 content: contentDiv.textContent,
                 caret: getCaretPosition(contentDiv)
             });
-			applyHistoryState(stateToApply);
+            currentPage.historyPointer--;
+            applyHistoryState(currentPage.history[currentPage.historyPointer]);
         }
     };
 
@@ -519,12 +509,11 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
         const currentPage = pages[currentPageIndex];
         if (currentPage.redoStack.length > 0) {
             const stateToApply = currentPage.redoStack.pop();
-			
             currentPage.history.push({
                 content: contentDiv.textContent,
                 caret: getCaretPosition(contentDiv)
             });
-            
+            currentPage.historyPointer = currentPage.history.length - 1;
             applyHistoryState(stateToApply);
         }
     };
@@ -783,7 +772,10 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
     };
 
     // --- Event Listeners ---
-    
+    // Initialize history for the first page
+    if (pages.length > 0 && pages[0].history.length === 0) {
+        pushToHistory(true);
+    }
     updateUndoRedoButtons();
     updatePageMenuDropdown();
     pagesMenuTitleInput.value = pages[currentPageIndex].title;
@@ -906,7 +898,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
         pages[currentPageIndex].content = contentDiv.textContent;
         updateLineNumbers();
         scrollCaretIntoView(contentDivScroller);
-        
+        pushToHistory();
         if (e.inputType === 'insertText') {
             lastTypedChar = e.data;
         } else {
@@ -926,12 +918,10 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
             composed: true
         }));
     });
-	
-	
 
     contentDiv.addEventListener('blur', () => {
         pages[currentPageIndex].content = contentDiv.textContent;
-        
+        pushToHistory(true);
         if (_onChangeHandler) {
             try {
                 _onChangeHandler.call(editorContainerWrapper, editorContainerWrapper.value);
@@ -952,9 +942,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
 	});
 
     contentDiv.addEventListener('keydown', (e) => {
-        
-		pushToHistory();
-		if (e.key === 'Tab') {
+        if (e.key === 'Tab') {
             e.preventDefault();
             const selection = window.getSelection();
             if (!selection.rangeCount) return;
@@ -964,7 +952,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
             scrollCaretIntoView(contentDivScroller);
 			secLastTypedChar=lastTypedChar;
             lastTypedChar = '\t';
-            
+            pushToHistory();
         } else if (e.key === 'Enter') {
             e.preventDefault();
             const originalCaret = getCaretPosition(contentDiv);
@@ -1084,7 +1072,7 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
 			secLastTypedChar=lastTypedChar;
             lastTypedChar = '\n';
             contentDiv.dispatchEvent(new Event('input', { bubbles: true }));
-            
+            pushToHistory(true);
         } else if (['}', ']', ')'].includes(e.key)) {
             secLastTypedChar=lastTypedChar;
 			lastTypedChar = e.key;
@@ -1209,6 +1197,9 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
         setCaretPosition(contentDiv, originalCaretPos.line, originalCaretPos.column);
         scrollCaretIntoView(contentDivScroller);
         contentDiv.dispatchEvent(new Event('input', { bubbles: true }));
+        pushToHistory(true);
+		
+		
 		
 		contentDivScroller.scrollTop = originalScrollTop;
 		contentDivScroller.scrollLeft = originalScrollLeft;

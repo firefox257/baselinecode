@@ -1039,6 +1039,12 @@ function initConsolePanelLoggers() {
         logToPanel("error", args, stack);
         console.error(...arguments); // Use console.error for actual errors
     };
+	globalThis.jlog=function(...args) {
+		for(var i=0; i < args.length; i+=2)
+		{
+			PrintLog(args[i]+":"+ JSON.stringify(args[i+1]));
+		}
+	}
 }
 
 

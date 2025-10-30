@@ -173,6 +173,8 @@ export function injectStyles() {
             box-sizing: border-box; /* Include padding in element's total width/height */
 			caret-color: red; /* Or 'lime', 'yellow', '#FF00FF', etc. */
 			caret-shape: block;
+			min-width:100vw;
+			min-height:100vh;
 
 			
 			
