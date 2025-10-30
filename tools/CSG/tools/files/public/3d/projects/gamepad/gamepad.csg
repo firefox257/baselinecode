@@ -2,7 +2,7 @@
   "csgCode": [
     {
       "title": "Work on",
-      "content": "\n\nvar f1=await font(\"/fonts/ClassicRomanCaps.ttf\");\n\nvar textPath=text({\n\t\tfont:f1,\n\t\ttext:\"hELLO\",\n\t\tfontSize:10,\n\t\tfn:20\n\t});\nvar s=shape(textPath);\n\nvar tv= linePaths3d(s, {\n\t\tpath:[\"m\", 0,-20,0,\"l\", 0,-15,0]\n\t});\n\n\nvar s=shape(rotatePath(0,{\n\t\t\tpath:[\n\t\t\t\t\"m\", 0,0,\n\t\t\t\t\"l\",0,20,\n\t\t\t\t\"l\",10,10,\n\t\t\t\t\"l\",0,0\n\t\t\t],\n\t\t\tfn:100\n\t\t}));\n\nvar v= rotate([0,0,0],linePaths3d(s, {\n\t\t\tpath:[\n\t\t\t\t\"m\", 0,0,0,\n\t\t\t\t\"lr\",10,0,0,\n\t\t\t\t\"lr\", 20,20,0,\n\t\t\t\t\"qr\", 0,10,0, -10,10,0 ,\n\t\t\t\t\"lr\", -30,0,0\n\n\t\t\t],\n\t\t\tfn:30\n\n\t\t}));\nreturn [v, tv];\n\n\n\n\n\n\n\n\n"
+      "content": "\n\nvar f1=await font(\"/fonts/ClassicRomanCaps.ttf\");\n\nvar textPath=text({\n\t\tfont:f1,\n\t\ttext:\"hELLO\",\n\t\tfontSize:10,\n\t\tfn:20\n\t});\nvar s=shape(textPath);\n\nvar tv= linePaths3d(s, {\n\t\tpath:[\"m\", 0,-20,0,\"l\", 0,-15,15]\n\t});\n\n\nvar s=shape(rotatePath(0,{\n\t\t\tpath:[\n\t\t\t\t\"m\", 0,0,\n\t\t\t\t\"l\",0,20,\n\t\t\t\t\"l\",10,10,\n\t\t\t\t\"l\",0,0\n\t\t\t],\n\t\t\tfn:100\n\t\t}));\n\nvar v= rotate([0,0,0],linePaths3d(s, {\n\t\t\tpath:[\n\t\t\t\t\"m\", 0,0,0,\n\t\t\t\t\"lr\",10,0,0,\n\t\t\t\t\"lr\", 20,20,0,\n\t\t\t\t\"qr\", 0,10,0, -10,10,0 ,\n\t\t\t\t\"lr\", -30,0,0\n\n\t\t\t],\n\t\t\tfn:30\n\n\t\t}));\nreturn [v, tv];\n\n\n\n\n\n\n\n\n"
     },
     {
       "title": "Case Left",

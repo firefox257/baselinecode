@@ -927,8 +927,6 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
         }));
     });
 	
-	
-
     contentDiv.addEventListener('blur', () => {
         pages[currentPageIndex].content = contentDiv.textContent;
         
@@ -950,6 +948,59 @@ function setupCodeEditorInstance(initialContent, originalElement = null) {
 	contentDiv.addEventListener('click', (e) => {
 		secLastTypedChar=lastTypedChar='';
 	});
+	
+	contentDiv.addEventListener('paste', function(event) {
+		pushToHistory();
+		
+      // 1. Prevent the default paste behavior
+      event.preventDefault();
+
+      // 2. Get the plain text from the clipboard
+      // event.clipboardData is a DataTransfer object
+      const plainText = event.clipboardData.getData('text/plain');
+
+      // 3. Insert the plain text into the document
+      
+      // For modern browsers: Use the standard document.execCommand
+      if (document.execCommand('insertText', false, plainText)) {
+        // execCommand succeeded (most modern browsers)
+        return;
+      }
+      
+      // Fallback for older browsers or environments where execCommand is restricted:
+      try {
+        // Use the Selection API to get the current selection/cursor position
+        const selection = window.getSelection();
+        if (!selection.rangeCount) return;
+        
+        // Delete any existing selected content
+        selection.deleteFromDocument();
+
+        // Create a text node with the plain text
+        const textNode = document.createTextNode(plainText);
+        
+        // Get the current range (cursor/selection position)
+        const range = selection.getRangeAt(0);
+        
+        // Insert the text node at the range's start
+        range.insertNode(textNode);
+        
+        // Move the cursor after the newly inserted text
+        range.setStartAfter(textNode);
+        range.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        
+      } catch (error) {
+        // A final, less ideal fallback for very restrictive environments
+        PrintError("Manual text insertion failed. Using contenteditable's textContent method (might lose position):", error);
+        document.execCommand('insertText', false, plainText);
+      }
+    });
+	
+	
+	
+	
 
     contentDiv.addEventListener('keydown', (e) => {
         
