@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Blob Script Cleanup Demo</title>
+    </head>
+    <body>
+        <h1>Blob Script Cleanup Demo</h1>
+        <p>
+            Watch for the alert box. After execution, the script tag and its
+            blob URL are cleaned up.
+        </p>
+
+        <script>
+            window.addEventListener('unhandledrejection', (event) => {
+                // The 'event.reason' property contains the Error object or rejection value.
+                console.error(
+                    '⚡️ Unhandled Promise Rejection Caught:',
+                    event.reason
+                )
+				alert("here:"+event.reason.stack)
+				alert("here:"+event.reason.message)
+
+                // Use event.preventDefault() to stop the browser's default warning.
+                event.preventDefault()
+            })
+
+            // 1. Define the JavaScript code as a string
+            const codeString = `//# sourceURL=bla-this-title.js		
+            // This is line 2 inside the dynamic script.
+			globalThis.ff= async function(){
+				//try{
+                hh(); // This will cause a ReferenceError since 'hh' is undefined
+				//} catch (e) {
+                // Alert the user with the stack trace
+                //alert("Stack Trace from Blob Script:\\n\\n" + e.stack); 
+                //alert(e.message);
+				//throw e;
+				//}
+			}
+			ff();
+        `;
+
+            // 2. Convert the string code into a Blob of type 'text/javascript'
+            const codeBlob = new Blob([codeString], { type: 'text/javascript' })
+
+            // 3. Create a blob: URL for the Blob
+            const blobUrl = URL.createObjectURL(codeBlob)
+
+            // 4. Dynamically create a <script> tag
+            const scriptElement = document.createElement('script')
+            scriptElement.src = blobUrl
+
+            // 5. ATTACH THE CLEANUP HANDLER
+            // The 'onload' event fires after the script has been executed.
+            scriptElement.onload = function () {
+                console.log('Script execution finished. Starting cleanup...')
+
+                // a. Revoke the blob URL to free up the associated memory.
+                URL.revokeObjectURL(blobUrl)
+
+                // b. Remove the script element from the DOM.
+                // Check if the parentNode exists before attempting to remove.
+                if (scriptElement.parentNode) {
+                    scriptElement.parentNode.removeChild(scriptElement)
+                    console.log('Script element removed from DOM.')
+                }
+                try {
+                    ff()
+                } catch (e) {
+                    alert('hereStack Trace from Blob Script:\\n\\n' + e.stack)
+                    alert(e.message)
+                }
+            }
+
+            // Handle errors in loading the script (though rare for a blob URL)
+            scriptElement.onerror = function () {
+                console.error(
+                    'Error loading the Blob script. Starting cleanup...'
+                )
+                // Still try to clean up the URL and the element even if an error occurs.
+                URL.revokeObjectURL(blobUrl)
+                if (scriptElement.parentNode) {
+                    scriptElement.parentNode.removeChild(scriptElement)
+                }
+            }
+
+            // 6. Append the script to the document body to trigger execution
+            document.body.appendChild(scriptElement)
+        </script>
+    </body>
+</html>

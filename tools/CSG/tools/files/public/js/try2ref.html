@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Blob Worker Return Value</title>
+</head>
+<body>
+
+    <h1>Web Worker from Blob URL: Returning a Value</h1>
+    <p>Check the Console (F12). The main thread will receive a message from the worker.</p>
+
+    <script>
+        // --- 1. Define the Async Code for the Worker (Returns a value via postMessage) ---
+        const WORKER_ASYNC_CODE = `
+            // Line 2: Async function definition
+            async function calculateAsync() { 
+                console.log("Worker: Starting async calculation...");
+                
+                // Line 5: Mimics an async operation that takes time
+                await new Promise(resolve => setTimeout(resolve, 50)); 
+                
+                // Line 7: The result of the async task
+                const result = "Data successfully processed by the worker!";
+                
+                // Line 10: Send the result back to the main thread
+                self.postMessage(result); 
+                
+                console.log("Worker: Result sent.");
+            }
+
+            // Line 14: Execute the function and ensure any rejections are logged inside the worker
+            calculateAsync().catch(err => {
+                console.error("Worker: Unhandled rejection during calculation:", err);
+            });
+            
+            // Line 19: The crucial Source URL for naming the script in the debugger
+            //# sourceURL=my-returning-worker-script.js
+        `;
+
+
+        // --- 2. Main Script Execution ---
+
+        function createWorkerFromBlob(code) {
+            const blob = new Blob([code], { type: 'application/javascript' });
+            const blobURL = URL.createObjectURL(blob);
+            const worker = new Worker(blobURL);
+            URL.revokeObjectURL(blobURL);
+            return worker;
+        }
+
+        const myWorker = createWorkerFromBlob(WORKER_ASYNC_CODE);
+
+        // --- 3. Listen for the Value from the Worker (Main Thread) ---
+        myWorker.onmessage = (e) => {
+            console.log("--- MESSAGE RECEIVED (Main Thread) ---");
+            console.log("Worker Data:", e.data);
+            console.log("--------------------------------------");
+            myWorker.terminate(); // Stop the worker after receiving the result
+        };
+
+        // --- 4. Handle Errors (Just in case the async task fails) ---
+        myWorker.onerror = (e) => {
+            console.error("Worker experienced an error!", e);
+        };
+        
+        console.log("Worker initialized and async task started. Waiting for message...");
+
+    </script>
+
+</body>
+</html>

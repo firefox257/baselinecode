@@ -1,194 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Blob Script Stack Trace Demo</title>
+    </head>
+    <body>
+        <h1>Blob Script Stack Trace Demo</h1>
+        <p>
+            Watch for the alert box. The stack trace should reference a `blob:`
+            URL.
+        </p>
 
+        <script>
+		/**
+ * Generates a standard UUID (Universally Unique Identifier) version 4.
+ * This is the modern, secure way to get a GUID in browser JavaScript.
+ */
 
-
-
-import { Evaluator, ADDITION, SUBTRACTION, INTERSECTION, Brush } from 'three-bvh-csg';
-
-// Global CSG Evaluator instance
-const csgEvaluator = new Evaluator();
-
-// A default material used for the meshes
-const defaultMaterial = new THREE.MeshStandardMaterial({
-    color: 0x42a5f5,
-    metalness: 0.2,
-    roughness: 0.6,
-    side: THREE.DoubleSide,
-    flatShading: true
-});
-
-// Helper function to apply a function to a mesh or array/object of meshes.
-function applyToMesh(target, func) {
-    if (target instanceof THREE.Mesh) {
-        func(target);
-    } else if (Array.isArray(target)) {
-        target.forEach(item => {
-            if (item instanceof THREE.Mesh) {
-                func(item);
-            }
-        });
-    } else if (typeof target === 'object' && target !== null) {
-        for (const key in target) {
-            if (target.hasOwnProperty(key)) {
-                const item = target[key];
-                if (item instanceof THREE.Mesh) {
-                    func(item);
-                } else if (Array.isArray(item)) {
-                    item.forEach(subItem => {
-                        if (subItem instanceof THREE.Mesh) {
-                            func(subItem);
-                        }
-                    });
+globalThis.guid = (() => {
+    // 1. Check for the native, secure, and standard method.
+    if (typeof window.crypto?.randomUUID === 'function') {
+        // Return the function itself (which will be assigned to globalThis.guid)
+        return window.crypto.randomUUID.bind(window.crypto); // Bind it for safety
+    } else {
+        // 2. Fallback to the insecure, older method.
+        return function () {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(
+                /[xy]/g,
+                function (c) {
+                    // Use Math.random and bitwise operators for hex value generation
+                    const r = (Math.random() * 16) | 0;
+                    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+                    return v.toString(16);
                 }
-            }
-        }
+            );
+        };
     }
-}
+})();
 
-// A helper function for creating a cylinder, required by the `thread` function.
-function cylinder({ d, dt, db, r, rt, rb, h, fn } = {}) {
-    let topRadius, bottomRadius
+// How to use it:
+// const newGuid = globalThis.guid(); 
+// console.log(newGuid); 
 
-    if (rt !== undefined) {
-        topRadius = rt
-    }
-    if (rb !== undefined) {
-        bottomRadius = rb
-    }
 
-    if (topRadius === undefined && dt !== undefined) {
-        topRadius = dt / 2
-    }
-    if (bottomRadius === undefined && db !== undefined) {
-        bottomRadius = db / 2
-    }
 
-    if (
-        topRadius === undefined &&
-        bottomRadius === undefined &&
-        r !== undefined
-    ) {
-        topRadius = r
-        bottomRadius = r
-    }
+// Assuming globalThis.Guid is defined and accessible as a function:
+// const Guid = globalThis.Guid; 
 
-    if (
-        topRadius === undefined &&
-        bottomRadius === undefined &&
-        d !== undefined
-    ) {
-        topRadius = d / 2
-        bottomRadius = d / 2
-    }
-
-    topRadius = topRadius || 0.5
-    bottomRadius = bottomRadius || 0.5
-    h = h || 1
-    fn = fn || 32
-
-    const geom = convertGeometry(new THREE.CylinderGeometry(topRadius, bottomRadius, h, fn));
-
-    return new THREE.Mesh(geom, defaultMaterial.clone())
-}
-
-// A helper function to convert a geometry to BufferGeometry.
-function convertGeometry(geom) {
-    if (geom.isBufferGeometry) return geom;
-    return new THREE.BufferGeometry().fromGeometry(geom);
-}
-
-// A helper function for performing a CSG union operation.
-function union(...meshes) {
-    if (meshes.length === 0) return null
-    if (meshes.length === 1) return meshes[0]
-    const brushA = new Brush(meshes[0].geometry, meshes[0].material)
-    brushA.position.copy(meshes[0].position)
-    brushA.rotation.copy(meshes[0].rotation)
-    brushA.scale.copy(meshes[0].scale)
-    brushA.updateMatrixWorld(true)
-
-    let result = brushA
-    for (let i = 1; i < meshes.length; i++) {
-        const mesh = meshes[i]
-        const brushB = new Brush(mesh.geometry, mesh.material)
-        brushB.position.copy(mesh.position)
-        brushB.rotation.copy(mesh.rotation)
-        brushB.scale.copy(mesh.scale)
-        brushB.updateMatrixWorld(true)
-        result = csgEvaluator.evaluate(result, brushB, ADDITION)
-    }
-    return result
-}
+globalThis.___blobfunctions = globalThis.___blobfunctions || {};
 
 /**
- * Creates a threaded rod mesh.
- * The function generates a cylindrical core and a helical thread
- * that are then combined using a CSG union operation.
- *
- * @param {object} params
- * @param {number} params.outerRadius - The outer radius of the thread.
- * @param {number} params.innerRadius - The inner radius of the thread's core.
- * @param {number} params.pitchHeight - The distance between two consecutive threads.
- * @param {number} params.height - The total height of the threaded rod.
- * @param {number} [params.fn=64] - The number of faces (radial segments) for the rod.
- * @returns {THREE.Mesh} The final threaded rod mesh.
+ * Creates and returns an async function that, when called, executes the 
+ * provided codeString within a dynamically injected Blob script and cleans up.
+ * * @param {string} codeString The JavaScript code to execute.
+ * @returns {function(): Promise<void>} An async function that runs the code.
  */
-function thread({ outerRadius, innerRadius, pitchHeight, height, fn = 64 }) {
-    // Ensure parameters are valid
-    if (outerRadius <= 0 || innerRadius <= 0 || pitchHeight <= 0 || height <= 0 || innerRadius >= outerRadius) {
-        console.error("Invalid parameters for `thread` function.");
-        return new THREE.Mesh();
-    }
+globalThis.blobFunction =  async function (codeString) 
+{
+	
+	var gid=guid();
+	
+	var params = ["bla","bla2","bla3"];
+	
+	var code =`___blobfunctions['${gid}'] =  function(${params.join(",")}){${codeString}}
+	`;
+	
+	alert(code);
+	
+	// 2. Convert the string code into a Blob of type 'text/javascript'
+	const codeBlob = new Blob([code], { type: 'text/javascript' })
+	// 3. Create a blob: URL for the Blob
+	const blobUrl = URL.createObjectURL(codeBlob)
+	// 4. Dynamically create a <script> tag
+	const scriptElement = document.createElement('script')
+	scriptElement.src = blobUrl
+	// 5. ATTACH THE CLEANUP HANDLER
+	// The 'onload' event fires after the script has been executed.
+	scriptElement.onload = function () {
+		//console.log('Script execution finished. Starting cleanup...')
+		// a. Revoke the blob URL to free up the associated memory.
+		URL.revokeObjectURL(blobUrl)
+		// b. Remove the script element from the DOM.
+		// Check if the parentNode exists before attempting to remove.
+		if (scriptElement.parentNode) {
+			scriptElement.parentNode.removeChild(scriptElement)
+			//console.log('Script element removed from DOM.')
+		}
+		try {
+			 ___blobfunctions[gid]();
+			 delete ___blobfunctions[gid];
+			 
+		} catch (e) {
+			console.log('hereStack Trace from Blob Script:\\n\\n' + e.stack)
+			alert(e.message)
+		}
+	}
+	// Handle errors in loading the script (though rare for a blob URL)
+	scriptElement.onerror = function () {
+		console.error(
+		'Error loading the Blob script. Starting cleanup...'
+		)
+		// Still try to clean up the URL and the element even if an error occurs.
+		URL.revokeObjectURL(blobUrl)
+		if (scriptElement.parentNode) {
+		scriptElement.parentNode.removeChild(scriptElement)
+		}
+	}
+	// 6. Append the script to the document body to trigger execution
+	document.body.appendChild(scriptElement)
 
-    // Create the cylindrical core of the rod
-    const coreMesh = new THREE.Mesh(
-        new THREE.CylinderGeometry(innerRadius, innerRadius, height, fn),
-        defaultMaterial.clone()
-    );
-
-    // Create the profile of a single thread (a simple triangle shape)
-    const threadProfile = new THREE.Shape();
-    const threadWidth = outerRadius - innerRadius;
-    const threadHeight = pitchHeight / 2; // V-shape half the pitch height for a full thread
-    threadProfile.moveTo(innerRadius, 0);
-    threadProfile.lineTo(outerRadius, threadHeight / 2);
-    threadProfile.lineTo(outerRadius, -threadHeight / 2);
-    threadProfile.lineTo(innerRadius, 0);
-
-    // Define the helix path for extrusion
-    const turns = height / pitchHeight;
-    const helixPath = new THREE.CurvePath();
-    const helixRadius = (outerRadius + innerRadius) / 2;
-
-    for (let i = 0; i <= turns; i++) {
-        // Add points along the helical path. We'll use multiple points per turn for a smoother curve.
-        const segmentsPerTurn = 100;
-        for (let j = 0; j <= segmentsPerTurn; j++) {
-            const angle = (i * 2 * Math.PI) + (j / segmentsPerTurn * 2 * Math.PI);
-            const y = (i * pitchHeight) + (j / segmentsPerTurn * pitchHeight);
-            const x = helixRadius * Math.cos(angle);
-            const z = helixRadius * Math.sin(angle);
-            helixPath.add(new THREE.LineCurve3(
-                new THREE.Vector3(x, y, z),
-                new THREE.Vector3(x, y, z)
-            ));
-        }
-    }
-
-    // Extrude the thread profile along the helix path
-    const threadGeometry = new THREE.ExtrudeGeometry(threadProfile, {
-        steps: 50, // Number of steps along the path
-        bevelEnabled: false,
-        extrudePath: helixPath
-    });
-
-    const threadMesh = new THREE.Mesh(threadGeometry, defaultMaterial.clone());
-
-    // Center the thread mesh along the Y-axis
-    threadMesh.geometry.translate(0, -height / 2, 0);
-
-    // Create the final threaded rod using CSG union operation
-    const rod = union(coreMesh, threadMesh);
-
-    return rod;
+	
 }
 
+ 
+blobFunction(`alert(1); 
+bbb(); 
+return 1;`);
+alert(3)
+
+        </script>
+    </body>
+</html>
